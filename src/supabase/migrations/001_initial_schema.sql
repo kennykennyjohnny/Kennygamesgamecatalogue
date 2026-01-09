@@ -5,41 +5,17 @@
 -- 1. TABLE KV_STORE (Table clé-valeur principale)
 -- =============================================================================
 -- Cette table existe déjà et est protégée : kv_store_3d47e466
--- Structure:
+-- Structure simple:
 -- CREATE TABLE kv_store_3d47e466 (
 --   key TEXT PRIMARY KEY,
---   value JSONB NOT NULL,
---   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
---   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+--   value JSONB NOT NULL
 -- );
 
 -- Index pour améliorer les performances de recherche par préfixe
 CREATE INDEX IF NOT EXISTS idx_kv_key_prefix ON kv_store_3d47e466 (key text_pattern_ops);
 
--- Index pour les timestamps
-CREATE INDEX IF NOT EXISTS idx_kv_created_at ON kv_store_3d47e466 (created_at);
-CREATE INDEX IF NOT EXISTS idx_kv_updated_at ON kv_store_3d47e466 (updated_at);
-
 -- =============================================================================
--- 2. FONCTION POUR METTRE À JOUR updated_at AUTOMATIQUEMENT
--- =============================================================================
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Trigger pour kv_store
-DROP TRIGGER IF EXISTS update_kv_store_updated_at ON kv_store_3d47e466;
-CREATE TRIGGER update_kv_store_updated_at
-BEFORE UPDATE ON kv_store_3d47e466
-FOR EACH ROW
-EXECUTE FUNCTION update_updated_at_column();
-
--- =============================================================================
--- 3. DONNÉES DE RÉFÉRENCE POUR LES JEUX
+-- 2. DONNÉES DE RÉFÉRENCE POUR LES JEUX
 -- =============================================================================
 -- Stocke les métadonnées des jeux dans la KV store
 INSERT INTO kv_store_3d47e466 (key, value)
@@ -59,7 +35,7 @@ VALUES (
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 
 -- =============================================================================
--- 4. INITIALISATION DES GOATS
+-- 3. INITIALISATION DES GOATS
 -- =============================================================================
 -- GOAT of All Time (sera mis à jour dynamiquement)
 INSERT INTO kv_store_3d47e466 (key, value)
@@ -74,25 +50,17 @@ VALUES (
 )
 ON CONFLICT (key) DO NOTHING;
 
--- Template pour GOAT du jour (créé dynamiquement chaque jour)
--- Exemple: goat_daily_2025-01-10
--- {
---   "date": "2025-01-10",
---   "userId": "...",
---   "userName": "...",
---   "totalScore": 850,
---   "gameScores": {
---     "vif": 720,
---     "plus": 38,
---     ...
---   }
--- }
-
 -- =============================================================================
--- 5. POLICIES RLS (Row Level Security)
+-- 4. POLICIES RLS (Row Level Security)
 -- =============================================================================
 -- Activer RLS sur kv_store
 ALTER TABLE kv_store_3d47e466 ENABLE ROW LEVEL SECURITY;
+
+-- Supprimer les anciennes policies si elles existent
+DROP POLICY IF EXISTS "Users can read all kv data" ON kv_store_3d47e466;
+DROP POLICY IF EXISTS "Users can write their own data" ON kv_store_3d47e466;
+DROP POLICY IF EXISTS "Users can update their own data" ON kv_store_3d47e466;
+DROP POLICY IF EXISTS "Service role can do everything" ON kv_store_3d47e466;
 
 -- Policy: Les utilisateurs authentifiés peuvent lire toutes les données
 CREATE POLICY "Users can read all kv data" ON kv_store_3d47e466
@@ -124,7 +92,7 @@ USING (true)
 WITH CHECK (true);
 
 -- =============================================================================
--- 6. FONCTIONS UTILITAIRES
+-- 5. FONCTIONS UTILITAIRES
 -- =============================================================================
 
 -- Fonction pour obtenir le GOAT du jour
@@ -224,7 +192,7 @@ END;
 $$;
 
 -- =============================================================================
--- 7. COMMENTAIRES SUR LA STRUCTURE DES DONNÉES
+-- 6. COMMENTAIRES SUR LA STRUCTURE DES DONNÉES
 -- =============================================================================
 /*
 STRUCTURE DES CLÉS DANS KV_STORE:
@@ -239,7 +207,10 @@ STRUCTURE DES CLÉS DANS KV_STORE:
        gameScores: {
          vif: { bestScore: number, totalGames: number, lastPlayed: timestamp },
          plus: { ... },
-         ...
+         moins: { ... },
+         multi: { ... },
+         div: { ... },
+         mix: { ... }
        },
        createdAt: timestamp,
        lastActive: timestamp
