@@ -26,23 +26,6 @@ interface UserStats {
   };
 }
 
-const FAKE_LEADERBOARD = [
-  { rank: 1, name: 'SuperKenny', totalScore: 850, highlight: true },
-  { rank: 2, name: 'FlashMaster', totalScore: 720 },
-  { rank: 3, name: 'CalcWizard', totalScore: 680 },
-  { rank: 4, name: 'SpeedRunner', totalScore: 540 },
-  { rank: 5, name: 'MathNinja', totalScore: 490 },
-];
-
-const FAKE_GAME_LEADERS = {
-  vif: { allTime: { name: 'ReflexPro', score: 850 }, today: { name: 'QuickShot', score: 720 } },
-  plus: { allTime: { name: 'CalcMaster', score: 45 }, today: { name: 'SpeedAdd', score: 38 } },
-  moins: { allTime: { name: 'SubKing', score: 42 }, today: { name: 'FastSub', score: 35 } },
-  multi: { allTime: { name: 'MultiPro', score: 40 }, today: { name: 'TimesMaster', score: 33 } },
-  div: { allTime: { name: 'DivWizard', score: 38 }, today: { name: 'QuickDiv', score: 30 } },
-  mix: { allTime: { name: 'AllRounder', score: 43 }, today: { name: 'MixKing', score: 36 } },
-};
-
 const TAGLINES = [
   "Excuse me, do you have 30 seconds to become a legend?",
   "Your high score is cute.",
@@ -60,6 +43,8 @@ export default function App() {
   const [stats, setStats] = useState<UserStats | null>(null);
   const [goatOfDay, setGoatOfDay] = useState<any>(null);
   const [goatAllTime, setGoatAllTime] = useState<any>(null);
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [gameLeaders, setGameLeaders] = useState<any>({});
   const [darkMode, setDarkMode] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [currentTagline, setCurrentTagline] = useState(0);
@@ -79,6 +64,7 @@ export default function App() {
       setUser(JSON.parse(storedUser));
       loadUserStats(storedToken);
       loadGoats();
+      loadLeaderboard();
     }
   }, []);
 
@@ -86,6 +72,7 @@ export default function App() {
     if (token && currentGame === 'menu') {
       loadUserStats(token);
       loadGoats();
+      loadLeaderboard();
     }
   }, [currentGame, token]);
 
@@ -112,17 +99,57 @@ export default function App() {
   const loadGoats = async () => {
     try {
       const { api } = await import('./utils/api');
-      const result = await api.getKennyOfDay();
-      if (result.success && result.kenny) {
-        setGoatOfDay(result.kenny);
-      } else {
-        setGoatOfDay({ userName: 'SuperKenny', totalScore: 850 });
+      
+      // Load GOAT of Day
+      const dayResult = await api.getKennyOfDay();
+      if (dayResult.success && dayResult.kenny) {
+        setGoatOfDay(dayResult.kenny);
       }
-      setGoatAllTime({ userName: 'LegendKenny', totalScore: 2400 });
+      
+      // Load GOAT All Time from leaderboard
+      const leaderboardResult = await api.getLeaderboard('general');
+      if (leaderboardResult.success && leaderboardResult.leaderboard?.length > 0) {
+        const topPlayer = leaderboardResult.leaderboard[0];
+        setGoatAllTime({
+          userName: topPlayer.userName,
+          totalScore: topPlayer.totalScore
+        });
+      }
     } catch (error) {
       console.error('Failed to load GOATs:', error);
-      setGoatOfDay({ userName: 'SuperKenny', totalScore: 850 });
-      setGoatAllTime({ userName: 'LegendKenny', totalScore: 2400 });
+    }
+  };
+
+  const loadLeaderboard = async () => {
+    try {
+      const { api } = await import('./utils/api');
+      const result = await api.getLeaderboard('general');
+      if (result.success && result.leaderboard) {
+        setLeaderboard(result.leaderboard.slice(0, 10));
+      }
+      
+      // Load top players for each game
+      const games = ['vif', 'plus', 'moins', 'multi', 'div', 'mix'];
+      const leaders: any = {};
+      
+      for (const gameId of games) {
+        const gameResult = await api.getLeaderboard(gameId);
+        if (gameResult.success && gameResult.leaderboard?.length > 0) {
+          leaders[gameId] = {
+            allTime: {
+              name: gameResult.leaderboard[0]?.userName || 'N/A',
+              score: gameResult.leaderboard[0]?.score || 0
+            },
+            today: {
+              name: gameResult.leaderboard[0]?.userName || 'N/A',
+              score: gameResult.leaderboard[0]?.score || 0
+            }
+          };
+        }
+      }
+      setGameLeaders(leaders);
+    } catch (error) {
+      console.error('Failed to load leaderboard:', error);
     }
   };
 
@@ -131,6 +158,7 @@ export default function App() {
     setToken(authToken);
     loadUserStats(authToken);
     loadGoats();
+    loadLeaderboard();
   };
 
   const handleLogout = () => {
@@ -306,22 +334,26 @@ export default function App() {
                 >
                   <h3 className="text-lg font-bold mb-3" style={{ color: 'var(--kg-text)' }}>🏆 Classement Global</h3>
                   <div className="space-y-2">
-                    {FAKE_LEADERBOARD.map((entry) => (
+                    {leaderboard.length > 0 ? leaderboard.map((entry, index) => (
                       <div
-                        key={entry.rank}
+                        key={entry.userId || index}
                         className="flex items-center justify-between p-2 rounded transition-transform hover:scale-[1.02]"
                         style={{
-                          backgroundColor: entry.highlight ? 'var(--kg-primary)' : 'var(--kg-bg)',
-                          color: entry.highlight ? 'white' : 'var(--kg-text)',
+                          backgroundColor: entry.userId === user.id ? 'var(--kg-primary)' : 'var(--kg-bg)',
+                          color: entry.userId === user.id ? 'white' : 'var(--kg-text)',
                         }}
                       >
                         <div className="flex items-center gap-3">
-                          <span className="text-lg font-bold w-6">#{entry.rank}</span>
-                          <span className="font-medium">{entry.name}</span>
+                          <span className="text-lg font-bold w-6">#{index + 1}</span>
+                          <span className="font-medium">{entry.userName || 'Joueur'}</span>
                         </div>
-                        <span className="font-bold">{entry.totalScore}</span>
+                        <span className="font-bold">{entry.totalScore || 0}</span>
                       </div>
-                    ))}
+                    )) : (
+                      <p className="text-center py-4" style={{ color: 'var(--kg-text-muted)' }}>
+                        Aucun joueur pour le moment. Sois le premier!
+                      </p>
+                    )}
                   </div>
                 </Card>
               )}
@@ -331,7 +363,10 @@ export default function App() {
                 {games.map((game) => {
                   const Icon = game.icon;
                   const myBestScore = stats?.gameScores?.[game.id]?.bestScore || 0;
-                  const leaders = FAKE_GAME_LEADERS[game.id as keyof typeof FAKE_GAME_LEADERS];
+                  const leaders = gameLeaders[game.id] || { 
+                    allTime: { name: 'N/A', score: 0 }, 
+                    today: { name: 'N/A', score: 0 } 
+                  };
                   
                   return (
                     <button

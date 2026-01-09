@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Card } from './ui/card';
 import { Trophy, TrendingUp, Award, Zap, Plus, Minus, X, Divide, Shuffle, Moon, Sun, Medal, Star, Crown } from 'lucide-react';
 
@@ -27,19 +28,42 @@ const getBadges = (rank: number) => {
   return badges;
 };
 
-// Données fictives de classement
-const FAKE_RANKINGS = [
-  { game: 'vif', rank: 3 },
-  { game: 'plus', rank: 12 },
-  { game: 'moins', rank: 8 },
-  { game: 'multi', rank: 45 },
-  { game: 'div', rank: 7 },
-  { game: 'mix', rank: 5 },
-];
-
-const GLOBAL_RANK = { rank: 15, total: 1547 };
-
 export function ProfileTab({ user, stats, darkMode, onToggleDarkMode }: ProfileTabProps) {
+  const [rankings, setRankings] = useState<any[]>([]);
+  const [globalRank, setGlobalRank] = useState({ rank: 0, total: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadRankings();
+  }, [user]);
+
+  const loadRankings = async () => {
+    try {
+      const { api } = await import('../utils/api');
+      const token = localStorage.getItem('kg_token');
+      if (!token) return;
+
+      // Load ranks for each game
+      const gameRanks = [];
+      for (const game of gameData) {
+        const result = await api.getUserRank(token, game.id);
+        if (result.success) {
+          gameRanks.push({ game: game.id, rank: result.rank || 999 });
+        }
+      }
+      setRankings(gameRanks);
+
+      // Load global rank
+      const globalResult = await api.getUserRank(token, 'general');
+      if (globalResult.success) {
+        setGlobalRank({ rank: globalResult.rank || 0, total: globalResult.total || 0 });
+      }
+    } catch (error) {
+      console.error('Failed to load rankings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
   const calculateTotalScore = () => {
     if (!stats?.gameScores) return 0;
     return Object.values(stats.gameScores).reduce((sum: number, game: any) => sum + game.bestScore, 0);
@@ -111,10 +135,10 @@ export function ProfileTab({ user, stats, darkMode, onToggleDarkMode }: ProfileT
           >
             <Star className="w-8 h-8 mx-auto mb-2" style={{ color: 'var(--kg-success)' }} />
             <p className="text-3xl font-bold mb-1" style={{ color: 'var(--kg-text)' }}>
-              #{GLOBAL_RANK.rank}
+              #{globalRank.rank || '?'}
             </p>
             <p className="text-xs" style={{ color: 'var(--kg-text-muted)' }}>
-              Classement général
+              sur {globalRank.total || 0} joueurs
             </p>
           </Card>
         </div>
@@ -202,7 +226,9 @@ export function ProfileTab({ user, stats, darkMode, onToggleDarkMode }: ProfileT
             Mes classements
           </h3>
           <div className="space-y-2">
-            {FAKE_RANKINGS.map((ranking) => {
+            {loading ? (
+              <p style={{ color: 'var(--kg-text-muted)' }}>Chargement...</p>
+            ) : rankings.length > 0 ? rankings.map((ranking) => {
               const game = gameData.find(g => g.id === ranking.game);
               if (!game) return null;
               const Icon = game.icon;
@@ -229,7 +255,9 @@ export function ProfileTab({ user, stats, darkMode, onToggleDarkMode }: ProfileT
                   </span>
                 </div>
               );
-            })}
+            }) : (
+              <p style={{ color: 'var(--kg-text-muted)' }}>Joue pour obtenir un classement!</p>
+            )}
           </div>
         </Card>
 
@@ -240,7 +268,7 @@ export function ProfileTab({ user, stats, darkMode, onToggleDarkMode }: ProfileT
             Mes badges
           </h3>
           <div className="grid grid-cols-2 gap-3">
-            {FAKE_RANKINGS.map((ranking) => {
+            {rankings.map((ranking) => {
               const game = gameData.find(g => g.id === ranking.game);
               const badges = getBadges(ranking.rank);
               if (!game || badges.length === 0) return null;

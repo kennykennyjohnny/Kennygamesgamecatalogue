@@ -1,0 +1,15 @@
+<svg width="512" height="512" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <rect width="100" height="100" fill="#2d6a4f"/>
+  <!-- Forme simple et géométrique - tête triangulaire -->
+  <path d="M 50 20 L 75 50 L 70 70 L 50 75 L 30 70 L 25 50 Z" fill="#fff" opacity="0.9"/>
+  <!-- Corne gauche -->
+  <path d="M 30 30 L 20 15" stroke="#fff" stroke-width="4" stroke-linecap="round" fill="none"/>
+  <!-- Corne droite -->
+  <path d="M 55 25 L 50 10" stroke="#fff" stroke-width="4" stroke-linecap="round" fill="none"/>
+  <!-- Oreille -->
+  <ellipse cx="28" cy="45" rx="8" ry="12" fill="#fff" opacity="0.8"/>
+  <!-- Œil -->
+  <circle cx="45" cy="50" r="4" fill="#2d6a4f"/>
+  <!-- Barbiche -->
+  <path d="M 48 75 L 45 90 L 52 90 Z" fill="#fff" opacity="0.85"/>
+</svg>
