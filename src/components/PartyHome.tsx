@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../utils/client'
 import { getMyChallenges, getMyTurnChallenges, type Challenge } from '../utils/challengesApi'
-import { GAMES_META } from '../utils/gameTypes'
+import { GAMES_META, GameType } from '../utils/gameTypes'
 import NotificationBell from './NotificationBell'
 
 interface PartyHomeProps {
@@ -62,28 +62,30 @@ export default function PartyHome({ onCreateGame, onPlayChallenge }: PartyHomePr
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F5F1E8] flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#F5E6D3' }}>
         <div className="text-xl">Chargement...</div>
       </div>
     )
   }
 
+  const games = Object.entries(GAMES_META) as [GameType, typeof GAMES_META[GameType]][]
+
   return (
-    <div className="min-h-screen bg-[#F5F1E8]">
-      {/* Header with Notification Bell */}
-      <div className="bg-white shadow-md">
-        <div className="max-w-4xl mx-auto p-4 flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-[#2C1810]">KENNYGAMES PARTY</h1>
+    <div className="min-h-screen" style={{ backgroundColor: '#F5E6D3' }}>
+      {/* Header */}
+      <div style={{ backgroundColor: '#2D6A4F' }} className="shadow-md">
+        <div className="max-w-6xl mx-auto p-4 flex items-center justify-between">
+          <h1 className="text-3xl font-bold" style={{ color: '#FFFFFF' }}>KENNYGAMES PARTY</h1>
           <NotificationBell />
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto p-6">
+      <div className="max-w-6xl mx-auto p-6">
         {/* My Turn Section */}
         {myTurnChallenges.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-2xl font-bold mb-4 text-[#2C1810]">🎮 À toi de jouer !</h2>
-            <div className="space-y-3">
+            <h2 className="text-2xl font-bold mb-4" style={{ color: '#1A1A1A' }}>🎮 À toi de jouer !</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {myTurnChallenges.map((challenge) => {
                 const opponent = getOpponent(challenge)
                 const gameMeta = GAMES_META[challenge.game_type]
@@ -92,19 +94,22 @@ export default function PartyHome({ onCreateGame, onPlayChallenge }: PartyHomePr
                   <button
                     key={challenge.id}
                     onClick={() => onPlayChallenge(challenge.id)}
-                    className="w-full bg-[#9CB380] text-white rounded-lg p-4 hover:bg-[#7a9060] transition shadow-lg"
+                    className="bg-white rounded-lg p-6 hover:shadow-xl transition transform hover:scale-105"
+                    style={{ border: '3px solid #2D6A4F' }}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="text-4xl">{gameMeta.emoji}</div>
-                        <div className="text-left">
-                          <div className="font-bold text-lg">{gameMeta.name}</div>
-                          <div className="text-sm opacity-90">
-                            Contre {opponent?.username}
-                          </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-5xl">{gameMeta.emoji}</div>
+                      <div className="text-left flex-1">
+                        <div className="font-bold text-xl" style={{ color: gameMeta.primaryColor }}>
+                          {gameMeta.name}
+                        </div>
+                        <div className="text-sm" style={{ color: '#666' }}>
+                          Contre {opponent?.username}
+                        </div>
+                        <div className="text-xs mt-2 font-bold" style={{ color: '#2D6A4F' }}>
+                          ▶ C'est ton tour !
                         </div>
                       </div>
-                      <div className="text-2xl">▶️</div>
                     </div>
                   </button>
                 )
@@ -113,29 +118,43 @@ export default function PartyHome({ onCreateGame, onPlayChallenge }: PartyHomePr
           </div>
         )}
 
-        {/* New Challenge Button */}
-        <button
-          onClick={onCreateGame}
-          className="w-full bg-[#8B7355] text-white rounded-lg p-6 hover:bg-[#6d5940] transition shadow-lg mb-8"
-        >
-          <div className="text-center">
-            <div className="text-4xl mb-2">⚔️</div>
-            <div className="text-2xl font-bold">NOUVEAU DÉFI</div>
-            <div className="text-sm opacity-90 mt-1">Défie un ami sur ton jeu préféré</div>
+        {/* 4 Games Grid */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold mb-4" style={{ color: '#1A1A1A' }}>
+            🎯 Défie tes amis
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {games.map(([gameType, meta]) => (
+              <button
+                key={gameType}
+                onClick={onCreateGame}
+                className="bg-white rounded-xl p-6 hover:shadow-xl transition-all transform hover:scale-105"
+                style={{ border: '2px solid ' + meta.primaryColor }}
+              >
+                <div className="text-center">
+                  <div className="text-6xl mb-3">{meta.emoji}</div>
+                  <h3 className="text-xl font-bold mb-2" style={{ color: meta.primaryColor }}>
+                    {meta.name}
+                  </h3>
+                  <p className="text-sm" style={{ color: '#666' }}>
+                    {meta.description}
+                  </p>
+                  <div className="mt-4 px-3 py-1 rounded-full text-xs font-bold inline-block" 
+                       style={{ backgroundColor: meta.primaryColor + '20', color: meta.primaryColor }}>
+                    {meta.minPlayers}-{meta.maxPlayers} joueurs
+                  </div>
+                </div>
+              </button>
+            ))}
           </div>
-        </button>
+        </div>
 
         {/* All Challenges */}
-        <div>
-          <h2 className="text-2xl font-bold mb-4 text-[#2C1810]">📋 Mes défis</h2>
-          
-          {allChallenges.length === 0 ? (
-            <div className="bg-white rounded-lg shadow-md p-8 text-center text-gray-500">
-              <p className="text-xl mb-2">Aucun défi en cours</p>
-              <p>Clique sur "Nouveau défi" pour commencer !</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
+        {allChallenges.length > 0 && (
+          <div>
+            <h2 className="text-2xl font-bold mb-4" style={{ color: '#1A1A1A' }}>📋 Mes défis en cours</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {allChallenges.map((challenge) => {
                 const opponent = getOpponent(challenge)
                 const gameMeta = GAMES_META[challenge.game_type]
@@ -146,25 +165,25 @@ export default function PartyHome({ onCreateGame, onPlayChallenge }: PartyHomePr
                   <button
                     key={challenge.id}
                     onClick={() => onPlayChallenge(challenge.id)}
-                    className={`w-full rounded-lg p-4 transition shadow-md text-left ${
-                      isMyTurn 
-                        ? 'bg-[#9CB380] text-white hover:bg-[#7a9060]' 
-                        : 'bg-white hover:shadow-lg'
-                    }`}
+                    className="bg-white rounded-lg p-4 hover:shadow-lg transition text-left"
+                    style={{ 
+                      border: isMyTurn ? '2px solid #2D6A4F' : '1px solid #ddd'
+                    }}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="text-3xl">{gameMeta.emoji}</div>
-                        <div>
-                          <div className={`font-bold ${isMyTurn ? 'text-white' : 'text-[#2C1810]'}`}>
-                            {gameMeta.name}
-                          </div>
-                          <div className={`text-sm ${isMyTurn ? 'text-white opacity-90' : 'text-gray-600'}`}>
-                            VS {opponent?.username}
-                          </div>
-                          <div className={`text-xs mt-1 ${isMyTurn ? 'text-white font-bold' : 'text-gray-500'}`}>
-                            {status}
-                          </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-4xl">{gameMeta.emoji}</div>
+                      <div className="flex-1">
+                        <div className="font-bold" style={{ color: gameMeta.primaryColor }}>
+                          {gameMeta.name}
+                        </div>
+                        <div className="text-sm" style={{ color: '#666' }}>
+                          VS {opponent?.username}
+                        </div>
+                        <div className="text-xs mt-1" style={{ 
+                          color: isMyTurn ? '#2D6A4F' : '#999',
+                          fontWeight: isMyTurn ? 'bold' : 'normal'
+                        }}>
+                          {status}
                         </div>
                       </div>
                     </div>
@@ -172,8 +191,8 @@ export default function PartyHome({ onCreateGame, onPlayChallenge }: PartyHomePr
                 )
               })}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )
