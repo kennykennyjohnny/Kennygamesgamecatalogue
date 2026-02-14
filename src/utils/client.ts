@@ -1,11 +1,14 @@
 import { createClient } from '@jsr/supabase__supabase-js';
-import { projectId, publicAnonKey } from './supabase/info';
+import { projectId, publicAnonKey } from './supabase/info.tsx';
 
-const supabaseUrl = `https://${projectId}.supabase.co`;
+// Use environment variables if available, otherwise use info.tsx
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || `https://${projectId}.supabase.co`;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || publicAnonKey;
 
-export const supabase = createClient(supabaseUrl, publicAnonKey, {
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    persistSession: false, // We handle session manually with localStorage
+    persistSession: true,
+    autoRefreshToken: true,
   },
   realtime: {
     params: {
