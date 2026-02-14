@@ -3,11 +3,10 @@ import { supabase } from './utils/client'
 import { Login } from './components/Login'
 import { ProfileSetup } from './components/ProfileSetup'
 import { GameSelection } from './components/GameSelection'
-import { SandyGame } from './components/games/SandyGame'
 import { Card } from './components/ui/card'
 import { GoatLogo } from './components/GoatLogo'
 import { LogOut, Home, Users, User } from 'lucide-react'
-import { GAMES_META, GameType } from './utils/gameTypes'
+import { GameType } from './utils/gameTypes'
 
 type Screen = 'login' | 'profile-setup' | 'home' | 'game-selection' | 'playing'
 type TabId = 'friends' | 'home' | 'profile'
@@ -117,7 +116,9 @@ export default function AppParty() {
       <GameSelection
         onGameSelected={(gameType) => {
           setSelectedGame(gameType)
-          setScreen('playing')
+          // TODO: Navigate to actual game
+          alert(`Jeu ${gameType} bientôt disponible! 🎮`)
+          setScreen('home')
         }}
         onBack={() => {
           setScreen('home')
@@ -125,13 +126,6 @@ export default function AppParty() {
         }}
       />
     )
-  }
-
-  if (screen === 'playing' && selectedGame === 'sandy') {
-    return <SandyGame user={user} token="" onBackToMenu={() => {
-      setSelectedGame(null)
-      setScreen('home')
-    }} />
   }
 
   // HOME SCREEN - Style original KennyGames
