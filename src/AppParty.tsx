@@ -1,71 +1,67 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './utils/client'
+import Login from './components/Login'
+import ProfileSetup from './components/ProfileSetup'
 import PartyHome from './components/PartyHome'
 import GameSelection from './components/GameSelection'
-import ProfileSetup from './components/ProfileSetup'
 import { getChallenge, type Challenge } from './utils/challengesApi'
 import { SandyGame } from './components/games/sandy/SandyGame'
 
-type Screen = 'home' | 'game-selection' | 'playing' | 'profile-setup'
+type Screen = 'login' | 'profile-setup' | 'home' | 'game-selection' | 'playing'
 
 export default function AppParty() {
+  const [screen, setScreen] = useState<Screen>('login')
   const [user, setUser] = useState<any>(null)
-  const [hasProfile, setHasProfile] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [currentScreen, setCurrentScreen] = useState<Screen>('home')
   const [currentChallenge, setCurrentChallenge] = useState<Challenge | null>(null)
 
   useEffect(() => {
-    checkAuth()
+    checkUserState()
   }, [])
 
-  async function checkAuth() {
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) {
-      // No auth, show simple message (login page to be implemented)
+  async function checkUserState() {
+    try {
+      // Check if logged in
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) {
+        setScreen('login')
+        setLoading(false)
+        return
+      }
+
+      setUser(user)
+
+      // Check if has profile
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('id, username')
+        .eq('id', user.id)
+        .single()
+
+      if (!profile) {
+        setScreen('profile-setup')
+      } else {
+        setScreen('home')
+      }
+
       setLoading(false)
-      return
+    } catch (error) {
+      console.error('Error checking user state:', error)
+      setScreen('login')
+      setLoading(false)
     }
-    
-    // Check if user has a profile
-    const { data: profile, error } = await supabase
-      .from('user_profiles')
-      .select('id')
-      .eq('id', user.id)
-      .single()
-
-    if (error || !profile) {
-      // No profile, show setup screen
-      setHasProfile(false)
-      setCurrentScreen('profile-setup')
-    } else {
-      setHasProfile(true)
-    }
-    
-    setUser(user)
-    setLoading(false)
-  }
-
-  function handleProfileCreated() {
-    setHasProfile(true)
-    setCurrentScreen('home')
   }
 
   async function handlePlayChallenge(challengeId: string) {
     try {
       const challenge = await getChallenge(challengeId)
       setCurrentChallenge(challenge)
-      setCurrentScreen('playing')
+      setScreen('playing')
     } catch (error) {
       console.error('Error loading challenge:', error)
       alert('Erreur lors du chargement du défi')
     }
-  }
-
-  function handleBackToHome() {
-    setCurrentScreen('home')
-    setCurrentChallenge(null)
   }
 
   if (loading) {
@@ -76,44 +72,48 @@ export default function AppParty() {
     )
   }
 
-  // Login screen
-  if (currentScreen === 'login' || !user) {
-    return <Login onSuccess={handleLoginSuccess} />
+  // LOGIN
+  if (screen === 'login') {
+    return <Login onSuccess={() => checkUserState()} />
   }
 
-  // Profile setup (first time users)
-  if (currentScreen === 'profile-setup' || !hasProfile) {
-    return <ProfileSetup userId={user.id} onComplete={handleProfileCreated} />
+  // PROFILE SETUP
+  if (screen === 'profile-setup' && user) {
+    return (
+      <ProfileSetup 
+        userId={user.id} 
+        onComplete={() => setScreen('home')} 
+      />
+    )
   }
 
-  // Home screen
-  if (currentScreen === 'home') {
+  // HOME
+  if (screen === 'home') {
     return (
       <PartyHome
-        onCreateGame={() => setCurrentScreen('game-selection')}
+        onCreateGame={() => setScreen('game-selection')}
         onPlayChallenge={handlePlayChallenge}
       />
     )
   }
 
-  // Game selection screen (with friends list)
-  if (currentScreen === 'game-selection') {
+  // GAME SELECTION (with friends list)
+  if (screen === 'game-selection') {
     return (
       <GameSelection
-        onBack={handleBackToHome}
+        onBack={() => setScreen('home')}
       />
     )
   }
 
-  // Playing a challenge
-  if (currentScreen === 'playing' && currentChallenge) {
-    // For now, only SandyGames is implemented
+  // PLAYING A CHALLENGE
+  if (screen === 'playing' && currentChallenge && user) {
     if (currentChallenge.game_type === 'sandy') {
       return (
         <div className="min-h-screen bg-[#F5F1E8]">
           <div className="bg-white shadow-md p-4">
             <button
-              onClick={handleBackToHome}
+              onClick={() => setScreen('home')}
               className="text-[#8B7355] hover:text-[#6d5940] flex items-center gap-2"
             >
               <span>←</span>
@@ -130,13 +130,13 @@ export default function AppParty() {
       )
     }
 
-    // Other games not implemented yet
+    // Other games not implemented
     return (
       <div className="min-h-screen bg-[#F5F1E8] flex items-center justify-center">
         <div className="text-center">
           <p className="text-2xl mb-4">🚧 Ce jeu arrive bientôt !</p>
           <button
-            onClick={handleBackToHome}
+            onClick={() => setScreen('home')}
             className="px-6 py-3 bg-[#8B7355] text-white rounded-lg hover:bg-[#6d5940]"
           >
             Retour à l'accueil
