@@ -1,106 +1,94 @@
-import { useState } from 'react';
-import { Card } from './ui/card';
-import { GAMES_META, GameType } from '../utils/gameTypes';
-import { partyApi } from '../utils/partyApi';
-import { ArrowLeft, Play } from 'lucide-react';
+import { useState } from 'react'
+import { GameType, GAMES_META } from '../utils/gameTypes'
+import FriendsList from './FriendsList'
 
 interface GameSelectionProps {
-  userId: string;
-  userName: string;
-  onGameCreated: (gameId: string, gameType: GameType) => void;
-  onBack: () => void;
+  onBack?: () => void
 }
 
-export function GameSelection({ userId, userName, onGameCreated, onBack }: GameSelectionProps) {
-  const [selectedGame, setSelectedGame] = useState<GameType | null>(null);
-  const [creating, setCreating] = useState(false);
+export default function GameSelection({ onBack }: GameSelectionProps) {
+  const [selectedGame, setSelectedGame] = useState<GameType | null>(null)
+  const games = Object.entries(GAMES_META) as [GameType, typeof GAMES_META[GameType]][]
 
-  const handleCreateGame = async (gameType: GameType) => {
-    setCreating(true);
-    
-    const result = await partyApi.createGame(gameType, userId, userName, 2);
-    
-    if (result.success && result.game) {
-      onGameCreated(result.game.id, gameType);
-    } else {
-      alert('Erreur lors de la création de la partie');
-      setCreating(false);
-    }
-  };
+  function handleGameClick(gameType: GameType) {
+    setSelectedGame(gameType)
+  }
+
+  function handleChallengeCreated() {
+    if (onBack) onBack()
+  }
+
+  if (selectedGame) {
+    return (
+      <div className="min-h-screen bg-[#F5F1E8] p-6">
+        <div className="max-w-4xl mx-auto">
+          <button
+            onClick={() => setSelectedGame(null)}
+            className="mb-6 flex items-center gap-2 text-[#8B7355] hover:text-[#6d5940] transition"
+          >
+            <span>←</span>
+            <span>Retour aux jeux</span>
+          </button>
+
+          <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <div className="flex items-center gap-4">
+              <div className="text-5xl">{GAMES_META[selectedGame].emoji}</div>
+              <div>
+                <h2 className="text-3xl font-bold" style={{ color: GAMES_META[selectedGame].primaryColor }}>
+                  {GAMES_META[selectedGame].name}
+                </h2>
+                <p className="text-gray-600">{GAMES_META[selectedGame].description}</p>
+              </div>
+            </div>
+          </div>
+
+          <FriendsList 
+            selectedGame={selectedGame} 
+            onChallengeCreated={handleChallengeCreated}
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="h-full overflow-y-auto p-4" style={{ backgroundColor: 'var(--kg-bg)' }}>
-      <div className="max-w-md mx-auto">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
+    <div className="min-h-screen bg-[#F5F1E8] p-6">
+      <div className="max-w-4xl mx-auto">
+        {onBack && (
           <button
             onClick={onBack}
-            className="p-2 rounded-lg hover:bg-black/5 transition-colors"
-            style={{ color: 'var(--kg-text)' }}
+            className="mb-6 flex items-center gap-2 text-[#8B7355] hover:text-[#6d5940] transition"
           >
-            <ArrowLeft className="w-6 h-6" />
+            <span>←</span>
+            <span>Retour</span>
           </button>
-          <div className="flex-1">
-            <h1 className="text-2xl font-black" style={{ color: 'var(--kg-text)' }}>
-              Choisir un jeu
-            </h1>
-            <p className="text-sm" style={{ color: 'var(--kg-text-muted)' }}>
-              Sélectionne ton jeu préféré
-            </p>
-          </div>
-        </div>
+        )}
 
-        {/* Games Grid */}
-        <div className="grid grid-cols-1 gap-4">
-          {Object.values(GAMES_META).map((game) => (
+        <h1 className="text-4xl font-bold text-center mb-8 text-[#2C1810]">
+          CHOISIS TON JEU
+        </h1>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {games.map(([gameType, meta]) => (
             <button
-              key={game.id}
-              onClick={() => handleCreateGame(game.id)}
-              disabled={creating}
-              className="relative overflow-hidden rounded-2xl p-6 text-left transition-all hover:scale-105 active:scale-95 shadow-lg disabled:opacity-50"
-              style={{ 
-                background: game.gradient,
-                border: 'none',
-                minHeight: '150px',
-              }}
+              key={gameType}
+              onClick={() => handleGameClick(gameType)}
+              className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition transform hover:scale-105"
             >
-              <div className="relative z-10 flex items-center gap-4">
-                <div className="text-6xl">{game.emoji}</div>
-                <div className="flex-1">
-                  <h3 className="text-2xl font-black text-white mb-1">
-                    {game.name}
-                  </h3>
-                  <p className="text-sm text-white/80 mb-2">
-                    {game.subtitle}
-                  </p>
-                  <p className="text-xs text-white/70">
-                    {game.description}
-                  </p>
-                  <div className="flex items-center gap-2 mt-3">
-                    <div className="bg-white/20 backdrop-blur-sm rounded px-3 py-1">
-                      <p className="text-white text-xs font-bold">
-                        {game.minPlayers}-{game.maxPlayers} joueurs
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-center">
-                  <Play className="w-8 h-8 text-white" />
-                </div>
+              <div className="text-6xl mb-4 text-center">{meta.emoji}</div>
+              <h2 className="text-2xl font-bold text-center mb-2" style={{ color: meta.primaryColor }}>
+                {meta.name}
+              </h2>
+              <p className="text-gray-600 text-center text-sm mb-4">{meta.description}</p>
+              <div className="flex justify-center gap-2">
+                <span className="px-3 py-1 bg-gray-100 rounded-full text-xs">
+                  {meta.minPlayers}-{meta.maxPlayers} joueurs
+                </span>
               </div>
             </button>
           ))}
         </div>
-
-        {/* Coming Soon */}
-        <Card className="p-4 mt-6" style={{ backgroundColor: 'var(--kg-card)', border: '1px solid var(--border)' }}>
-          <p className="text-sm text-center" style={{ color: 'var(--kg-text-muted)' }}>
-            🚧 Pour le moment, seul <strong>SANDYGAMES</strong> est jouable.
-            <br />
-            Les autres jeux arrivent bientôt !
-          </p>
-        </Card>
       </div>
     </div>
-  );
+  )
 }

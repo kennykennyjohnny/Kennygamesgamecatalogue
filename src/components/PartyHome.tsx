@@ -1,95 +1,180 @@
-import { PartyGame } from '../utils/gameTypes';
-import { Card } from './ui/card';
-import { Plus, Users as UsersIcon } from 'lucide-react';
+import { useState, useEffect } from 'react'
+import { supabase } from '../utils/client'
+import { getMyChallenges, getMyTurnChallenges, type Challenge } from '../utils/challengesApi'
+import { GAMES_META } from '../utils/gameTypes'
+import NotificationBell from './NotificationBell'
 
 interface PartyHomeProps {
-  onCreateGame: () => void;
-  onJoinGame: () => void;
+  onCreateGame: () => void
+  onPlayChallenge: (challengeId: string) => void
 }
 
-export function PartyHome({ onCreateGame, onJoinGame }: PartyHomeProps) {
+export default function PartyHome({ onCreateGame, onPlayChallenge }: PartyHomeProps) {
+  const [myTurnChallenges, setMyTurnChallenges] = useState<Challenge[]>([])
+  const [allChallenges, setAllChallenges] = useState<Challenge[]>([])
+  const [loading, setLoading] = useState(true)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    loadChallenges()
+    getCurrentUser()
+  }, [])
+
+  async function getCurrentUser() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) setCurrentUserId(user.id)
+  }
+
+  async function loadChallenges() {
+    try {
+      const [myTurn, all] = await Promise.all([
+        getMyTurnChallenges(),
+        getMyChallenges()
+      ])
+      
+      setMyTurnChallenges(myTurn)
+      setAllChallenges(all.filter(c => c.status !== 'finished' && c.status !== 'cancelled' && c.status !== 'declined'))
+    } catch (error) {
+      console.error('Error loading challenges:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function getOpponent(challenge: Challenge) {
+    if (!currentUserId) return null
+    return challenge.from_user_id === currentUserId ? challenge.to_user : challenge.from_user
+  }
+
+  function getChallengeStatus(challenge: Challenge) {
+    if (!currentUserId) return ''
+    
+    if (challenge.status === 'sent') {
+      return challenge.from_user_id === currentUserId ? 'En attente...' : 'Nouveau défi !'
+    }
+    
+    if (challenge.current_turn_user_id === currentUserId) {
+      return 'À toi de jouer ! 🎮'
+    }
+    
+    return 'En attente de l\'adversaire...'
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F5F1E8] flex items-center justify-center">
+        <div className="text-xl">Chargement...</div>
+      </div>
+    )
+  }
+
   return (
-    <div className="h-full flex flex-col items-center justify-center p-4" style={{ backgroundColor: 'var(--kg-bg)' }}>
-      <div className="max-w-md w-full">
-        {/* Hero */}
-        <div className="text-center mb-12">
-          <h1 className="text-5xl font-black mb-4" style={{ color: 'var(--kg-text)' }}>
-            🎮 KENNYGAMES
-          </h1>
-          <p className="text-xl font-bold mb-2" style={{ color: 'var(--kg-primary)' }}>
-            PARTY
-          </p>
-          <p className="text-sm" style={{ color: 'var(--kg-text-muted)' }}>
-            Mini-jeux multijoueurs tour par tour
-          </p>
+    <div className="min-h-screen bg-[#F5F1E8]">
+      {/* Header with Notification Bell */}
+      <div className="bg-white shadow-md">
+        <div className="max-w-4xl mx-auto p-4 flex items-center justify-between">
+          <h1 className="text-3xl font-bold text-[#2C1810]">KENNYGAMES PARTY</h1>
+          <NotificationBell />
         </div>
+      </div>
 
-        {/* Actions */}
-        <div className="space-y-4">
-          <button
-            onClick={onCreateGame}
-            className="w-full p-8 rounded-2xl transition-all hover:scale-105 active:scale-95 shadow-lg"
-            style={{
-              background: 'linear-gradient(135deg, var(--kg-primary) 0%, var(--kg-accent) 100%)',
-            }}
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                <Plus className="w-8 h-8 text-white" strokeWidth={3} />
-              </div>
-              <div className="flex-1 text-left">
-                <h3 className="text-2xl font-black text-white mb-1">
-                  Créer une partie
-                </h3>
-                <p className="text-sm text-white/80">
-                  Choisis un jeu et invite tes amis
-                </p>
-              </div>
-            </div>
-          </button>
-
-          <button
-            onClick={onJoinGame}
-            className="w-full p-8 rounded-2xl transition-all hover:scale-105 active:scale-95"
-            style={{
-              backgroundColor: 'var(--kg-card)',
-              border: '3px solid var(--kg-primary)',
-            }}
-          >
-            <div className="flex items-center gap-4">
-              <div
-                className="w-16 h-16 rounded-full flex items-center justify-center"
-                style={{ backgroundColor: 'var(--kg-primary)' }}
-              >
-                <UsersIcon className="w-8 h-8 text-white" strokeWidth={2.5} />
-              </div>
-              <div className="flex-1 text-left">
-                <h3 className="text-2xl font-black mb-1" style={{ color: 'var(--kg-text)' }}>
-                  Rejoindre
-                </h3>
-                <p className="text-sm" style={{ color: 'var(--kg-text-muted)' }}>
-                  Entre un code de partie à 6 chiffres
-                </p>
-              </div>
-            </div>
-          </button>
-        </div>
-
-        {/* Info */}
-        <Card className="mt-8 p-4" style={{ backgroundColor: 'var(--kg-card)', border: '1px solid var(--border)' }}>
-          <div className="text-center">
-            <p className="text-sm font-medium mb-2" style={{ color: 'var(--kg-text)' }}>
-              🎯 4 jeux disponibles
-            </p>
-            <div className="flex items-center justify-center gap-2 text-2xl">
-              <span>🍷</span>
-              <span>⚡</span>
-              <span>🍾</span>
-              <span>💻</span>
+      <div className="max-w-4xl mx-auto p-6">
+        {/* My Turn Section */}
+        {myTurnChallenges.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold mb-4 text-[#2C1810]">🎮 À toi de jouer !</h2>
+            <div className="space-y-3">
+              {myTurnChallenges.map((challenge) => {
+                const opponent = getOpponent(challenge)
+                const gameMeta = GAMES_META[challenge.game_type]
+                
+                return (
+                  <button
+                    key={challenge.id}
+                    onClick={() => onPlayChallenge(challenge.id)}
+                    className="w-full bg-[#9CB380] text-white rounded-lg p-4 hover:bg-[#7a9060] transition shadow-lg"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="text-4xl">{gameMeta.emoji}</div>
+                        <div className="text-left">
+                          <div className="font-bold text-lg">{gameMeta.name}</div>
+                          <div className="text-sm opacity-90">
+                            Contre {opponent?.username}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-2xl">▶️</div>
+                    </div>
+                  </button>
+                )
+              })}
             </div>
           </div>
-        </Card>
+        )}
+
+        {/* New Challenge Button */}
+        <button
+          onClick={onCreateGame}
+          className="w-full bg-[#8B7355] text-white rounded-lg p-6 hover:bg-[#6d5940] transition shadow-lg mb-8"
+        >
+          <div className="text-center">
+            <div className="text-4xl mb-2">⚔️</div>
+            <div className="text-2xl font-bold">NOUVEAU DÉFI</div>
+            <div className="text-sm opacity-90 mt-1">Défie un ami sur ton jeu préféré</div>
+          </div>
+        </button>
+
+        {/* All Challenges */}
+        <div>
+          <h2 className="text-2xl font-bold mb-4 text-[#2C1810]">📋 Mes défis</h2>
+          
+          {allChallenges.length === 0 ? (
+            <div className="bg-white rounded-lg shadow-md p-8 text-center text-gray-500">
+              <p className="text-xl mb-2">Aucun défi en cours</p>
+              <p>Clique sur "Nouveau défi" pour commencer !</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {allChallenges.map((challenge) => {
+                const opponent = getOpponent(challenge)
+                const gameMeta = GAMES_META[challenge.game_type]
+                const status = getChallengeStatus(challenge)
+                const isMyTurn = challenge.current_turn_user_id === currentUserId
+                
+                return (
+                  <button
+                    key={challenge.id}
+                    onClick={() => onPlayChallenge(challenge.id)}
+                    className={`w-full rounded-lg p-4 transition shadow-md text-left ${
+                      isMyTurn 
+                        ? 'bg-[#9CB380] text-white hover:bg-[#7a9060]' 
+                        : 'bg-white hover:shadow-lg'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="text-3xl">{gameMeta.emoji}</div>
+                        <div>
+                          <div className={`font-bold ${isMyTurn ? 'text-white' : 'text-[#2C1810]'}`}>
+                            {gameMeta.name}
+                          </div>
+                          <div className={`text-sm ${isMyTurn ? 'text-white opacity-90' : 'text-gray-600'}`}>
+                            VS {opponent?.username}
+                          </div>
+                          <div className={`text-xs mt-1 ${isMyTurn ? 'text-white font-bold' : 'text-gray-500'}`}>
+                            {status}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
-  );
+  )
 }
