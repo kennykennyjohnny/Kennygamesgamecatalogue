@@ -8,7 +8,7 @@ interface LoginProps {
   onSuccess: () => void
 }
 
-export default function Login({ onSuccess }: LoginProps) {
+export function Login({ onSuccess }: LoginProps) {
   const [isLogin, setIsLogin] = useState(true)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
