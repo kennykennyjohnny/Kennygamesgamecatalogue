@@ -55,12 +55,13 @@ export default function Login({ onSuccess }: LoginProps) {
               status: 'online'
             })
 
-          if (profileError) throw profileError
+          if (profileError) {
+            console.error('Profile creation error:', profileError)
+            throw profileError
+          }
 
-          alert('✅ Compte créé ! Vérifie ton email pour confirmer.')
-          setIsLogin(true)
-          setName('')
-          setPassword('')
+          // Auto-login after successful signup
+          onSuccess()
         }
       }
     } catch (err: any) {
