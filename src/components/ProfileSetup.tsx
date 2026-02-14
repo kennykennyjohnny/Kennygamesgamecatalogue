@@ -6,13 +6,39 @@ interface ProfileSetupProps {
   onComplete: () => void
 }
 
-export default function ProfileSetup({ userId, onComplete }: ProfileSetupProps) {
+export function ProfileSetup({ onComplete }: { onComplete: () => void }) {
   const [username, setUsername] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
+
+      const { error: profileError } = await supabase
+        .from('user_profiles')
+        .insert({
+          id: user.id,
+          username: username.toLowerCase(),
+          display_name: displayName || username,
+          status: 'online'
+        })
+
+      if (profileError) throw profileError
+      onComplete()
+    } catch (err: any) {
+      console.error('Error creating profile:', err)
+      setError(err.message || 'Une erreur est survenue')
+    } finally {
+      setLoading(false)
+    }
+  }
     e.preventDefault()
     
     if (!username.trim()) {
