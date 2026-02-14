@@ -1,11 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../utils/client'
 
-interface ProfileSetupProps {
-  userId: string
-  onComplete: () => void
-}
-
 export function ProfileSetup({ onComplete }: { onComplete: () => void }) {
   const [username, setUsername] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -14,39 +9,12 @@ export function ProfileSetup({ onComplete }: { onComplete: () => void }) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setLoading(true)
-    setError('')
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
-
-      const { error: profileError } = await supabase
-        .from('user_profiles')
-        .insert({
-          id: user.id,
-          username: username.toLowerCase(),
-          display_name: displayName || username,
-          status: 'online'
-        })
-
-      if (profileError) throw profileError
-      onComplete()
-    } catch (err: any) {
-      console.error('Error creating profile:', err)
-      setError(err.message || 'Une erreur est survenue')
-    } finally {
-      setLoading(false)
-    }
-  }
-    e.preventDefault()
     
     if (!username.trim()) {
       setError('Le pseudo est requis')
       return
     }
 
-    // Username validation (alphanumeric + underscore only)
     if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
       setError('Pseudo : 3-20 caractères, lettres, chiffres et _ uniquement')
       return
@@ -56,12 +24,14 @@ export function ProfileSetup({ onComplete }: { onComplete: () => void }) {
     setError('')
 
     try {
-      // Check if username is taken
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
+
       const { data: existing } = await supabase
         .from('user_profiles')
         .select('id')
         .eq('username', username.toLowerCase())
-        .single()
+        .maybeSingle()
 
       if (existing) {
         setError('Ce pseudo est déjà pris')
@@ -69,18 +39,16 @@ export function ProfileSetup({ onComplete }: { onComplete: () => void }) {
         return
       }
 
-      // Create profile
       const { error: insertError } = await supabase
         .from('user_profiles')
         .insert({
-          id: userId,
+          id: user.id,
           username: username.toLowerCase(),
           display_name: displayName.trim() || username,
           status: 'online'
         })
 
       if (insertError) throw insertError
-
       onComplete()
     } catch (err: any) {
       console.error('Error creating profile:', err)
