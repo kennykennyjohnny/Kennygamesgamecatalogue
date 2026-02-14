@@ -2,13 +2,15 @@ import { useState, useEffect } from 'react'
 import { supabase } from './utils/client'
 import PartyHome from './components/PartyHome'
 import GameSelection from './components/GameSelection'
+import ProfileSetup from './components/ProfileSetup'
 import { getChallenge, type Challenge } from './utils/challengesApi'
 import { SandyGame } from './components/games/sandy/SandyGame'
 
-type Screen = 'home' | 'game-selection' | 'playing'
+type Screen = 'home' | 'game-selection' | 'playing' | 'profile-setup'
 
 export default function AppParty() {
   const [user, setUser] = useState<any>(null)
+  const [hasProfile, setHasProfile] = useState(false)
   const [loading, setLoading] = useState(true)
   const [currentScreen, setCurrentScreen] = useState<Screen>('home')
   const [currentChallenge, setCurrentChallenge] = useState<Challenge | null>(null)
@@ -26,8 +28,28 @@ export default function AppParty() {
       return
     }
     
+    // Check if user has a profile
+    const { data: profile, error } = await supabase
+      .from('user_profiles')
+      .select('id')
+      .eq('id', user.id)
+      .single()
+
+    if (error || !profile) {
+      // No profile, show setup screen
+      setHasProfile(false)
+      setCurrentScreen('profile-setup')
+    } else {
+      setHasProfile(true)
+    }
+    
     setUser(user)
     setLoading(false)
+  }
+
+  function handleProfileCreated() {
+    setHasProfile(true)
+    setCurrentScreen('home')
   }
 
   async function handlePlayChallenge(challengeId: string) {
@@ -60,6 +82,11 @@ export default function AppParty() {
         <div className="text-2xl font-bold">Connexion requise...</div>
       </div>
     )
+  }
+
+  // Profile setup (first time users)
+  if (currentScreen === 'profile-setup' || !hasProfile) {
+    return <ProfileSetup userId={user.id} onComplete={handleProfileCreated} />
   }
 
   // Home screen
