@@ -76,33 +76,9 @@ export default function AppParty() {
     )
   }
 
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-[#F5F1E8] flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-xl p-8 text-center">
-          <h1 className="text-3xl font-bold text-[#2C1810] mb-4">
-            KENNYGAMES PARTY
-          </h1>
-          <p className="text-gray-600 mb-6">
-            Tu dois être connecté pour jouer
-          </p>
-          <button
-            onClick={async () => {
-              const { error } = await supabase.auth.signInWithOAuth({
-                provider: 'google',
-                options: {
-                  redirectTo: window.location.origin
-                }
-              })
-              if (error) console.error('Error:', error)
-            }}
-            className="w-full bg-[#8B7355] text-white py-4 rounded-lg font-bold hover:bg-[#6d5940] transition"
-          >
-            Se connecter avec Google
-          </button>
-        </div>
-      </div>
-    )
+  // Login screen
+  if (currentScreen === 'login' || !user) {
+    return <Login onSuccess={handleLoginSuccess} />
   }
 
   // Profile setup (first time users)
