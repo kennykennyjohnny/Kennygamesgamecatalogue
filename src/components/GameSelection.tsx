@@ -6,7 +6,7 @@ interface GameSelectionProps {
   onBack?: () => void
 }
 
-export default function GameSelection({ onBack }: GameSelectionProps) {
+export function GameSelection({ onBack }: GameSelectionProps) {
   const [selectedGame, setSelectedGame] = useState<GameType | null>(null)
   const games = Object.entries(GAMES_META) as [GameType, typeof GAMES_META[GameType]][]
 
