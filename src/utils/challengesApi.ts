@@ -11,276 +11,295 @@ export interface Challenge {
   winner_id: string | null
   game_state: any
   created_at: string
-  started_at: string | null
-  finished_at: string | null
-  
-  // Joined data
+  updated_at: string
   from_user?: {
     username: string
-    display_name: string | null
-    avatar_url: string | null
+    display_name: string
+    avatar_url?: string
   }
   to_user?: {
     username: string
-    display_name: string | null
-    avatar_url: string | null
+    display_name: string
+    avatar_url?: string
   }
 }
 
 /**
- * Create a challenge (défi) to a friend
+ * Get user profile by ID
  */
-export async function createChallenge(toUserId: string, gameType: GameType) {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
-
+async function getUserProfile(userId: string) {
   const { data, error } = await supabase
-    .rpc('create_challenge', {
-      p_from_user_id: user.id,
-      p_to_user_id: toUserId,
-      p_game_type: gameType
-    })
-
-  if (error) throw error
-  return data as string // Returns challenge ID
+    .from('user_profiles')
+    .select('username, display_name, avatar_url')
+    .eq('id', userId)
+    .single()
+  
+  if (error) {
+    console.error('Error loading user profile:', error)
+    return null
+  }
+  return data
 }
 
 /**
  * Get all challenges for current user
  */
-export async function getMyChallenges() {
+export async function getMyChallenges(): Promise<Challenge[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
+  // Load challenges without joins
   const { data, error } = await supabase
     .from('challenges')
-    .select(`
-      *,
-      from_user:user_profiles!challenges_from_user_id_fkey (
-        username,
-        display_name,
-        avatar_url
-      ),
-      to_user:user_profiles!challenges_to_user_id_fkey (
-        username,
-        display_name,
-        avatar_url
-      )
-    `)
+    .select('*')
     .or(`from_user_id.eq.${user.id},to_user_id.eq.${user.id}`)
     .order('created_at', { ascending: false })
 
-  if (error) throw error
-  return data as Challenge[]
-}
+  if (error) {
+    console.error('Error loading challenges:', error)
+    throw error
+  }
 
-/**
- * Get challenges filtered by status
- */
-export async function getChallengesByStatus(status: Challenge['status'] | Challenge['status'][]) {
-  const challenges = await getMyChallenges()
-  const statuses = Array.isArray(status) ? status : [status]
-  return challenges.filter(c => statuses.includes(c.status))
+  if (!data || data.length === 0) return []
+
+  // Load user profiles separately
+  const userIds = new Set<string>()
+  data.forEach(c => {
+    userIds.add(c.from_user_id)
+    userIds.add(c.to_user_id)
+  })
+
+  const profiles = new Map<string, any>()
+  await Promise.all(
+    Array.from(userIds).map(async (id) => {
+      const profile = await getUserProfile(id)
+      if (profile) profiles.set(id, profile)
+    })
+  )
+
+  // Attach profiles to challenges
+  return data.map(challenge => ({
+    ...challenge,
+    from_user: profiles.get(challenge.from_user_id),
+    to_user: profiles.get(challenge.to_user_id)
+  }))
 }
 
 /**
  * Get challenges where it's my turn
  */
-export async function getMyTurnChallenges() {
+export async function getMyTurnChallenges(): Promise<Challenge[]> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+
+  // Load challenges without joins
+  const { data, error } = await supabase
+    .from('challenges')
+    .select('*')
+    .eq('current_turn_user_id', user.id)
+    .in('status', ['playing', 'accepted'])
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('Error loading my turn challenges:', error)
+    throw error
+  }
+
+  if (!data || data.length === 0) return []
+
+  // Load user profiles
+  const userIds = new Set<string>()
+  data.forEach(c => {
+    userIds.add(c.from_user_id)
+    userIds.add(c.to_user_id)
+  })
+
+  const profiles = new Map<string, any>()
+  await Promise.all(
+    Array.from(userIds).map(async (id) => {
+      const profile = await getUserProfile(id)
+      if (profile) profiles.set(id, profile)
+    })
+  )
+
+  return data.map(challenge => ({
+    ...challenge,
+    from_user: profiles.get(challenge.from_user_id),
+    to_user: profiles.get(challenge.to_user_id)
+  }))
+}
+
+/**
+ * Create a new challenge
+ */
+export async function createChallenge(
+  toUserId: string,
+  gameType: GameType,
+  initialGameState: any = {}
+): Promise<Challenge> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
   const { data, error } = await supabase
     .from('challenges')
-    .select(`
-      *,
-      from_user:user_profiles!challenges_from_user_id_fkey (
-        username,
-        display_name,
-        avatar_url
-      ),
-      to_user:user_profiles!challenges_to_user_id_fkey (
-        username,
-        display_name,
-        avatar_url
-      )
-    `)
-    .eq('current_turn_user_id', user.id)
-    .in('status', ['playing', 'accepted'])
-    .order('created_at', { ascending: false })
-
-  if (error) throw error
-  return data as Challenge[]
-}
-
-/**
- * Get a single challenge by ID
- */
-export async function getChallenge(challengeId: string) {
-  const { data, error } = await supabase
-    .from('challenges')
-    .select(`
-      *,
-      from_user:user_profiles!challenges_from_user_id_fkey (
-        username,
-        display_name,
-        avatar_url
-      ),
-      to_user:user_profiles!challenges_to_user_id_fkey (
-        username,
-        display_name,
-        avatar_url
-      )
-    `)
-    .eq('id', challengeId)
+    .insert({
+      from_user_id: user.id,
+      to_user_id: toUserId,
+      game_type: gameType,
+      status: 'sent',
+      current_turn_user_id: null,
+      game_state: initialGameState
+    })
+    .select()
     .single()
 
   if (error) throw error
+
+  // Create notification
+  await supabase.from('notifications').insert({
+    user_id: toUserId,
+    from_user_id: user.id,
+    type: 'challenge_received',
+    title: 'Nouveau défi !',
+    message: `Vous avez reçu un défi pour ${gameType}`,
+    related_id: data.id,
+    read: false
+  })
+
   return data as Challenge
 }
 
 /**
  * Accept a challenge
  */
-export async function acceptChallenge(challengeId: string) {
+export async function acceptChallenge(challengeId: string): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
-  // Update challenge status
-  const { data, error } = await supabase
+  // Get challenge
+  const { data: challenge } = await supabase
+    .from('challenges')
+    .select('*')
+    .eq('id', challengeId)
+    .single()
+
+  if (!challenge) throw new Error('Challenge not found')
+
+  // Update challenge
+  const { error } = await supabase
     .from('challenges')
     .update({
       status: 'playing',
-      started_at: new Date().toISOString()
+      current_turn_user_id: challenge.from_user_id // First turn goes to challenger
     })
     .eq('id', challengeId)
-    .eq('to_user_id', user.id) // Only recipient can accept
-    .select()
-    .single()
 
   if (error) throw error
 
-  // Get challenge info for notification
-  const challenge = await getChallenge(challengeId)
-
-  // Send notification to challenger
-  await supabase
-    .from('notifications')
-    .insert({
-      user_id: challenge.from_user_id,
-      type: 'challenge_accepted',
-      title: 'Défi accepté !',
-      message: `${challenge.to_user?.username} a accepté ton défi !`,
-      link: `/challenge/${challengeId}`,
-      challenge_id: challengeId,
-      from_user_id: user.id
-    })
-
-  return data
+  // Notify opponent
+  await supabase.from('notifications').insert({
+    user_id: challenge.from_user_id,
+    from_user_id: user.id,
+    type: 'challenge_accepted',
+    title: 'Défi accepté !',
+    message: `Votre défi a été accepté`,
+    related_id: challengeId,
+    read: false
+  })
 }
 
 /**
  * Decline a challenge
  */
-export async function declineChallenge(challengeId: string) {
+export async function declineChallenge(challengeId: string): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
+
+  const { data: challenge } = await supabase
+    .from('challenges')
+    .select('*')
+    .eq('id', challengeId)
+    .single()
+
+  if (!challenge) throw new Error('Challenge not found')
 
   const { error } = await supabase
     .from('challenges')
     .update({ status: 'declined' })
     .eq('id', challengeId)
-    .eq('to_user_id', user.id)
 
   if (error) throw error
+
+  // Notify opponent
+  await supabase.from('notifications').insert({
+    user_id: challenge.from_user_id,
+    from_user_id: user.id,
+    type: 'challenge_declined',
+    title: 'Défi refusé',
+    message: `Votre défi a été refusé`,
+    related_id: challengeId,
+    read: false
+  })
 }
 
 /**
- * Update game state (when a player makes a move)
+ * Update game state and switch turn
  */
 export async function updateChallengeState(
   challengeId: string,
-  gameState: any,
-  nextTurnUserId: string | null,
+  newGameState: any,
   winnerId?: string
-) {
+): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+
+  const { data: challenge } = await supabase
+    .from('challenges')
+    .select('*')
+    .eq('id', challengeId)
+    .single()
+
+  if (!challenge) throw new Error('Challenge not found')
+
+  // Determine next turn
+  const nextTurnUserId = challenge.current_turn_user_id === challenge.from_user_id
+    ? challenge.to_user_id
+    : challenge.from_user_id
+
   const updateData: any = {
-    game_state: gameState,
-    current_turn_user_id: nextTurnUserId
+    game_state: newGameState,
+    current_turn_user_id: winnerId ? null : nextTurnUserId,
+    updated_at: new Date().toISOString()
   }
 
-  // If game is finished
   if (winnerId) {
     updateData.status = 'finished'
     updateData.winner_id = winnerId
-    updateData.finished_at = new Date().toISOString()
   }
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('challenges')
     .update(updateData)
     .eq('id', challengeId)
-    .select()
-    .single()
 
   if (error) throw error
 
-  // Send notification if it's next player's turn
-  if (nextTurnUserId && !winnerId) {
-    const challenge = await getChallenge(challengeId)
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    await supabase
-      .from('notifications')
-      .insert({
-        user_id: nextTurnUserId,
-        type: 'your_turn',
-        title: 'C\'est ton tour !',
-        message: `${user?.id === challenge.from_user_id ? challenge.from_user?.username : challenge.to_user?.username} a joué`,
-        link: `/challenge/${challengeId}`,
-        challenge_id: challengeId,
-        from_user_id: user?.id
-      })
-  }
-
-  // Send victory notification
-  if (winnerId) {
-    const challenge = await getChallenge(challengeId)
-    const loserId = winnerId === challenge.from_user_id ? challenge.to_user_id : challenge.from_user_id
-    const winnerName = winnerId === challenge.from_user_id ? challenge.from_user?.username : challenge.to_user?.username
-    const loserName = loserId === challenge.from_user_id ? challenge.from_user?.username : challenge.to_user?.username
-
-    // Notification to winner
-    await supabase
-      .from('notifications')
-      .insert({
-        user_id: winnerId,
-        type: 'challenge_won',
-        title: 'Victoire ! 🎉',
-        message: `Tu as battu ${loserName} !`,
-        link: `/challenge/${challengeId}`,
-        challenge_id: challengeId
-      })
-
-    // Notification to loser
-    await supabase
-      .from('notifications')
-      .insert({
-        user_id: loserId,
-        type: 'challenge_lost',
-        title: 'Défaite...',
-        message: `${winnerName} t'a battu`,
-        link: `/challenge/${challengeId}`,
-        challenge_id: challengeId,
-        from_user_id: winnerId
-      })
-  }
-
-  return data
+  // Notify opponent
+  const opponentId = user.id === challenge.from_user_id ? challenge.to_user_id : challenge.from_user_id
+  
+  await supabase.from('notifications').insert({
+    user_id: opponentId,
+    from_user_id: user.id,
+    type: winnerId ? 'game_finished' : 'your_turn',
+    title: winnerId ? 'Partie terminée' : 'À ton tour !',
+    message: winnerId ? 'La partie est terminée' : 'C\'est à ton tour de jouer',
+    related_id: challengeId,
+    read: false
+  })
 }
 
 /**
- * Subscribe to challenge updates (realtime)
+ * Subscribe to challenge updates
  */
 export function subscribeToChallengeUpdates(
   challengeId: string,
@@ -297,29 +316,48 @@ export function subscribeToChallengeUpdates(
         filter: `id=eq.${challengeId}`
       },
       async (payload) => {
-        // Fetch full challenge with joined data
-        const challenge = await getChallenge(challengeId)
-        callback(challenge)
+        const challenge = payload.new as Challenge
+        
+        // Load user profiles
+        const fromUser = await getUserProfile(challenge.from_user_id)
+        const toUser = await getUserProfile(challenge.to_user_id)
+        
+        callback({
+          ...challenge,
+          from_user: fromUser || undefined,
+          to_user: toUser || undefined
+        })
       }
     )
     .subscribe()
 
-  return channel
+  return () => {
+    supabase.removeChannel(channel)
+  }
 }
 
 /**
- * Cancel a challenge (creator only, before accepted)
+ * Get a single challenge by ID
  */
-export async function cancelChallenge(challengeId: string) {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
-
-  const { error } = await supabase
+export async function getChallenge(challengeId: string): Promise<Challenge | null> {
+  const { data, error } = await supabase
     .from('challenges')
-    .update({ status: 'cancelled' })
+    .select('*')
     .eq('id', challengeId)
-    .eq('from_user_id', user.id)
-    .eq('status', 'sent')
+    .single()
 
-  if (error) throw error
+  if (error) {
+    console.error('Error loading challenge:', error)
+    return null
+  }
+
+  // Load user profiles
+  const fromUser = await getUserProfile(data.from_user_id)
+  const toUser = await getUserProfile(data.to_user_id)
+
+  return {
+    ...data,
+    from_user: fromUser || undefined,
+    to_user: toUser || undefined
+  }
 }

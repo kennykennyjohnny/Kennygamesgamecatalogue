@@ -1,201 +1,162 @@
 import { supabase } from './client'
 
 export interface Friend {
-  friend_id: string
-  username: string
-  display_name: string | null
-  avatar_url: string | null
-  status: 'online' | 'offline' | 'in_game'
-  last_seen: string
-  friendship_status: 'pending' | 'accepted' | 'blocked'
-}
-
-export interface FriendRequest {
   id: string
-  user_id: string
-  friend_id: string
-  status: string
-  created_at: string
-  username?: string
-  display_name?: string
+  username: string
+  display_name: string
   avatar_url?: string
+  status?: string
 }
 
 /**
- * Get current user's friends list
+ * Get user profile
  */
-export async function getFriends() {
+async function getUserProfile(userId: string) {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('id, username, display_name, avatar_url, status')
+    .eq('id', userId)
+    .single()
+  
+  if (error) {
+    console.error('Error loading user profile:', error)
+    return null
+  }
+  return data
+}
+
+/**
+ * Get all friends for current user
+ */
+export async function getFriends(): Promise<Friend[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
   const { data, error } = await supabase
-    .rpc('get_friends', { p_user_id: user.id })
+    .from('friendships')
+    .select('user_id, friend_id')
+    .eq('user_id', user.id)
+    .eq('status', 'accepted')
 
-  if (error) throw error
-  return data as Friend[]
+  if (error) {
+    console.error('Error loading friends:', error)
+    throw error
+  }
+
+  if (!data || data.length === 0) return []
+
+  // Load friend profiles
+  const friendIds = data.map(f => f.friend_id)
+  const friends: Friend[] = []
+
+  await Promise.all(
+    friendIds.map(async (id) => {
+      const profile = await getUserProfile(id)
+      if (profile) friends.push(profile as Friend)
+    })
+  )
+
+  return friends
 }
 
 /**
  * Search users by username
  */
-export async function searchUsers(query: string) {
+export async function searchUsers(query: string): Promise<Friend[]> {
+  if (!query || query.length < 2) return []
+
   const { data, error } = await supabase
     .from('user_profiles')
-    .select('id, username, display_name, avatar_url, status')
+    .select('id, username, display_name, avatar_url')
     .ilike('username', `%${query}%`)
-    .limit(10)
+    .limit(20)
 
-  if (error) throw error
-  return data
+  if (error) {
+    console.error('Error searching users:', error)
+    throw error
+  }
+
+  return data as Friend[]
 }
 
 /**
  * Send friend request
  */
-export async function sendFriendRequest(friendId: string) {
+export async function sendFriendRequest(friendId: string): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
-  // Check if already friends or request exists
-  const { data: existing } = await supabase
-    .from('friendships')
-    .select('*')
-    .or(`and(user_id.eq.${user.id},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${user.id})`)
-    .single()
-
-  if (existing) {
-    if (existing.status === 'accepted') {
-      throw new Error('Déjà amis')
-    }
-    if (existing.status === 'pending') {
-      throw new Error('Demande déjà envoyée')
-    }
-  }
-
-  // Create friendship request
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('friendships')
     .insert({
       user_id: user.id,
       friend_id: friendId,
       status: 'pending'
     })
-    .select()
-    .single()
 
   if (error) throw error
 
-  // Get user info for notification
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('username')
-    .eq('id', user.id)
-    .single()
-
-  // Send notification
-  await supabase
-    .from('notifications')
-    .insert({
-      user_id: friendId,
-      type: 'friend_request',
-      title: 'Nouvelle demande d\'ami',
-      message: `${profile?.username || 'Quelqu\'un'} veut être ton ami !`,
-      from_user_id: user.id
-    })
-
-  return data
+  // Create notification
+  await supabase.from('notifications').insert({
+    user_id: friendId,
+    from_user_id: user.id,
+    type: 'friend_request',
+    title: 'Nouvelle demande d\'ami',
+    message: 'Vous avez reçu une demande d\'ami',
+    read: false
+  })
 }
 
 /**
  * Accept friend request
  */
-export async function acceptFriendRequest(friendshipId: string) {
-  const { data, error } = await supabase
-    .from('friendships')
-    .update({ status: 'accepted', updated_at: new Date().toISOString() })
-    .eq('id', friendshipId)
-    .select()
-    .single()
-
-  if (error) throw error
-  return data
-}
-
-/**
- * Decline or remove friend
- */
-export async function removeFriend(friendshipId: string) {
-  const { error } = await supabase
-    .from('friendships')
-    .delete()
-    .eq('id', friendshipId)
-
-  if (error) throw error
-}
-
-/**
- * Get pending friend requests (received)
- */
-export async function getPendingRequests() {
+export async function acceptFriendRequest(friendId: string): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
-  const { data, error } = await supabase
+  // Update the friendship
+  const { error } = await supabase
     .from('friendships')
-    .select(`
-      id,
-      user_id,
-      friend_id,
-      status,
-      created_at,
-      user_profiles!friendships_user_id_fkey (
-        username,
-        display_name,
-        avatar_url
-      )
-    `)
+    .update({ status: 'accepted' })
+    .eq('user_id', friendId)
     .eq('friend_id', user.id)
-    .eq('status', 'pending')
-    .order('created_at', { ascending: false })
 
   if (error) throw error
 
-  return data.map(req => ({
-    id: req.id,
-    user_id: req.user_id,
-    friend_id: req.friend_id,
-    status: req.status,
-    created_at: req.created_at,
-    username: req.user_profiles?.username,
-    display_name: req.user_profiles?.display_name,
-    avatar_url: req.user_profiles?.avatar_url
-  })) as FriendRequest[]
+  // Create reciprocal friendship
+  await supabase.from('friendships').insert({
+    user_id: user.id,
+    friend_id: friendId,
+    status: 'accepted'
+  })
+
+  // Notify
+  await supabase.from('notifications').insert({
+    user_id: friendId,
+    from_user_id: user.id,
+    type: 'friend_accepted',
+    title: 'Demande d\'ami acceptée',
+    message: 'Votre demande d\'ami a été acceptée',
+    read: false
+  })
 }
 
 /**
- * Add friend by username (direct add without request)
+ * Remove friend
  */
-export async function addFriendByUsername(username: string) {
-  // Search for user
-  const { data: users, error: searchError } = await supabase
-    .from('user_profiles')
-    .select('id')
-    .eq('username', username)
-    .single()
+export async function removeFriend(friendId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
 
-  if (searchError || !users) {
-    throw new Error('Utilisateur introuvable')
-  }
+  await supabase
+    .from('friendships')
+    .delete()
+    .eq('user_id', user.id)
+    .eq('friend_id', friendId)
 
-  // Send friend request
-  return sendFriendRequest(users.id)
-}
-
-/**
- * Generate WhatsApp share link
- */
-export function generateWhatsAppLink(username: string) {
-  const baseUrl = window.location.origin
-  const message = `Rejoins-moi sur KennyGames ! Mon pseudo : ${username} 🎮\n${baseUrl}/add/${username}`
-  return `https://wa.me/?text=${encodeURIComponent(message)}`
+  await supabase
+    .from('friendships')
+    .delete()
+    .eq('user_id', friendId)
+    .eq('friend_id', user.id)
 }
