@@ -32,7 +32,7 @@ export default function AppParty() {
 
       setUser(user)
 
-      // Check if has profile
+      // Check if has profile (should be created at signup now)
       const { data: profile } = await supabase
         .from('user_profiles')
         .select('id, username')
@@ -40,6 +40,7 @@ export default function AppParty() {
         .single()
 
       if (!profile) {
+        // Fallback: create profile if missing
         setScreen('profile-setup')
       } else {
         setScreen('home')
