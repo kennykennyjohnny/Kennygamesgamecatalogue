@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getFriends, type Friend, searchUsers, sendFriendRequest, generateWhatsAppLink } from '../utils/friendsApi'
+import { getFriends, type Friend, searchUsers, sendFriendRequest } from '../utils/friendsApi'
 import { createChallenge } from '../utils/challengesApi'
 import { GameType, GAMES_META } from '../utils/gameTypes'
 import { supabase } from '../utils/client'
@@ -86,8 +86,10 @@ export default function FriendsList({ selectedGame, onChallengeCreated }: Friend
 
   function handleWhatsAppShare() {
     if (!currentUsername) return
-    const link = generateWhatsAppLink(currentUsername)
-    window.open(link, '_blank')
+    const appUrl = window.location.origin
+    const message = `Rejoins-moi sur KennyGames Party ! 🎮 ${appUrl}?invite=${currentUsername}`
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`
+    window.open(whatsappUrl, '_blank')
   }
 
   if (loading) {
