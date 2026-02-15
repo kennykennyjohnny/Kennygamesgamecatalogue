@@ -4,10 +4,10 @@ import { partyApi } from '@/utils/partyApi';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 
 // Import all 4 games
-import { LeanavGame } from './games/leanav/LeanavGame';
-import { NourarcheryGame } from './games/nourarchery/NourarcheryGame';
-import { SandyGame } from './games/sandy/SandyGame';
-import { LilianoGame } from './games/liliano/LilianoGame';
+import LeanavGame from './games/leanav/LeanavGame';
+import NourarcheryGame from './games/nourarchery/NourarcheryGame';
+import SandyGame from './games/sandy/SandyGame';
+import LilianoGame from './games/liliano/LilianoGame';
 
 interface GameRoomProps {
   game: PartyGame;

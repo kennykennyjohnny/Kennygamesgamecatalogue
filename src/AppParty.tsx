@@ -6,7 +6,9 @@ import { GameSelection } from './components/GameSelection'
 import { Card } from './components/ui/card'
 import { GoatLogo } from './components/GoatLogo'
 import { LogOut, Home, Users, User } from 'lucide-react'
-import { GameType } from './utils/gameTypes'
+import { GameType, PartyGame } from './utils/gameTypes'
+import { GameRoom } from './components/GameRoom'
+import { ThemeProvider } from './contexts/ThemeContext'
 
 type Screen = 'login' | 'profile-setup' | 'home' | 'game-selection' | 'playing'
 type TabId = 'friends' | 'home' | 'profile'
@@ -20,12 +22,14 @@ const TAGLINES = [
   "Talk less. Play more."
 ]
 
-export default function AppParty() {
+function AppPartyContent() {
   const [screen, setScreen] = useState<Screen>('login')
   const [currentTab, setCurrentTab] = useState<TabId>('home')
   const [user, setUser] = useState<any>(null)
+  const [username, setUsername] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [selectedGame, setSelectedGame] = useState<GameType | null>(null)
+  const [activeGame, setActiveGame] = useState<PartyGame | null>(null)
   const [currentTagline, setCurrentTagline] = useState(0)
   const [darkMode, setDarkMode] = useState(false)
 
@@ -67,6 +71,7 @@ export default function AppParty() {
       if (!profile) {
         setScreen('profile-setup')
       } else {
+        setUsername(profile.username)
         setScreen('home')
       }
 
@@ -108,7 +113,22 @@ export default function AppParty() {
   }
 
   if (screen === 'profile-setup') {
-    return <ProfileSetup onComplete={() => setScreen('home')} />
+    return <ProfileSetup onComplete={() => checkUserState()} />
+  }
+
+  // Si une partie est active, afficher GameRoom
+  if (activeGame && activeGame.status === 'active') {
+    return (
+      <GameRoom
+        game={activeGame}
+        currentUserId={user.id}
+        currentUserName={username}
+        onBack={() => {
+          setActiveGame(null)
+          setScreen('home')
+        }}
+      />
+    )
   }
 
   if (screen === 'game-selection') {
@@ -322,5 +342,14 @@ export default function AppParty() {
         </div>
       </div>
     </div>
+  )
+}
+
+// Wrapper avec ThemeProvider
+export default function AppParty() {
+  return (
+    <ThemeProvider>
+      <AppPartyContent />
+    </ThemeProvider>
   )
 }
