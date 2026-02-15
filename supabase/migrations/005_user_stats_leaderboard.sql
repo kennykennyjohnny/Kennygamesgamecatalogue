@@ -6,7 +6,7 @@
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS user_stats (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   
   -- Stats globales
   total_games INTEGER DEFAULT 0,
@@ -47,7 +47,7 @@ CREATE INDEX IF NOT EXISTS idx_user_stats_current_streak ON user_stats(current_s
 -- ============================================================================
 -- 2. FONCTION: Initialiser les stats d'un utilisateur
 -- ============================================================================
-CREATE OR REPLACE FUNCTION initialize_user_stats(p_user_id UUID)
+CREATE OR REPLACE FUNCTION initialize_user_stats(p_user_id TEXT)
 RETURNS VOID AS $$
 BEGIN
   INSERT INTO user_stats (user_id)
@@ -60,7 +60,7 @@ $$ LANGUAGE plpgsql;
 -- 3. FONCTION: Mettre à jour les stats après une partie
 -- ============================================================================
 CREATE OR REPLACE FUNCTION update_user_stats_after_game(
-  p_user_id UUID,
+  p_user_id TEXT,
   p_game_type TEXT,
   p_won BOOLEAN
 )
@@ -246,7 +246,7 @@ EXECUTE FUNCTION trigger_initialize_user_stats();
 -- ============================================================================
 -- 7. FONCTION: Obtenir les stats d'un joueur
 -- ============================================================================
-CREATE OR REPLACE FUNCTION get_user_stats(p_user_id UUID)
+CREATE OR REPLACE FUNCTION get_user_stats(p_user_id TEXT)
 RETURNS TABLE (
   total_games INTEGER,
   total_wins INTEGER,
@@ -305,7 +305,7 @@ $$ LANGUAGE plpgsql;
 -- COMMENTAIRES
 -- ============================================================================
 COMMENT ON TABLE user_stats IS 'Statistiques détaillées par utilisateur et par jeu';
-COMMENT ON FUNCTION initialize_user_stats(UUID) IS 'Initialise les stats pour un nouvel utilisateur';
-COMMENT ON FUNCTION update_user_stats_after_game(UUID, TEXT, BOOLEAN) IS 'Met à jour les stats après une partie (appelé depuis finish_game)';
+COMMENT ON FUNCTION initialize_user_stats(TEXT) IS 'Initialise les stats pour un nouvel utilisateur';
+COMMENT ON FUNCTION update_user_stats_after_game(TEXT, TEXT, BOOLEAN) IS 'Met à jour les stats après une partie (appelé depuis finish_game)';
 COMMENT ON VIEW leaderboard_global IS 'Classement global des meilleurs joueurs';
 COMMENT ON VIEW leaderboard_by_game IS 'Classement par jeu spécifique';

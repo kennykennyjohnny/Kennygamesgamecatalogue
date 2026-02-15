@@ -3,7 +3,7 @@
 
 CREATE OR REPLACE FUNCTION finish_game(
   p_game_id UUID,
-  p_winner_user_id UUID
+  p_winner_user_id TEXT
 )
 RETURNS JSONB AS $$
 DECLARE
@@ -55,4 +55,4 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-COMMENT ON FUNCTION finish_game(UUID, UUID) IS 'Termine une partie et met à jour les stats des joueurs';
+COMMENT ON FUNCTION finish_game(UUID, TEXT) IS 'Termine une partie et met à jour les stats des joueurs';
