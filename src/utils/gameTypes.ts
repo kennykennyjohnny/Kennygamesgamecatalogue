@@ -11,6 +11,7 @@ export interface PartyGame {
   game_type: GameType;
   status: GameStatus;
   max_players: number;
+  current_player_id?: string;
   creator_id: string;
   creator_name: string;
   created_at: string;
@@ -25,6 +26,7 @@ export interface GamePlayer {
   game_id: string;
   user_id: string;
   user_name: string;
+  avatar_seed?: string;
   player_order: number;
   status: PlayerStatus;
   score: number;

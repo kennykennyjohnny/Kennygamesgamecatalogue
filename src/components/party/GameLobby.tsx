@@ -5,6 +5,7 @@ import { ArrowLeft, Copy, Check, Users } from 'lucide-react';
 import { Card } from '../ui/card';
 import { getGameUrl } from '@/utils/shortCode';
 import { Button } from '../ui/button';
+import { Avatar } from '../Avatar';
 
 interface GameLobbyProps {
   game: PartyGame;
@@ -142,15 +143,19 @@ export function GameLobby({ game, currentUserId, currentUserName, onStart, onBac
                   }}
                 >
                   <div className="flex items-center gap-3">
-                    <div
-                      className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg"
-                      style={{
-                        backgroundColor: isMe ? 'rgba(255, 255, 255, 0.2)' : 'var(--kg-primary)',
-                        color: isMe ? 'white' : 'white',
-                      }}
-                    >
-                      {player.user_name.charAt(0).toUpperCase()}
-                    </div>
+                    {player.avatar_seed ? (
+                      <Avatar seed={player.avatar_seed} size="md" />
+                    ) : (
+                      <div
+                        className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg"
+                        style={{
+                          backgroundColor: isMe ? 'rgba(255, 255, 255, 0.2)' : 'var(--kg-primary)',
+                          color: isMe ? 'white' : 'white',
+                        }}
+                      >
+                        {player.user_name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
                     <div>
                       <p className="font-bold">{player.user_name}</p>
                       {player.user_id === game.creator_id && (

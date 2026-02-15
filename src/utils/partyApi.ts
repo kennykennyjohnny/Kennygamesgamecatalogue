@@ -270,4 +270,70 @@ export const partyApi = {
       )
       .subscribe();
   },
+
+  /**
+   * Record a game move
+   */
+  async recordGameMove(
+    gameId: string,
+    userId: string,
+    moveData: any
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Get current state to merge with new move
+      const { state } = await this.getGameState(gameId);
+      
+      const newState = {
+        ...(state?.state || {}),
+        lastMove: moveData,
+        lastMoveBy: userId,
+        lastMoveAt: new Date().toISOString(),
+      };
+
+      // Update state
+      await this.updateGameState(gameId, newState);
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error recording game move:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * End game and record final results
+   */
+  async endGame(
+    gameId: string,
+    finalState: any
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Update game status to completed
+      const { error: gameError } = await supabase
+        .from('party_games')
+        .update({
+          status: 'completed',
+          finished_at: new Date().toISOString(),
+        })
+        .eq('id', gameId);
+
+      if (gameError) throw gameError;
+
+      // Update final state
+      await this.updateGameState(gameId, { ...finalState, completed: true });
+
+      // Update all players to finished
+      const { error: playersError } = await supabase
+        .from('party_game_players')
+        .update({ status: 'finished' })
+        .eq('game_id', gameId);
+
+      if (playersError) throw playersError;
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error ending game:', error);
+      return { success: false, error: error.message };
+    }
+  },
 };
