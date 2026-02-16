@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
-import { Search, UserPlus, MessageCircle, Check, X } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Search, UserPlus, MessageCircle, Check, X, Loader2 } from 'lucide-react';
 import { supabase } from '../utils/client';
 
 interface Friend {
@@ -19,6 +19,13 @@ interface FriendRequest {
   requestId: string;
 }
 
+interface SearchResult {
+  id: string;
+  username: string;
+  profile_emoji: string | null;
+  relationStatus: 'none' | 'pending_sent' | 'pending_received' | 'accepted';
+}
+
 export function FriendsPanel() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'online' | 'all' | 'pending'>('online');
@@ -27,9 +34,161 @@ export function FriendsPanel() {
   const [pendingRequests, setPendingRequests] = useState<FriendRequest[]>([]);
   const [userId, setUserId] = useState<string>('');
 
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [sendingTo, setSendingTo] = useState<string | null>(null);
+  const [feedbackMsg, setFeedbackMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     loadUserAndFriends();
   }, []);
+
+  // Realtime subscription for incoming friend requests
+  useEffect(() => {
+    if (!userId) return;
+
+    const channel = supabase
+      .channel('friendships-realtime')
+      .on(
+        'postgres_changes' as any,
+        { event: '*', schema: 'public', table: 'friendships' },
+        (payload: any) => {
+          const row = payload.new as any;
+          // Reload when a friendship involves us
+          if (
+            row?.user_id === userId ||
+            row?.friend_id === userId ||
+            (payload.old as any)?.user_id === userId ||
+            (payload.old as any)?.friend_id === userId
+          ) {
+            loadFriends(userId);
+            loadPendingRequests(userId);
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId]);
+
+  // Debounced user search
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      setSearchQuery(value);
+
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+
+      if (value.trim().length < 2) {
+        setSearchResults([]);
+        setSearchLoading(false);
+        return;
+      }
+
+      setSearchLoading(true);
+      debounceRef.current = setTimeout(() => {
+        searchUsers(value.trim());
+      }, 500);
+    },
+    [userId],
+  );
+
+  async function searchUsers(query: string) {
+    if (!userId) {
+      setSearchLoading(false);
+      return;
+    }
+
+    try {
+      // Search users by username
+      const { data: users, error } = await supabase
+        .from('users')
+        .select('id, username, profile_emoji')
+        .ilike('username', `%${query}%`)
+        .neq('id', userId)
+        .limit(10);
+
+      if (error) throw error;
+      if (!users || users.length === 0) {
+        setSearchResults([]);
+        setSearchLoading(false);
+        return;
+      }
+
+      // Check existing friendships for these users
+      const userIds = users.map((u: any) => u.id);
+
+      const { data: sentRequests } = await supabase
+        .from('friendships')
+        .select('friend_id, status')
+        .eq('user_id', userId)
+        .in('friend_id', userIds);
+
+      const { data: receivedRequests } = await supabase
+        .from('friendships')
+        .select('user_id, status')
+        .eq('friend_id', userId)
+        .in('user_id', userIds);
+
+      const sentMap = new Map<string, string>();
+      (sentRequests || []).forEach((r: any) => sentMap.set(r.friend_id, r.status));
+      const receivedMap = new Map<string, string>();
+      (receivedRequests || []).forEach((r: any) => receivedMap.set(r.user_id, r.status));
+
+      const results: SearchResult[] = users.map((u: any) => {
+        let relationStatus: SearchResult['relationStatus'] = 'none';
+        if (sentMap.get(u.id) === 'accepted' || receivedMap.get(u.id) === 'accepted') {
+          relationStatus = 'accepted';
+        } else if (sentMap.get(u.id) === 'pending') {
+          relationStatus = 'pending_sent';
+        } else if (receivedMap.get(u.id) === 'pending') {
+          relationStatus = 'pending_received';
+        }
+        return {
+          id: u.id,
+          username: u.username,
+          profile_emoji: u.profile_emoji,
+          relationStatus,
+        };
+      });
+
+      setSearchResults(results);
+    } catch (err) {
+      console.error('Search error:', err);
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  }
+
+  async function sendFriendRequest(friendId: string) {
+    setSendingTo(friendId);
+    setFeedbackMsg(null);
+
+    try {
+      const { error } = await supabase
+        .from('friendships')
+        .insert({ user_id: userId, friend_id: friendId, status: 'pending' });
+
+      if (error) throw error;
+
+      // Update the search result in-place
+      setSearchResults((prev) =>
+        prev.map((r) => (r.id === friendId ? { ...r, relationStatus: 'pending_sent' as const } : r)),
+      );
+      setFeedbackMsg({ text: 'Demande envoyée !', type: 'success' });
+    } catch (err: any) {
+      const msg = err?.message?.includes('duplicate')
+        ? 'Demande déjà envoyée'
+        : 'Erreur lors de l\'envoi';
+      setFeedbackMsg({ text: msg, type: 'error' });
+    } finally {
+      setSendingTo(null);
+      setTimeout(() => setFeedbackMsg(null), 3000);
+    }
+  }
 
   async function loadUserAndFriends() {
     const { data: { user } } = await supabase.auth.getUser();
@@ -134,7 +293,7 @@ export function FriendsPanel() {
               type="text"
               placeholder="Rechercher un ami..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="w-full pl-10 pr-4 py-3 rounded-xl text-white placeholder-white/40 outline-none border border-white/10"
               style={{
                 background: 'rgba(255, 255, 255, 0.05)',
@@ -144,7 +303,111 @@ export function FriendsPanel() {
             />
           </div>
 
-          {/* Tabs */}
+          {/* Search Results */}
+          <AnimatePresence>
+            {searchQuery.trim().length >= 2 && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="mb-4 rounded-xl overflow-hidden"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                }}
+              >
+                <p className="text-xs text-white/40 uppercase font-bold px-3 pt-3 pb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  Résultats de recherche
+                </p>
+
+                {searchLoading && (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="animate-spin text-emerald-400" size={20} />
+                    <span className="ml-2 text-sm text-white/50" style={{ fontFamily: 'Inter, sans-serif' }}>Recherche...</span>
+                  </div>
+                )}
+
+                {!searchLoading && searchResults.length === 0 && (
+                  <p className="text-sm text-white/40 text-center py-4" style={{ fontFamily: 'Inter, sans-serif' }}>
+                    Aucun utilisateur trouvé
+                  </p>
+                )}
+
+                {!searchLoading && searchResults.map((result) => (
+                  <motion.div
+                    key={result.id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="px-3 py-2 flex items-center gap-3 hover:bg-white/5 transition-colors"
+                  >
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-xl"
+                      style={{ background: 'rgba(139, 92, 246, 0.2)' }}
+                    >
+                      {result.profile_emoji || '🎮'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-white text-sm truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                        {result.username}
+                      </p>
+                    </div>
+                    {result.relationStatus === 'accepted' && (
+                      <span className="text-xs text-emerald-400 font-semibold px-2 py-1 rounded-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', fontFamily: 'Inter, sans-serif' }}>
+                        Déjà ami
+                      </span>
+                    )}
+                    {result.relationStatus === 'pending_sent' && (
+                      <span className="text-xs text-amber-400 font-semibold px-2 py-1 rounded-lg" style={{ background: 'rgba(245, 158, 11, 0.15)', fontFamily: 'Inter, sans-serif' }}>
+                        Demande envoyée
+                      </span>
+                    )}
+                    {result.relationStatus === 'pending_received' && (
+                      <span className="text-xs text-purple-400 font-semibold px-2 py-1 rounded-lg" style={{ background: 'rgba(139, 92, 246, 0.15)', fontFamily: 'Inter, sans-serif' }}>
+                        Demande reçue
+                      </span>
+                    )}
+                    {result.relationStatus === 'none' && (
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => sendFriendRequest(result.id)}
+                        disabled={sendingTo === result.id}
+                        className="p-2 rounded-lg text-white"
+                        style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}
+                      >
+                        {sendingTo === result.id ? (
+                          <Loader2 className="animate-spin" size={16} />
+                        ) : (
+                          <UserPlus size={16} />
+                        )}
+                      </motion.button>
+                    )}
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Feedback toast */}
+          <AnimatePresence>
+            {feedbackMsg && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                className="mb-4 px-4 py-2 rounded-xl text-sm font-semibold text-center"
+                style={{
+                  background: feedbackMsg.type === 'success' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                  border: `1px solid ${feedbackMsg.type === 'success' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`,
+                  color: feedbackMsg.type === 'success' ? '#6ee7b7' : '#fca5a5',
+                  fontFamily: 'Inter, sans-serif',
+                }}
+              >
+                {feedbackMsg.text}
+              </motion.div>
+            )}
+          </AnimatePresence>
           <div className="flex gap-2">
             {[
               { id: 'online', label: 'En ligne', count: onlineFriends.length },
@@ -400,21 +663,6 @@ export function FriendsPanel() {
           )}
         </div>
 
-        {/* Add Friend Button */}
-        <div className="mt-4">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="w-full py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2"
-            style={{
-              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-              fontFamily: 'Inter, sans-serif',
-            }}
-          >
-            <UserPlus size={20} />
-            Ajouter un ami
-          </motion.button>
-        </div>
       </div>
     </div>
   );
