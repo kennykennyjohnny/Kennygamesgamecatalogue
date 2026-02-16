@@ -1,7 +1,8 @@
 /**
- * PostCSS Configuration
- *
- * Tailwind CSS v4 (via @tailwindcss/vite) automatically sets up all required
- * PostCSS plugins — you do NOT need to include `tailwindcss` or `autoprefixer` here.
+ * PostCSS Configuration for Tailwind CSS v4
  */
-export default {}
+export default {
+  plugins: {
+    '@tailwindcss/postcss': {},
+  },
+}
