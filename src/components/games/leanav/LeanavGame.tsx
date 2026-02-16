@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { LeanavGame } from './lib/game';
+import { LeanavGame as LeanavGameEngine } from './lib/game';
 import './LeanavGame.css';
 
 export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn, onMove, onGameOver }) {
@@ -14,7 +14,7 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
   const [bottlesPlaced, setBottlesPlaced] = useState([]);
 
   useEffect(() => {
-    const gameInstance = new LeanavGame({
+    const gameInstance = new LeanavGameEngine({
       gameId,
       playerId,
       isPlayerTurn,

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { NourarcheryGame } from './lib/game';
+import { NourarcheryGame as NourarcheryGameEngine } from './lib/game';
 import './NourarcheryGame.css';
 
 export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayerTurn, onMove, onGameOver }) {
@@ -21,7 +21,7 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
     canvas.width = 800;
     canvas.height = 400;
 
-    const game = new NourarcheryGame({
+    const game = new NourarcheryGameEngine({
       gameId,
       playerId,
       canvas,
