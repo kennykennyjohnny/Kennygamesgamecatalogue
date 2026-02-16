@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Users, Home, User as UserIcon } from 'lucide-react';
 import { HomeScreen } from './HomeScreen';
+import { PlayScreen } from './PlayScreen';
 import { FriendsPanel } from './FriendsPanel';
 import { ProfilePanel } from './ProfilePanel';
 import { useTheme } from '../contexts/ThemeContext';
@@ -81,7 +82,7 @@ export function MainApp({ user, onLogout }: MainAppProps) {
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.2 }}
             >
-              <FriendsPanel userId={user.id} />
+              <FriendsPanel />
             </motion.div>
           )}
           {activeTab === 'play' && (
@@ -92,7 +93,7 @@ export function MainApp({ user, onLogout }: MainAppProps) {
               exit={{ opacity: 0, y: 20 }}
               transition={{ duration: 0.2 }}
             >
-              <HomeScreen userId={user.id} />
+              <HomeScreen />
             </motion.div>
           )}
           {activeTab === 'profile' && (
