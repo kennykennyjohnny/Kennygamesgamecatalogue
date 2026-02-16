@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Users, Home, User as UserIcon } from 'lucide-react';
 import { HomeScreen } from './HomeScreen';
-import { PlayScreen } from './PlayScreen';
 import { FriendsPanel } from './FriendsPanel';
 import { ProfilePanel } from './ProfilePanel';
+import { GameRoomWrapper } from './GameRoomWrapper';
 import { useTheme } from '../contexts/ThemeContext';
 
 interface MainAppProps {
@@ -14,9 +14,42 @@ interface MainAppProps {
 
 type Tab = 'friends' | 'play' | 'profile';
 
+interface ActiveGame {
+  gameId: string;
+  gameType: string;
+  playerId: string;
+  opponentId: string;
+}
+
 export function MainApp({ user, onLogout }: MainAppProps) {
   const [activeTab, setActiveTab] = useState<Tab>('play');
+  const [activeGame, setActiveGame] = useState<ActiveGame | null>(null);
   const { colors } = useTheme();
+
+  function handlePlayMatch(match: any) {
+    setActiveGame({
+      gameId: match.id,
+      gameType: match.gameId,
+      playerId: user.id,
+      opponentId: match.opponentId,
+    });
+  }
+
+  function handleBackToHome() {
+    setActiveGame(null);
+  }
+
+  if (activeGame) {
+    return (
+      <GameRoomWrapper
+        gameId={activeGame.gameId}
+        gameType={activeGame.gameType}
+        playerId={activeGame.playerId}
+        opponentId={activeGame.opponentId}
+        onBack={handleBackToHome}
+      />
+    );
+  }
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
@@ -93,7 +126,7 @@ export function MainApp({ user, onLogout }: MainAppProps) {
               exit={{ opacity: 0, y: 20 }}
               transition={{ duration: 0.2 }}
             >
-              <HomeScreen />
+              <HomeScreen onPlayMatch={handlePlayMatch} />
             </motion.div>
           )}
           {activeTab === 'profile' && (

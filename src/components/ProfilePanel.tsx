@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User, Trophy, Star, Bell, Shield, ChevronRight, LogOut, Palette, Shuffle } from 'lucide-react';
 import { createAvatar } from '@dicebear/core';
 import { funEmoji } from '@dicebear/collection';
 import { useTheme, Theme } from '../contexts/ThemeContext';
 import { GameIcon } from './GameIcon';
+import { supabase } from '../utils/client';
 
 interface ProfilePanelProps {
   user: { id: string; name: string; email: string };
@@ -15,16 +16,69 @@ export function ProfilePanel({ user, onLogout }: ProfilePanelProps) {
   const [activeTab, setActiveTab] = useState<'profile' | 'settings'>('profile');
   const { theme, setTheme, colors } = useTheme();
   
-  // Settings states
   const [notifications, setNotifications] = useState(true);
   const [avatarSeed, setAvatarSeed] = useState('felix');
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [stats, setStats] = useState([
+    { icon: Trophy, label: 'Victoires', value: '0', color: colors.primary },
+    { icon: Star, label: 'Défaites', value: '0', color: '#ef4444' },
+    { icon: Trophy, label: 'Série', value: '0', color: '#fbbf24' },
+  ]);
 
-  const stats = [
-    { icon: Trophy, label: 'Victoires', value: '89', color: colors.primary },
-    { icon: Star, label: 'Défaites', value: '34', color: '#ef4444' },
-    { icon: Trophy, label: 'Série', value: '5', color: '#fbbf24' },
-  ];
+  useEffect(() => {
+    loadProfile();
+  }, [user.id]);
+
+  useEffect(() => {
+    if (avatarSeed) {
+      saveAvatar();
+    }
+  }, [avatarSeed]);
+
+  useEffect(() => {
+    saveTheme();
+  }, [theme]);
+
+  async function loadProfile() {
+    const { data } = await supabase
+      .from('users')
+      .select('profile_emoji, user_theme')
+      .eq('id', user.id)
+      .single();
+
+    if (data) {
+      if (data.profile_emoji) setAvatarSeed(data.profile_emoji);
+      if (data.user_theme) setTheme(data.user_theme as Theme);
+    }
+
+    const { data: statsData } = await supabase
+      .from('player_stats')
+      .select('*')
+      .eq('user_id', user.id)
+      .single();
+
+    if (statsData) {
+      setStats([
+        { icon: Trophy, label: 'Victoires', value: String(statsData.total_wins || 0), color: colors.primary },
+        { icon: Star, label: 'Défaites', value: String(statsData.total_losses || 0), color: '#ef4444' },
+        { icon: Trophy, label: 'Série', value: String(statsData.current_streak || 0), color: '#fbbf24' },
+      ]);
+    }
+  }
+
+  async function saveAvatar() {
+    await supabase
+      .from('users')
+      .update({ profile_emoji: avatarSeed })
+      .eq('id', user.id);
+  }
+
+  async function saveTheme() {
+    await supabase
+      .from('users')
+      .update({ user_theme: theme })
+      .eq('id', user.id);
+  }
 
   const themes: { id: Theme; name: string }[] = [
     { id: 'emerald', name: 'Émeraude' },

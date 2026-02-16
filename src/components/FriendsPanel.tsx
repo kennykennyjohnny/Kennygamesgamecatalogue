@@ -1,26 +1,122 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Search, UserPlus, MessageCircle, Clock, Check, X } from 'lucide-react';
+import { Search, UserPlus, MessageCircle, Check, X } from 'lucide-react';
+import { supabase } from '../utils/client';
 
-const onlineFriends = [
-  { id: '1', name: 'Kenny', avatar: '🎮', status: 'En ligne', game: 'SandyPong' },
-  { id: '2', name: 'Sandy', avatar: '⚡', status: 'En ligne', game: 'LilianoThunder' },
-  { id: '3', name: 'Léa', avatar: '🍾', status: 'En ligne' },
-];
+interface Friend {
+  id: string;
+  name: string;
+  avatar: string;
+  status: string;
+  game?: string;
+  lastSeen?: string;
+}
 
-const offlineFriends = [
-  { id: '4', name: 'Nour', avatar: '🎯', status: 'Hors ligne', lastSeen: 'Il y a 2h' },
-  { id: '5', name: 'Alex', avatar: '🏆', status: 'Hors ligne', lastSeen: 'Il y a 5h' },
-];
-
-const pendingRequests = [
-  { id: '6', name: 'Martin', avatar: '🎲' },
-  { id: '7', name: 'Sophie', avatar: '🎪' },
-];
+interface FriendRequest {
+  id: string;
+  name: string;
+  avatar: string;
+  requestId: string;
+}
 
 export function FriendsPanel() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'online' | 'all' | 'pending'>('online');
+  const [onlineFriends, setOnlineFriends] = useState<Friend[]>([]);
+  const [offlineFriends, setOfflineFriends] = useState<Friend[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<FriendRequest[]>([]);
+  const [userId, setUserId] = useState<string>('');
+
+  useEffect(() => {
+    loadUserAndFriends();
+  }, []);
+
+  async function loadUserAndFriends() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    
+    setUserId(user.id);
+    await loadFriends(user.id);
+    await loadPendingRequests(user.id);
+  }
+
+  async function loadFriends(currentUserId: string) {
+    const { data } = await supabase
+      .from('friendships')
+      .select(`
+        id,
+        user_id,
+        friend_id,
+        users!friendships_friend_id_fkey(id, username, profile_emoji, last_seen)
+      `)
+      .eq('user_id', currentUserId)
+      .eq('status', 'accepted');
+
+    if (data) {
+      const friends = data.map((f: any) => ({
+        id: f.users.id,
+        name: f.users.username,
+        avatar: f.users.profile_emoji || '🎮',
+        status: isOnline(f.users.last_seen) ? 'En ligne' : 'Hors ligne',
+        lastSeen: !isOnline(f.users.last_seen) ? getLastSeenText(f.users.last_seen) : undefined,
+      }));
+
+      setOnlineFriends(friends.filter((f: Friend) => f.status === 'En ligne'));
+      setOfflineFriends(friends.filter((f: Friend) => f.status === 'Hors ligne'));
+    }
+  }
+
+  async function loadPendingRequests(currentUserId: string) {
+    const { data } = await supabase
+      .from('friendships')
+      .select(`
+        id,
+        user_id,
+        users!friendships_user_id_fkey(id, username, profile_emoji)
+      `)
+      .eq('friend_id', currentUserId)
+      .eq('status', 'pending');
+
+    if (data) {
+      setPendingRequests(data.map((r: any) => ({
+        id: r.users.id,
+        name: r.users.username,
+        avatar: r.users.profile_emoji || '🎮',
+        requestId: r.id,
+      })));
+    }
+  }
+
+  async function acceptRequest(requestId: string) {
+    await supabase
+      .from('friendships')
+      .update({ status: 'accepted' })
+      .eq('id', requestId);
+
+    loadUserAndFriends();
+  }
+
+  async function rejectRequest(requestId: string) {
+    await supabase
+      .from('friendships')
+      .delete()
+      .eq('id', requestId);
+
+    loadUserAndFriends();
+  }
+
+  function isOnline(lastSeen: string) {
+    if (!lastSeen) return false;
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    return new Date(lastSeen) > fiveMinutesAgo;
+  }
+
+  function getLastSeenText(lastSeen: string) {
+    if (!lastSeen) return 'Hors ligne';
+    const hours = Math.floor((Date.now() - new Date(lastSeen).getTime()) / (1000 * 60 * 60));
+    if (hours < 1) return 'Il y a quelques minutes';
+    return `Il y a ${hours}h`;
+  }
 
   return (
     <div className="min-h-screen p-4 pt-16 pb-6">
@@ -274,6 +370,7 @@ export function FriendsPanel() {
                     <motion.button
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
+                      onClick={() => acceptRequest(request.requestId)}
                       className="flex-1 py-2 rounded-lg font-semibold text-white flex items-center justify-center gap-2"
                       style={{
                         background: 'rgba(34, 197, 94, 0.3)',
@@ -286,6 +383,7 @@ export function FriendsPanel() {
                     <motion.button
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
+                      onClick={() => rejectRequest(request.requestId)}
                       className="flex-1 py-2 rounded-lg font-semibold text-white flex items-center justify-center gap-2"
                       style={{
                         background: 'rgba(239, 68, 68, 0.3)',

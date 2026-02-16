@@ -1,7 +1,9 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { ChevronRight } from 'lucide-react';
 import { GameIcon } from './GameIcon';
 import { useTheme } from '../contexts/ThemeContext';
+import { supabase } from '../utils/client';
 
 interface Match {
   id: string;
@@ -9,47 +11,108 @@ interface Match {
   gameName: string;
   opponent: string;
   opponentAvatar: string;
+  opponentId: string;
   isMyTurn: boolean;
   myScore: number;
   opponentScore: number;
 }
 
-const activeMatches: Match[] = [
-  { id: '1', gameId: 'sandy', gameName: 'SandyPong', opponent: 'Kenny', opponentAvatar: '🎮', isMyTurn: true, myScore: 3, opponentScore: 2 },
-  { id: '2', gameId: 'nour', gameName: 'NourArchery', opponent: 'Léa', opponentAvatar: '🍾', isMyTurn: false, myScore: 45, opponentScore: 52 },
-  { id: '3', gameId: 'liliano', gameName: 'LilianoThunder', opponent: 'Sandy', opponentAvatar: '⚡', isMyTurn: true, myScore: 1, opponentScore: 2 },
-  { id: '4', gameId: 'lea', gameName: 'LéaNaval', opponent: 'Nour', opponentAvatar: '🎯', isMyTurn: false, myScore: 0, opponentScore: 0 },
-];
+interface HomeScreenProps {
+  onPlayMatch?: (match: Match) => void;
+}
 
-const allGames = [
-  { id: 'sandy', name: 'SandyPong', subtitle: 'Beer Pong' },
-  { id: 'lea', name: 'LéaNaval', subtitle: 'Bataille' },
-  { id: 'liliano', name: 'LilianoThunder', subtitle: 'Tank' },
-  { id: 'nour', name: 'NourArchery', subtitle: 'Archery' },
-];
-
-const globalStats = {
-  wins: 89,
-  losses: 34,
-  currentStreak: 5,
-  bestStreak: 12,
-};
-
-const gameStats = [
-  { gameId: 'sandy', name: 'SandyPong', wins: 24, losses: 8 },
-  { gameId: 'nour', name: 'NourArchery', wins: 31, losses: 12 },
-  { gameId: 'liliano', name: 'LilianoThunder', wins: 18, losses: 9 },
-  { gameId: 'lea', name: 'LéaNaval', wins: 16, losses: 5 },
-];
-
-const rivalries = [
-  { opponent: 'Kenny', wins: 15, losses: 8, avatar: '🎮' },
-  { opponent: 'Léa', wins: 12, losses: 10, avatar: '🍾' },
-  { opponent: 'Sandy', wins: 18, losses: 6, avatar: '⚡' },
-];
-
-export function HomeScreen() {
+export function HomeScreen({ onPlayMatch }: HomeScreenProps) {
   const { colors } = useTheme();
+  const [activeMatches, setActiveMatches] = useState<Match[]>([]);
+  const [globalStats, setGlobalStats] = useState({ wins: 0, losses: 0, currentStreak: 0, bestStreak: 0 });
+  const [gameStats, setGameStats] = useState<any[]>([]);
+  const [userId, setUserId] = useState('');
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  async function loadData() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    
+    setUserId(user.id);
+    await loadActiveMatches(user.id);
+    await loadStats(user.id);
+  }
+
+  async function loadActiveMatches(currentUserId: string) {
+    const { data } = await supabase
+      .from('challenges')
+      .select(`
+        id,
+        game_type,
+        challenger_id,
+        opponent_id,
+        challenger_score,
+        opponent_score,
+        current_turn,
+        challenger:users!challenges_challenger_id_fkey(username, profile_emoji),
+        opponent:users!challenges_opponent_id_fkey(username, profile_emoji)
+      `)
+      .eq('status', 'active')
+      .or(`challenger_id.eq.${currentUserId},opponent_id.eq.${currentUserId}`);
+
+    if (data) {
+      const matches = data.map((c: any) => {
+        const isChallenger = c.challenger_id === currentUserId;
+        const opponent = isChallenger ? c.opponent : c.challenger;
+        const opponentId = isChallenger ? c.opponent_id : c.challenger_id;
+        
+        return {
+          id: c.id,
+          gameId: c.game_type,
+          gameName: getGameName(c.game_type),
+          opponent: opponent.username,
+          opponentAvatar: opponent.profile_emoji || '🎮',
+          opponentId,
+          isMyTurn: c.current_turn === currentUserId,
+          myScore: isChallenger ? c.challenger_score : c.opponent_score,
+          opponentScore: isChallenger ? c.opponent_score : c.challenger_score,
+        };
+      });
+      setActiveMatches(matches);
+    }
+  }
+
+  async function loadStats(currentUserId: string) {
+    const { data } = await supabase
+      .from('player_stats')
+      .select('*')
+      .eq('user_id', currentUserId)
+      .single();
+
+    if (data) {
+      setGlobalStats({
+        wins: data.total_wins || 0,
+        losses: data.total_losses || 0,
+        currentStreak: data.current_streak || 0,
+        bestStreak: data.best_streak || 0,
+      });
+
+      setGameStats([
+        { gameId: 'sandy', name: 'SandyPong', wins: data.sandy_wins || 0, losses: data.sandy_losses || 0 },
+        { gameId: 'nour', name: 'NourArchery', wins: data.nour_wins || 0, losses: data.nour_losses || 0 },
+        { gameId: 'liliano', name: 'LilianoThunder', wins: data.liliano_wins || 0, losses: data.liliano_losses || 0 },
+        { gameId: 'lea', name: 'LéaNaval', wins: data.lea_wins || 0, losses: data.lea_losses || 0 },
+      ]);
+    }
+  }
+
+  function getGameName(gameType: string): string {
+    const names: Record<string, string> = {
+      sandy: 'SandyPong',
+      lea: 'LéaNaval',
+      liliano: 'LilianoThunder',
+      nour: 'NourArchery',
+    };
+    return names[gameType] || gameType;
+  }
 
   return (
     <div className="min-h-screen p-4 pt-16 pb-6">
@@ -71,6 +134,7 @@ export function HomeScreen() {
                 transition={{ delay: index * 0.05 }}
                 whileHover={{ x: match.isMyTurn ? 3 : 0 }}
                 whileTap={match.isMyTurn ? { scale: 0.99 } : {}}
+                onClick={() => match.isMyTurn && onPlayMatch?.(match)}
                 className={`group ${match.isMyTurn ? 'cursor-pointer' : ''}`}
               >
                 <div
@@ -166,7 +230,12 @@ export function HomeScreen() {
             Lancer un jeu
           </h3>
           <div className="grid grid-cols-2 gap-3">
-            {allGames.map((game, index) => (
+            {[
+              { id: 'sandy', name: 'SandyPong', subtitle: 'Beer Pong' },
+              { id: 'lea', name: 'LéaNaval', subtitle: 'Bataille' },
+              { id: 'liliano', name: 'LilianoThunder', subtitle: 'Tank' },
+              { id: 'nour', name: 'NourArchery', subtitle: 'Archery' },
+            ].map((game, index) => (
               <motion.button
                 key={game.id}
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -266,14 +335,15 @@ export function HomeScreen() {
         </motion.div>
 
         {/* STATS PAR JEU */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-        >
-          <h3 className="text-lg font-bold text-white mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>
-            Par jeu
-          </h3>
+        {gameStats.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+          >
+            <h3 className="text-lg font-bold text-white mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>
+              Par jeu
+            </h3>
           <div className="space-y-2">
             {gameStats.map((stat) => (
               <div
@@ -311,59 +381,7 @@ export function HomeScreen() {
             ))}
           </div>
         </motion.div>
-
-        {/* RIVALITÉS */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-        >
-          <h3 className="text-lg font-bold text-white mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>
-            Rivalités
-          </h3>
-          <div className="space-y-2">
-            {rivalries.map((rival) => (
-              <div
-                key={rival.opponent}
-                className="rounded-xl p-3 border border-white/10"
-                style={{
-                  background: 'rgba(255, 255, 255, 0.03)',
-                  backdropFilter: 'blur(10px)',
-                }}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-xl flex-shrink-0"
-                       style={{ background: `${colors.primary}30` }}>
-                    {rival.avatar}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-xs font-bold text-white" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                      {rival.opponent}
-                    </p>
-                    <div className="flex items-center gap-2 text-[10px]">
-                      <span style={{ fontFamily: 'Inter, sans-serif', color: colors.primary }} className="font-semibold">
-                        {rival.wins}V
-                      </span>
-                      <span className="text-white/30">-</span>
-                      <span className="text-red-400 font-semibold" style={{ fontFamily: 'Inter, sans-serif' }}>
-                        {rival.losses}D
-                      </span>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs font-black" 
-                       style={{ 
-                         fontFamily: 'Outfit, sans-serif',
-                         color: rival.wins > rival.losses ? colors.primary : '#ef4444'
-                       }}>
-                      {rival.wins > rival.losses ? '+' : ''}{rival.wins - rival.losses}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </motion.div>
+        )}
       </div>
     </div>
   );
