@@ -1,49 +1,45 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { supabase } from '../utils/client';
 
-// Thèmes basés sur les 4 jeux
-export type Theme = 'sandy' | 'lea' | 'liliano' | 'nour';
+// 4 thèmes de couleurs modernes
+export type Theme = 'emerald' | 'blue' | 'purple' | 'pink';
 
 interface ThemeColors {
   primary: string;
   primaryDark: string;
   primaryLight: string;
   gradient: string;
-  emoji: string;
   name: string;
 }
 
 const themeColors: Record<Theme, ThemeColors> = {
-  sandy: {
-    primary: '#ff1493',
-    primaryDark: '#c71585',
-    primaryLight: '#ffc0cb',
-    gradient: 'linear-gradient(135deg, #ff1493 0%, #ffc0cb 100%)',
-    emoji: '🍷',
-    name: 'SandyPong',
+  emerald: {
+    primary: '#10b981',
+    primaryDark: '#059669',
+    primaryLight: '#34d399',
+    gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+    name: 'Émeraude',
   },
-  lea: {
-    primary: '#722f37',
-    primaryDark: '#5a242c',
-    primaryLight: '#d4af37',
-    gradient: 'linear-gradient(135deg, #722f37 0%, #d4af37 100%)',
-    emoji: '🍾',
-    name: 'LéaNaval',
+  blue: {
+    primary: '#3b82f6',
+    primaryDark: '#1d4ed8',
+    primaryLight: '#60a5fa',
+    gradient: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+    name: 'Bleu',
   },
-  liliano: {
-    primary: '#ff00ff',
-    primaryDark: '#cc00cc',
-    primaryLight: '#00ffff',
-    gradient: 'linear-gradient(135deg, #ff00ff 0%, #00ffff 100%)',
-    emoji: '⚡',
-    name: 'LilianoThunder',
+  purple: {
+    primary: '#8b5cf6',
+    primaryDark: '#6d28d9',
+    primaryLight: '#a78bfa',
+    gradient: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+    name: 'Violet',
   },
-  nour: {
-    primary: '#00ff41',
-    primaryDark: '#00cc33',
-    primaryLight: '#00d9ff',
-    gradient: 'linear-gradient(135deg, #00ff41 0%, #00d9ff 100%)',
-    emoji: '💻',
-    name: 'NourArchery',
+  pink: {
+    primary: '#ec4899',
+    primaryDark: '#be185d',
+    primaryLight: '#f472b6',
+    gradient: 'linear-gradient(135deg, #ec4899 0%, #be185d 100%)',
+    name: 'Rose',
   },
 };
 
@@ -51,29 +47,62 @@ interface ThemeContextType {
   theme: Theme;
   setTheme: (theme: Theme) => void;
   colors: ThemeColors;
+  userId: string | null;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    // Load from localStorage
-    const saved = localStorage.getItem('kg_theme');
-    return (saved as Theme) || 'sandy';
-  });
+export function ThemeProvider({ children, userId }: { children: ReactNode; userId?: string | null }) {
+  const [theme, setThemeState] = useState<Theme>('emerald');
+
+  // Load theme from Supabase when userId is available
+  useEffect(() => {
+    if (!userId) {
+      // Load from localStorage if not authenticated
+      const saved = localStorage.getItem('kg_theme');
+      if (saved) setThemeState(saved as Theme);
+      return;
+    }
+
+    const loadTheme = async () => {
+      const { data, error } = await supabase
+        .from('users')
+        .select('user_theme')
+        .eq('id', userId)
+        .single();
+
+      if (data && data.user_theme && !error) {
+        setThemeState(data.user_theme as Theme);
+      }
+    };
+
+    loadTheme();
+  }, [userId]);
 
   useEffect(() => {
-    // Save to localStorage
-    localStorage.setItem('kg_theme', theme);
-    
     // Update CSS custom properties
     const colors = themeColors[theme];
     document.documentElement.style.setProperty('--kg-theme-primary', colors.primary);
     document.documentElement.style.setProperty('--kg-theme-gradient', colors.gradient);
+    
+    // Save to localStorage
+    localStorage.setItem('kg_theme', theme);
   }, [theme]);
 
+  // Save theme to Supabase when changed
+  const setTheme = async (newTheme: Theme) => {
+    setThemeState(newTheme);
+
+    if (userId) {
+      await supabase
+        .from('users')
+        .update({ user_theme: newTheme })
+        .eq('id', userId);
+    }
+  };
+
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, colors: themeColors[theme] }}>
+    <ThemeContext.Provider value={{ theme, setTheme, colors: themeColors[theme], userId: userId || null }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -91,3 +120,6 @@ export function useTheme() {
 export function getThemeColors(theme: Theme): ThemeColors {
   return themeColors[theme];
 }
+
+// Export all themes for selector
+export const allThemes: Theme[] = ['emerald', 'blue', 'purple', 'pink'];
