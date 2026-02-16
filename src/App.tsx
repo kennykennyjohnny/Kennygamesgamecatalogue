@@ -21,19 +21,34 @@ function App() {
         return
       }
 
-      // Get user profile from database
-      const { data: userData } = await supabase
-        .from('users')
-        .select('id, username, email')
+      // Get user profile - try user_profiles first (existing accounts)
+      const { data: profileData } = await supabase
+        .from('user_profiles')
+        .select('id, username')
         .eq('id', authUser.id)
         .single()
 
-      if (userData) {
+      if (profileData) {
         setUser({
-          id: userData.id,
-          name: userData.username,
-          email: userData.email,
+          id: profileData.id,
+          name: profileData.username,
+          email: authUser.email || '',
         })
+      } else {
+        // Fallback to users table
+        const { data: userData } = await supabase
+          .from('users')
+          .select('id, username, email')
+          .eq('id', authUser.id)
+          .single()
+
+        if (userData) {
+          setUser({
+            id: userData.id,
+            name: userData.username,
+            email: userData.email,
+          })
+        }
       }
       
       setLoading(false)

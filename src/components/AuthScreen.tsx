@@ -29,18 +29,39 @@ export function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
         if (signInError) throw signInError;
 
-        const { data: userData } = await supabase
-          .from('users')
-          .select('id, username, email')
+        // Try user_profiles first (existing accounts), then users table
+        let userData: any = null;
+        const { data: profileData } = await supabase
+          .from('user_profiles')
+          .select('id, username')
           .eq('id', data.user!.id)
           .single();
+
+        if (profileData) {
+          userData = { id: profileData.id, username: profileData.username, email };
+        } else {
+          const { data: usersData } = await supabase
+            .from('users')
+            .select('id, username, email')
+            .eq('id', data.user!.id)
+            .single();
+          userData = usersData;
+        }
 
         if (userData) {
           onAuthSuccess({
             id: userData.id,
             name: userData.username,
-            email: userData.email,
+            email: userData.email || email,
           });
+        } else {
+          // User authenticated but no profile - create one
+          const username = email.split('@')[0];
+          await supabase.from('user_profiles').insert({
+            id: data.user!.id,
+            username,
+          });
+          onAuthSuccess({ id: data.user!.id, name: username, email });
         }
       } else {
         const { data, error: signUpError } = await supabase.auth.signUp({
@@ -49,21 +70,21 @@ export function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         });
 
         if (signUpError) throw signUpError;
+        if (!data.user) throw new Error('Erreur lors de la création du compte');
 
         const username = name || email.split('@')[0];
+        // Insert into user_profiles (main table)
         const { error: insertError } = await supabase
-          .from('users')
+          .from('user_profiles')
           .insert({
-            id: data.user!.id,
+            id: data.user.id,
             username,
-            email,
-            profile_emoji: '🎮',
           });
 
         if (insertError) throw insertError;
 
         onAuthSuccess({
-          id: data.user!.id,
+          id: data.user.id,
           name: username,
           email: email,
         });

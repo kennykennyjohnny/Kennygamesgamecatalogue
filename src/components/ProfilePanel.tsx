@@ -40,6 +40,7 @@ export function ProfilePanel({ user, onLogout }: ProfilePanelProps) {
   }, [theme]);
 
   async function loadProfile() {
+    // Try loading from users table first (has theme/emoji columns)
     const { data } = await supabase
       .from('users')
       .select('profile_emoji, user_theme')
@@ -51,6 +52,7 @@ export function ProfilePanel({ user, onLogout }: ProfilePanelProps) {
       if (data.user_theme) setTheme(data.user_theme as Theme);
     }
 
+    // Load stats (may not exist yet, that's OK)
     const { data: statsData } = await supabase
       .from('player_stats')
       .select('*')
@@ -67,17 +69,16 @@ export function ProfilePanel({ user, onLogout }: ProfilePanelProps) {
   }
 
   async function saveAvatar() {
+    // Save to users table (upsert in case row doesn't exist)
     await supabase
       .from('users')
-      .update({ profile_emoji: avatarSeed })
-      .eq('id', user.id);
+      .upsert({ id: user.id, username: user.name, email: user.email, profile_emoji: avatarSeed }, { onConflict: 'id' });
   }
 
   async function saveTheme() {
     await supabase
       .from('users')
-      .update({ user_theme: theme })
-      .eq('id', user.id);
+      .upsert({ id: user.id, username: user.name, email: user.email, user_theme: theme }, { onConflict: 'id' });
   }
 
   const themes: { id: Theme; name: string }[] = [

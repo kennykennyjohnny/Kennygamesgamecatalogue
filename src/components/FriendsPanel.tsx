@@ -102,10 +102,10 @@ export function FriendsPanel() {
     }
 
     try {
-      // Search users by username
+      // Search users by username in user_profiles
       const { data: users, error } = await supabase
-        .from('users')
-        .select('id, username, profile_emoji')
+        .from('user_profiles')
+        .select('id, username')
         .ilike('username', `%${query}%`)
         .neq('id', userId)
         .limit(10);
@@ -149,7 +149,7 @@ export function FriendsPanel() {
         return {
           id: u.id,
           username: u.username,
-          profile_emoji: u.profile_emoji,
+          profile_emoji: u.profile_emoji || null,
           relationStatus,
         };
       });
@@ -200,49 +200,78 @@ export function FriendsPanel() {
   }
 
   async function loadFriends(currentUserId: string) {
-    const { data } = await supabase
+    // Get accepted friendships (both directions)
+    const { data: sentData } = await supabase
       .from('friendships')
-      .select(`
-        id,
-        user_id,
-        friend_id,
-        users!friendships_friend_id_fkey(id, username, profile_emoji, last_seen)
-      `)
+      .select('id, friend_id')
       .eq('user_id', currentUserId)
       .eq('status', 'accepted');
 
-    if (data) {
-      const friends = data.map((f: any) => ({
-        id: f.users.id,
-        name: f.users.username,
-        avatar: f.users.profile_emoji || '🎮',
-        status: isOnline(f.users.last_seen) ? 'En ligne' : 'Hors ligne',
-        lastSeen: !isOnline(f.users.last_seen) ? getLastSeenText(f.users.last_seen) : undefined,
+    const { data: receivedData } = await supabase
+      .from('friendships')
+      .select('id, user_id')
+      .eq('friend_id', currentUserId)
+      .eq('status', 'accepted');
+
+    const friendIds = [
+      ...(sentData || []).map((f: any) => f.friend_id),
+      ...(receivedData || []).map((f: any) => f.user_id),
+    ];
+
+    if (friendIds.length === 0) {
+      setOnlineFriends([]);
+      setOfflineFriends([]);
+      return;
+    }
+
+    // Get friend profiles from user_profiles
+    const { data: profiles } = await supabase
+      .from('user_profiles')
+      .select('id, username')
+      .in('id', friendIds);
+
+    if (profiles) {
+      const friends: Friend[] = profiles.map((p: any) => ({
+        id: p.id,
+        name: p.username,
+        avatar: '🎮',
+        status: 'En ligne',
       }));
 
-      setOnlineFriends(friends.filter((f: Friend) => f.status === 'En ligne'));
-      setOfflineFriends(friends.filter((f: Friend) => f.status === 'Hors ligne'));
+      setOnlineFriends(friends);
+      setOfflineFriends([]);
     }
   }
 
   async function loadPendingRequests(currentUserId: string) {
-    const { data } = await supabase
+    // Get pending requests where I'm the recipient
+    const { data: requests } = await supabase
       .from('friendships')
-      .select(`
-        id,
-        user_id,
-        users!friendships_user_id_fkey(id, username, profile_emoji)
-      `)
+      .select('id, user_id')
       .eq('friend_id', currentUserId)
       .eq('status', 'pending');
 
-    if (data) {
-      setPendingRequests(data.map((r: any) => ({
-        id: r.users.id,
-        name: r.users.username,
-        avatar: r.users.profile_emoji || '🎮',
-        requestId: r.id,
-      })));
+    if (!requests || requests.length === 0) {
+      setPendingRequests([]);
+      return;
+    }
+
+    const senderIds = requests.map((r: any) => r.user_id);
+    const { data: profiles } = await supabase
+      .from('user_profiles')
+      .select('id, username')
+      .in('id', senderIds);
+
+    if (profiles) {
+      setPendingRequests(requests.map((r: any) => {
+        const profile = profiles.find((p: any) => p.id === r.user_id);
+        return {
+          id: profile?.id || r.user_id,
+          name: profile?.username || 'Inconnu',
+          avatar: '🎮',
+          requestId: r.id,
+        };
+      }));
     }
   }
 

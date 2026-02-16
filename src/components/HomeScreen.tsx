@@ -44,32 +44,35 @@ export function HomeScreen({ onPlayMatch }: HomeScreenProps) {
   async function loadActiveMatches(currentUserId: string) {
     const { data } = await supabase
       .from('challenges')
-      .select(`
-        id,
-        game_type,
-        challenger_id,
-        opponent_id,
-        challenger_score,
-        opponent_score,
-        current_turn,
-        challenger:users!challenges_challenger_id_fkey(username, profile_emoji),
-        opponent:users!challenges_opponent_id_fkey(username, profile_emoji)
-      `)
+      .select('id, game_type, challenger_id, opponent_id, challenger_score, opponent_score, current_turn, status')
       .eq('status', 'active')
       .or(`challenger_id.eq.${currentUserId},opponent_id.eq.${currentUserId}`);
 
-    if (data) {
+    if (data && data.length > 0) {
+      // Get all opponent IDs
+      const opponentIds = data.map((c: any) => 
+        c.challenger_id === currentUserId ? c.opponent_id : c.challenger_id
+      );
+
+      // Fetch opponent profiles from user_profiles
+      const { data: profiles } = await supabase
+        .from('user_profiles')
+        .select('id, username')
+        .in('id', opponentIds);
+
+      const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+
       const matches = data.map((c: any) => {
         const isChallenger = c.challenger_id === currentUserId;
-        const opponent = isChallenger ? c.opponent : c.challenger;
         const opponentId = isChallenger ? c.opponent_id : c.challenger_id;
+        const opponentProfile = profileMap.get(opponentId);
         
         return {
           id: c.id,
           gameId: c.game_type,
           gameName: getGameName(c.game_type),
-          opponent: opponent.username,
-          opponentAvatar: opponent.profile_emoji || '🎮',
+          opponent: opponentProfile?.username || 'Joueur',
+          opponentAvatar: '🎮',
           opponentId,
           isMyTurn: c.current_turn === currentUserId,
           myScore: isChallenger ? c.challenger_score : c.opponent_score,
