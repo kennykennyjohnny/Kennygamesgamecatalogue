@@ -357,57 +357,69 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
-      background: P.bg, fontFamily: font, overflow: 'hidden' }}>
+      background: P.bg, fontFamily: font, overflow: 'hidden', position: 'relative' }}>
+
+      {/* Ambient neon glow */}
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none',
+        background: 'radial-gradient(ellipse at 50% 30%, rgba(255,0,255,0.04) 0%, transparent 50%), radial-gradient(ellipse at 30% 70%, rgba(0,255,255,0.02) 0%, transparent 40%)',
+      }} />
 
       {/* Header */}
-      <div style={{ padding: '10px 12px 2px', width: '100%', display: 'flex', justifyContent: 'space-between',
-        maxWidth: 520, alignItems: 'flex-start' }}>
+      <div style={{ padding: '12px 14px 4px', width: '100%', display: 'flex', justifyContent: 'space-between',
+        maxWidth: 520, alignItems: 'flex-start', zIndex: 2 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 900, color: P.neon, margin: 0,
-            textShadow: `0 0 12px ${P.neon}, 0 0 24px ${P.neon}, 0 2px 8px rgba(0,0,0,0.5)`, letterSpacing: 2 }}>
+          <h1 style={{ fontSize: 26, fontWeight: 900, color: P.neon, margin: 0,
+            textShadow: `0 0 15px ${P.neon}, 0 0 30px ${P.neon}, 0 0 60px rgba(255,0,255,0.3), 0 2px 8px rgba(0,0,0,0.6)`, letterSpacing: 3 }}>
             ⚡ LILIANO THUNDER
           </h1>
-          <div style={{ fontSize: 9, color: P.dim, letterSpacing: 3, marginTop: 2 }}>PUNK ROCK ARTILLERY</div>
+          <div style={{ fontSize: 9, color: P.dim, letterSpacing: 4, marginTop: 3, fontWeight: 700 }}>PUNK ROCK ARTILLERY</div>
         </div>
-        <div style={{ textAlign: 'right', background: 'rgba(255,0,255,0.04)', padding: '4px 10px',
-          borderRadius: 8, border: '1px solid rgba(255,0,255,0.08)' }}>
-          <div style={{ fontSize: 12, color: P.neonCyan, fontWeight: 900 }}>
+        <div style={{ textAlign: 'right', background: 'linear-gradient(135deg, rgba(255,0,255,0.06), rgba(0,255,255,0.03))', padding: '6px 12px',
+          borderRadius: 10, border: '1px solid rgba(255,0,255,0.12)',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.02)',
+        }}>
+          <div style={{ fontSize: 13, color: P.neonCyan, fontWeight: 900,
+            textShadow: `0 0 6px ${P.neonCyan}` }}>
             💨 {wind > 0 ? '→' : '←'} {Math.abs(wind).toFixed(1)}
           </div>
-          <div style={{ fontSize: 10, color: P.dim, fontWeight: 700 }}>Tour {turn + 1}</div>
+          <div style={{ fontSize: 10, color: P.dim, fontWeight: 700, marginTop: 1 }}>Tour {turn + 1}</div>
         </div>
       </div>
 
-      {/* HP bars */}
-      <div style={{ display: 'flex', gap: 16, padding: '2px 12px 4px', width: '100%', maxWidth: 520 }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* HP bars — more polished */}
+      <div style={{ display: 'flex', gap: 12, padding: '4px 14px 6px', width: '100%', maxWidth: 520, zIndex: 2 }}>
+        <div style={{ flex: 1, background: 'rgba(57,255,20,0.03)', padding: '5px 8px', borderRadius: 8,
+          border: '1px solid rgba(57,255,20,0.08)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
             <span style={{ fontSize: 9, color: P.neonGreen, letterSpacing: 2, fontWeight: 900 }}>TOI</span>
-            <span style={{ fontSize: 11, color: myHP > 60 ? P.neonGreen : myHP > 30 ? P.neonYellow : '#ff0044',
-              fontWeight: 900, textShadow: `0 0 4px currentColor` }}>{myHP} HP</span>
+            <span style={{ fontSize: 12, color: myHP > 60 ? P.neonGreen : myHP > 30 ? P.neonYellow : '#ff0044',
+              fontWeight: 900, textShadow: `0 0 6px currentColor` }}>{myHP} HP</span>
           </div>
-          <div style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.06)',
-            border: '1px solid rgba(57,255,20,0.15)', overflow: 'hidden' }}>
+          <div style={{ height: 10, borderRadius: 5, background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(57,255,20,0.15)', overflow: 'hidden',
+            boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.3)' }}>
             <motion.div animate={{ width: `${myHP}%` }} transition={{ type: 'spring', stiffness: 120 }}
-              style={{ height: '100%', borderRadius: 4,
+              style={{ height: '100%', borderRadius: 5,
                 background: myHP > 60
                   ? `linear-gradient(90deg, ${P.neonGreen}, #50ff50)`
                   : myHP > 30 ? `linear-gradient(90deg, ${P.neonYellow}, #ffcc00)` : 'linear-gradient(90deg, #ff0044, #ff4466)',
-                boxShadow: `0 0 8px ${myHP > 60 ? P.neonGreen : myHP > 30 ? P.neonYellow : '#ff0044'}` }} />
+                boxShadow: `0 0 10px ${myHP > 60 ? P.neonGreen : myHP > 30 ? P.neonYellow : '#ff0044'}, inset 0 1px 0 rgba(255,255,255,0.2)` }} />
           </div>
         </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 11, color: P.neonOrange,
-              fontWeight: 900, textShadow: `0 0 4px ${P.neonOrange}` }}>{opHP} HP</span>
+        <div style={{ flex: 1, background: 'rgba(255,102,0,0.03)', padding: '5px 8px', borderRadius: 8,
+          border: '1px solid rgba(255,102,0,0.08)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+            <span style={{ fontSize: 12, color: P.neonOrange,
+              fontWeight: 900, textShadow: `0 0 6px ${P.neonOrange}` }}>{opHP} HP</span>
             <span style={{ fontSize: 9, color: P.neonOrange, letterSpacing: 2, fontWeight: 900 }}>ENNEMI</span>
           </div>
-          <div style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.06)',
-            border: '1px solid rgba(255,102,0,0.15)', overflow: 'hidden' }}>
+          <div style={{ height: 10, borderRadius: 5, background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,102,0,0.15)', overflow: 'hidden',
+            boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.3)' }}>
             <motion.div animate={{ width: `${opHP}%` }} transition={{ type: 'spring', stiffness: 120 }}
-              style={{ height: '100%', borderRadius: 4,
+              style={{ height: '100%', borderRadius: 5,
                 background: `linear-gradient(90deg, ${P.neonOrange}, #ff8833)`,
-                boxShadow: `0 0 8px ${P.neonOrange}` }} />
+                boxShadow: `0 0 10px ${P.neonOrange}, inset 0 1px 0 rgba(255,255,255,0.15)` }} />
           </div>
         </div>
       </div>
@@ -416,13 +428,15 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
       <AnimatePresence mode="wait">
         <motion.div key={over ? 'over' : isPlayerTurn ? 't' : 'w'} initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-          style={{ padding: '3px 18px', borderRadius: 6, fontSize: 12, fontWeight: 900,
-            background: over ? (win === playerId ? 'rgba(57,255,20,0.08)' : 'rgba(255,0,68,0.08)') : 'rgba(255,0,255,0.05)',
-            border: `1px solid ${over ? (win === playerId ? 'rgba(57,255,20,0.2)' : 'rgba(255,0,68,0.2)') : P.dim}`,
+          style={{ padding: '5px 22px', borderRadius: 8, fontSize: 13, fontWeight: 900, zIndex: 2,
+            background: over
+              ? (win === playerId ? 'linear-gradient(135deg, rgba(57,255,20,0.12), rgba(57,255,20,0.05))' : 'linear-gradient(135deg, rgba(255,0,68,0.12), rgba(255,0,68,0.05))')
+              : isPlayerTurn ? 'linear-gradient(135deg, rgba(255,0,255,0.08), rgba(255,0,255,0.03))' : 'rgba(30,30,30,0.4)',
+            border: `1.5px solid ${over ? (win === playerId ? 'rgba(57,255,20,0.3)' : 'rgba(255,0,68,0.3)') : isPlayerTurn ? 'rgba(255,0,255,0.2)' : 'rgba(80,80,80,0.1)'}`,
             color: over ? (win === playerId ? P.neonGreen : '#ff0044') : isPlayerTurn ? P.neon : '#555',
-            textShadow: over || isPlayerTurn ? `0 0 10px currentColor` : 'none', marginBottom: 2,
-            boxShadow: over ? '0 2px 12px rgba(0,0,0,0.2)' : 'none',
-            letterSpacing: 1,
+            textShadow: over || isPlayerTurn ? `0 0 12px currentColor` : 'none', marginBottom: 4,
+            boxShadow: over || isPlayerTurn ? '0 4px 16px rgba(0,0,0,0.25), 0 0 20px rgba(255,0,255,0.05)' : 'none',
+            letterSpacing: 2,
           }}>
           {over ? (win === playerId ? '🏆 VICTOIRE !!' : '💀 DÉFAITE...') : isPlayerTurn ? '🎯 À TOI !' : '⏳ TOUR ADVERSE...'}
         </motion.div>
@@ -433,11 +447,13 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
         {lastMsg && (
           <motion.div initial={{ scale: 0, opacity: 0, y: 10 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.5, opacity: 0, y: -10 }}
             style={{ position: 'absolute', top: '30%', left: '50%', transform: 'translateX(-50%)',
-              padding: '8px 22px', borderRadius: 12, fontSize: 18, fontWeight: 900, zIndex: 20,
-              background: 'rgba(0,0,0,0.85)', border: `2px solid ${lastMsg.includes('HP') ? P.neonOrange : P.dim}`,
+              padding: '10px 26px', borderRadius: 14, fontSize: 20, fontWeight: 900, zIndex: 20,
+              background: 'linear-gradient(135deg, rgba(0,0,0,0.9), rgba(20,0,30,0.9))',
+              border: `2px solid ${lastMsg.includes('HP') ? P.neonOrange : P.dim}`,
               color: lastMsg.includes('HP') ? P.neonOrange : lastMsg.includes('Raté') ? '#888' : P.neonCyan,
-              textShadow: `0 0 10px currentColor`,
-              backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+              textShadow: `0 0 12px currentColor`,
+              backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+              boxShadow: `0 8px 32px rgba(0,0,0,0.4), 0 0 30px ${lastMsg.includes('HP') ? 'rgba(255,102,0,0.15)' : 'rgba(255,0,255,0.1)'}`,
             }}>
             {lastMsg}
           </motion.div>
@@ -560,18 +576,18 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
             whileHover={isPlayerTurn && !firing ? { scale: 1.02 } : {}}
             onClick={doFire}
             disabled={!isPlayerTurn || firing}
-            style={{ width: '100%', padding: '12px 0', borderRadius: 10, fontSize: 18, fontWeight: 900,
-              fontFamily: font, letterSpacing: 4,
+            style={{ width: '100%', padding: '14px 0', borderRadius: 12, fontSize: 20, fontWeight: 900,
+              fontFamily: font, letterSpacing: 5,
               background: isPlayerTurn && !firing
-                ? `linear-gradient(135deg, ${P.neon}, #cc00cc)`
-                : '#222',
-              color: isPlayerTurn && !firing ? '#fff' : '#555',
-              border: `2px solid ${isPlayerTurn && !firing ? P.neon : '#333'}`,
+                ? `linear-gradient(135deg, ${P.neon}, #cc00cc, #aa00aa)`
+                : '#1a1a1a',
+              color: isPlayerTurn && !firing ? '#fff' : '#444',
+              border: `2px solid ${isPlayerTurn && !firing ? P.neon : '#2a2a2a'}`,
               cursor: isPlayerTurn && !firing ? 'pointer' : 'not-allowed',
               boxShadow: isPlayerTurn && !firing
-                ? `0 0 20px ${P.neon}, 0 0 40px rgba(255,0,255,0.2), inset 0 1px 0 rgba(255,255,255,0.1)`
-                : 'none',
-              textShadow: isPlayerTurn && !firing ? `0 0 10px ${P.neonYellow}` : 'none',
+                ? `0 0 25px ${P.neon}, 0 0 50px rgba(255,0,255,0.2), 0 4px 20px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.15)`
+                : 'inset 0 2px 4px rgba(0,0,0,0.3)',
+              textShadow: isPlayerTurn && !firing ? `0 0 12px ${P.neonYellow}, 0 2px 4px rgba(0,0,0,0.3)` : 'none',
               transition: 'all 0.3s',
             }}>
             ⚡ FIRE ⚡

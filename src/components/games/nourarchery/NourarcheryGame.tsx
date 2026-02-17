@@ -406,78 +406,88 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
   return (
     <div style={{
       minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
-      background: 'linear-gradient(180deg, #1a4a2a 0%, #1a3a1a 30%, #122a12 60%, #0a1a0a 100%)',
+      background: 'linear-gradient(180deg, #1e5a30 0%, #1a4a25 20%, #153a1a 40%, #102a10 65%, #0a1a0a 100%)',
       overflow: 'hidden', touchAction: 'none',
       fontFamily: "'Georgia', 'Times New Roman', serif", position: 'relative',
     }}>
 
+      {/* Ambient countryside glow */}
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none',
+        background: 'radial-gradient(ellipse at 50% 20%, rgba(120,180,80,0.05) 0%, transparent 50%), radial-gradient(ellipse at 70% 60%, rgba(232,118,42,0.03) 0%, transparent 40%)',
+      }} />
+
       {/* HUD Header */}
-      <div style={{ padding: '10px 14px 2px', width: '100%', maxWidth: 500, zIndex: 2,
+      <div style={{ padding: '12px 14px 4px', width: '100%', maxWidth: 500, zIndex: 2,
         display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 900, margin: 0, fontStyle: 'italic',
-            color: P.gold, textShadow: '0 1px 6px rgba(0,0,0,0.5), 0 0 12px rgba(212,168,83,0.15)', letterSpacing: 0.5 }}>
+          <h1 style={{ fontSize: 26, fontWeight: 900, margin: 0, fontStyle: 'italic',
+            color: P.gold, textShadow: '0 2px 8px rgba(0,0,0,0.5), 0 0 15px rgba(212,168,83,0.2)', letterSpacing: 1 }}>
             🪶 Nour Pigeon
           </h1>
-          <div style={{ fontSize: 9, color: 'rgba(212,168,83,0.5)', fontStyle: 'italic', letterSpacing: 1.5, marginTop: 1 }}>
+          <div style={{ fontSize: 9, color: 'rgba(212,168,83,0.55)', fontStyle: 'italic', letterSpacing: 2, marginTop: 2, fontWeight: 600 }}>
             Tir aux Pigeons d'Argile
           </div>
         </div>
-        <div style={{ textAlign: 'right', background: 'rgba(0,0,0,0.2)', padding: '5px 12px',
-          borderRadius: 10, border: '1px solid rgba(232,118,42,0.15)',
-          backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
+        <div style={{ textAlign: 'right', background: 'linear-gradient(135deg, rgba(0,0,0,0.25), rgba(0,0,0,0.15))', padding: '6px 14px',
+          borderRadius: 12, border: '1px solid rgba(232,118,42,0.2)',
+          backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.15)',
         }}>
-          <div style={{ fontSize: 13, color: P.orange, fontWeight: 700,
-            textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>
+          <div style={{ fontSize: 14, color: P.orange, fontWeight: 800,
+            textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>
             Manche {round}/{ROUNDS} • Tir {shot}/{SHOTS_PER_ROUND}
           </div>
-          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', fontStyle: 'italic', marginTop: 1 }}>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', fontStyle: 'italic', marginTop: 2 }}>
             💨 {wind > 0 ? '→' : wind < 0 ? '←' : '○'} {Math.abs(wind).toFixed(1)} km/h
           </div>
         </div>
       </div>
 
       {/* Score bar */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: 20, padding: '4px 0 6px', width: '100%', zIndex: 2 }}>
-        <div style={{ textAlign: 'center', background: 'rgba(232,118,42,0.08)', padding: '5px 20px',
-          borderRadius: 12, border: '1px solid rgba(232,118,42,0.15)',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-          <div style={{ fontSize: 8, color: P.dim, letterSpacing: 2, fontWeight: 900 }}>TOI</div>
-          <div style={{ fontSize: 30, fontWeight: 900, color: P.orange,
-            textShadow: `0 2px 8px rgba(232,118,42,0.35)` }}>{myScore}</div>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 16, padding: '6px 0 8px', width: '100%', zIndex: 2 }}>
+        <div style={{ textAlign: 'center', background: 'linear-gradient(135deg, rgba(232,118,42,0.12), rgba(232,118,42,0.05))', padding: '6px 24px',
+          borderRadius: 14, border: '1px solid rgba(232,118,42,0.2)',
+          boxShadow: '0 3px 12px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+          <div style={{ fontSize: 9, color: P.dim, letterSpacing: 2, fontWeight: 900 }}>TOI</div>
+          <div style={{ fontSize: 34, fontWeight: 900, color: P.orange,
+            textShadow: `0 2px 10px rgba(232,118,42,0.4)` }}>{myScore}</div>
         </div>
-        <div style={{ fontSize: 16, color: 'rgba(255,255,255,0.25)', alignSelf: 'center', fontWeight: 900,
-          textShadow: '0 1px 3px rgba(0,0,0,0.2)' }}>VS</div>
-        <div style={{ textAlign: 'center', background: 'rgba(200,50,50,0.06)', padding: '5px 20px',
-          borderRadius: 12, border: '1px solid rgba(200,50,50,0.1)',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-          <div style={{ fontSize: 8, color: P.dim, letterSpacing: 2, fontWeight: 900 }}>ADV</div>
-          <div style={{ fontSize: 30, fontWeight: 900, color: '#c44',
-            textShadow: '0 2px 8px rgba(200,50,50,0.25)' }}>{opScore}</div>
+        <div style={{ fontSize: 18, color: 'rgba(255,255,255,0.3)', alignSelf: 'center', fontWeight: 900, fontStyle: 'italic',
+          textShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>VS</div>
+        <div style={{ textAlign: 'center', background: 'linear-gradient(135deg, rgba(200,50,50,0.08), rgba(200,50,50,0.03))', padding: '6px 24px',
+          borderRadius: 14, border: '1px solid rgba(200,50,50,0.15)',
+          boxShadow: '0 3px 12px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.02)' }}>
+          <div style={{ fontSize: 9, color: P.dim, letterSpacing: 2, fontWeight: 900 }}>ADV</div>
+          <div style={{ fontSize: 34, fontWeight: 900, color: '#c44',
+            textShadow: '0 2px 10px rgba(200,50,50,0.3)' }}>{opScore}</div>
         </div>
       </div>
 
       {/* Round scores */}
       {roundScores.length > 0 && (
-        <div style={{ display: 'flex', gap: 4, marginBottom: 2, zIndex: 2 }}>
+        <div style={{ display: 'flex', gap: 5, marginBottom: 4, zIndex: 2 }}>
           {roundScores.map((s, i) => (
-            <span key={i} style={{ padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700,
-              background: s > 0 ? 'rgba(232,118,42,0.15)' : 'rgba(0,0,0,0.1)',
-              color: s > 0 ? P.orange : '#666',
-              border: `1px solid ${s > 0 ? 'rgba(232,118,42,0.2)' : 'rgba(0,0,0,0.05)'}`,
+            <span key={i} style={{ padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+              background: s > 0 ? 'linear-gradient(135deg, rgba(232,118,42,0.18), rgba(232,118,42,0.08))' : 'rgba(0,0,0,0.12)',
+              color: s > 0 ? P.orange : '#555',
+              border: `1px solid ${s > 0 ? 'rgba(232,118,42,0.25)' : 'rgba(0,0,0,0.08)'}`,
+              textShadow: s > 0 ? '0 1px 3px rgba(0,0,0,0.2)' : 'none',
             }}>{s > 0 ? `+${s}` : '✗'}</span>
           ))}
         </div>
       )}
 
       {/* Status */}
-      <motion.div key={over ? 'o' : isPlayerTurn ? 't' : 'w'} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-        style={{ padding: '3px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700, fontStyle: 'italic', marginBottom: 2, zIndex: 2,
-          background: over ? (win === playerId ? 'rgba(52,199,89,0.12)' : 'rgba(200,68,68,0.08)') : isPlayerTurn ? 'rgba(232,118,42,0.1)' : 'rgba(80,80,80,0.06)',
-          color: over ? (win === playerId ? '#4ade80' : '#c44') : isPlayerTurn ? P.orange : '#555',
-          border: `1px solid ${over ? (win === playerId ? 'rgba(52,199,89,0.2)' : 'rgba(200,68,68,0.15)') : isPlayerTurn ? 'rgba(232,118,42,0.15)' : 'rgba(80,80,80,0.06)'}`,
-          boxShadow: over || isPlayerTurn ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
-          textShadow: over ? '0 1px 3px rgba(0,0,0,0.2)' : 'none',
+      <motion.div key={over ? 'o' : isPlayerTurn ? 't' : 'w'} initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
+        style={{ padding: '5px 18px', borderRadius: 12, fontSize: 13, fontWeight: 800, fontStyle: 'italic', marginBottom: 4, zIndex: 2,
+          background: over
+            ? (win === playerId ? 'linear-gradient(135deg, rgba(52,199,89,0.15), rgba(52,199,89,0.06))' : 'linear-gradient(135deg, rgba(200,68,68,0.12), rgba(200,68,68,0.05))')
+            : isPlayerTurn ? 'linear-gradient(135deg, rgba(232,118,42,0.14), rgba(232,118,42,0.05))' : 'rgba(80,80,80,0.08)',
+          color: over ? (win === playerId ? '#4ade80' : '#c44') : isPlayerTurn ? P.orange : '#666',
+          border: `1px solid ${over ? (win === playerId ? 'rgba(52,199,89,0.25)' : 'rgba(200,68,68,0.2)') : isPlayerTurn ? 'rgba(232,118,42,0.2)' : 'rgba(80,80,80,0.08)'}`,
+          boxShadow: over || isPlayerTurn ? '0 4px 14px rgba(0,0,0,0.12), 0 0 16px rgba(232,118,42,0.04)' : 'none',
+          textShadow: over || isPlayerTurn ? '0 1px 4px rgba(0,0,0,0.25)' : 'none',
+          letterSpacing: 0.5,
         }}>
         {over ? (win === playerId ? '🏆 Victoire !' : '💔 Défaite…')
           : isPlayerTurn
@@ -489,10 +499,11 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
       <AnimatePresence>
         {opInfo && (
           <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            style={{ padding: '2px 10px', borderRadius: 6, fontSize: 10, zIndex: 2, fontWeight: 700,
-              color: opInfo.includes('Raté') ? '#888' : '#c44',
-              background: opInfo.includes('Raté') ? 'rgba(0,0,0,0.05)' : 'rgba(200,50,50,0.06)',
-              border: `1px solid ${opInfo.includes('Raté') ? 'rgba(0,0,0,0.05)' : 'rgba(200,50,50,0.1)'}`,
+            style={{ padding: '3px 12px', borderRadius: 8, fontSize: 11, zIndex: 2, fontWeight: 700,
+              color: opInfo.includes('Raté') ? '#777' : '#c44',
+              background: opInfo.includes('Raté') ? 'rgba(0,0,0,0.08)' : 'linear-gradient(135deg, rgba(200,50,50,0.1), rgba(200,50,50,0.04))',
+              border: `1px solid ${opInfo.includes('Raté') ? 'rgba(0,0,0,0.06)' : 'rgba(200,50,50,0.15)'}`,
+              textShadow: '0 1px 3px rgba(0,0,0,0.2)',
             }}>
             {opInfo}
           </motion.div>

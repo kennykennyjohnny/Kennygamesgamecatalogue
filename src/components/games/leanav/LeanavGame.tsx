@@ -333,18 +333,19 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
       <div style={{ position: 'relative', display: 'inline-block' }}>
         {/* Golden frame */}
         <div style={{
-          padding: small ? 3 : 6,
-          borderRadius: small ? 6 : 10,
-          background: 'linear-gradient(145deg, #c9a050, #8b6920, #d4b060, #7a5a18)',
+          padding: small ? 4 : 7,
+          borderRadius: small ? 7 : 12,
+          background: 'linear-gradient(145deg, #d4b060, #c9a050, #8b6920, #d4b060, #a07830, #7a5a18)',
           boxShadow: small
-            ? '0 2px 8px rgba(0,0,0,0.4)'
-            : '0 4px 24px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,220,160,0.3), 0 0 40px rgba(201,160,80,0.08)',
+            ? '0 2px 10px rgba(0,0,0,0.45)'
+            : '0 6px 30px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,220,160,0.35), 0 0 50px rgba(201,160,80,0.1), 0 2px 4px rgba(201,160,80,0.15)',
         }}>
           {/* Inner frame bevel */}
           <div style={{
-            padding: small ? 2 : 4,
-            borderRadius: small ? 4 : 7,
-            background: 'linear-gradient(145deg, #5a3810, #3a2208)',
+            padding: small ? 2 : 5,
+            borderRadius: small ? 5 : 9,
+            background: 'linear-gradient(145deg, #5a3810, #3a2208, #4a3010)',
+            boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.4)',
           }}>
             {/* Canvas surface */}
             <svg width={gp + pad} height={gp + pad} viewBox={`-${pad} -${pad} ${gp + pad} ${gp + pad}`}
@@ -535,12 +536,12 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
   const Bg = ({ children }: { children: React.ReactNode }) => (
     <div style={{
       minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
-      padding: '12px 6px', fontFamily: font, overflow: 'auto',
-      background: 'linear-gradient(160deg, #18100c 0%, #241810 20%, #2e1c14 40%, #241810 60%, #1e1410 80%, #14100c 100%)',
+      padding: '14px 8px', fontFamily: font, overflow: 'auto',
+      background: 'linear-gradient(160deg, #1a120e 0%, #261a12 15%, #321e16 30%, #2e1c14 50%, #261a12 65%, #1e1410 80%, #160e0a 100%)',
     }}>
-      {/* Warm ambient glow */}
+      {/* Warm ambient candlelight glow */}
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none',
-        background: 'radial-gradient(ellipse at 50% 20%, rgba(201,160,80,0.06) 0%, transparent 55%), radial-gradient(ellipse at 30% 80%, rgba(123,16,36,0.03) 0%, transparent 50%)',
+        background: 'radial-gradient(ellipse at 50% 15%, rgba(201,160,80,0.08) 0%, transparent 50%), radial-gradient(ellipse at 30% 80%, rgba(123,16,36,0.04) 0%, transparent 45%), radial-gradient(ellipse at 80% 50%, rgba(201,160,80,0.03) 0%, transparent 40%)',
       }} />
       {children}
     </div>
@@ -552,13 +553,13 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
     return (
       <Bg>
         <motion.div initial={{ y: -15, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-          style={{ textAlign: 'center', marginBottom: 10 }}>
-          <h1 style={{ fontSize: 28, fontWeight: 900, fontStyle: 'italic', margin: 0,
-            color: '#c9a050', textShadow: '0 0 20px rgba(201,160,80,0.2), 0 2px 8px rgba(0,0,0,0.4)',
-            letterSpacing: 1,
+          style={{ textAlign: 'center', marginBottom: 12 }}>
+          <h1 style={{ fontSize: 32, fontWeight: 900, fontStyle: 'italic', margin: 0,
+            color: '#c9a050', textShadow: '0 0 25px rgba(201,160,80,0.25), 0 2px 10px rgba(0,0,0,0.5)',
+            letterSpacing: 2,
           }}>🍷 Léa Naval</h1>
-          <p style={{ fontSize: 11, color: 'rgba(201,160,80,0.4)', margin: '4px 0 0', fontStyle: 'italic',
-            letterSpacing: 0.5 }}>
+          <p style={{ fontSize: 11, color: 'rgba(201,160,80,0.45)', margin: '5px 0 0', fontStyle: 'italic',
+            letterSpacing: 1 }}>
             Dispose tes bouteilles sur la toile — elles ne doivent pas se toucher
           </p>
         </motion.div>
@@ -593,19 +594,21 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
         </div>
 
         {/* Controls */}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
           <button onClick={() => { setDir(d => d === 'H' ? 'V' : 'H'); setHover([]); }}
-            style={{ padding: '5px 14px', borderRadius: 8, fontSize: 11, fontWeight: 700,
-              background: 'rgba(20,10,8,0.3)', border: '1px solid rgba(201,160,80,0.12)',
-              color: 'rgba(201,160,80,0.5)', cursor: 'pointer', fontStyle: 'italic' }}>
+            style={{ padding: '7px 18px', borderRadius: 10, fontSize: 12, fontWeight: 700,
+              background: 'linear-gradient(135deg, rgba(20,10,8,0.4), rgba(20,10,8,0.25))', border: '1px solid rgba(201,160,80,0.15)',
+              color: 'rgba(201,160,80,0.6)', cursor: 'pointer', fontStyle: 'italic',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
             ⇄ {dir === 'H' ? 'Horizontal' : 'Vertical'}
           </button>
           <button onClick={() => { if (!ships.length) return; setShips(p => p.slice(0, -1)); setShipIdx(i => i - 1); setHover([]); }}
             disabled={!ships.length}
-            style={{ padding: '5px 14px', borderRadius: 8, fontSize: 11, fontWeight: 700,
-              background: 'rgba(20,10,8,0.3)', border: '1px solid rgba(201,160,80,0.12)',
-              color: 'rgba(201,160,80,0.5)', cursor: ships.length ? 'pointer' : 'not-allowed',
-              opacity: ships.length ? 1 : 0.3, fontStyle: 'italic' }}>
+            style={{ padding: '7px 18px', borderRadius: 10, fontSize: 12, fontWeight: 700,
+              background: 'linear-gradient(135deg, rgba(20,10,8,0.4), rgba(20,10,8,0.25))', border: '1px solid rgba(201,160,80,0.15)',
+              color: 'rgba(201,160,80,0.6)', cursor: ships.length ? 'pointer' : 'not-allowed',
+              opacity: ships.length ? 1 : 0.3, fontStyle: 'italic',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
             ↩ Annuler
           </button>
         </div>
@@ -616,11 +619,11 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
           <motion.button initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
             whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
             onClick={onReady}
-            style={{ marginTop: 12, padding: '10px 30px', borderRadius: 10, fontSize: 15, fontWeight: 800,
-              fontStyle: 'italic', background: 'linear-gradient(135deg, #7b1024, #5a0c1a)',
-              color: '#e8c090', border: '1px solid rgba(201,160,80,0.2)', cursor: 'pointer',
-              boxShadow: '0 4px 20px rgba(123,16,36,0.25), 0 0 30px rgba(201,160,80,0.05)',
-              letterSpacing: 1 }}>
+            style={{ marginTop: 14, padding: '12px 36px', borderRadius: 14, fontSize: 17, fontWeight: 900,
+              fontStyle: 'italic', background: 'linear-gradient(135deg, #7b1024, #601020, #5a0c1a)',
+              color: '#e8c090', border: '1.5px solid rgba(201,160,80,0.25)', cursor: 'pointer',
+              boxShadow: '0 4px 24px rgba(123,16,36,0.3), 0 0 40px rgba(201,160,80,0.06), inset 0 1px 0 rgba(255,200,160,0.1)',
+              letterSpacing: 2, textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>
             🍷 Cave prête !
           </motion.button>
         )}
@@ -658,39 +661,43 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
 
   return (
     <Bg>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 900, fontStyle: 'italic', margin: 0,
-          color: '#c9a050', textShadow: '0 0 15px rgba(201,160,80,0.15), 0 2px 6px rgba(0,0,0,0.3)', letterSpacing: 0.5 }}>🍷 Léa Naval</h1>
-        <div style={{ fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: 8,
-          background: 'linear-gradient(135deg, rgba(123,16,36,0.12), rgba(123,16,36,0.06))',
-          border: '1px solid rgba(123,16,36,0.2)',
-          color: opSunk.length >= SHIPS.length ? '#4ade80' : 'rgba(201,160,80,0.6)', fontStyle: 'italic',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+        <h1 style={{ fontSize: 26, fontWeight: 900, fontStyle: 'italic', margin: 0,
+          color: '#c9a050', textShadow: '0 0 20px rgba(201,160,80,0.2), 0 2px 8px rgba(0,0,0,0.4)', letterSpacing: 1 }}>🍷 Léa Naval</h1>
+        <div style={{ fontSize: 13, fontWeight: 800, padding: '5px 14px', borderRadius: 10,
+          background: 'linear-gradient(135deg, rgba(123,16,36,0.15), rgba(123,16,36,0.06))',
+          border: '1px solid rgba(123,16,36,0.25)',
+          color: opSunk.length >= SHIPS.length ? '#4ade80' : 'rgba(201,160,80,0.65)', fontStyle: 'italic',
+          boxShadow: '0 3px 12px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,200,160,0.04)',
+          textShadow: '0 1px 3px rgba(0,0,0,0.2)',
         }}>
           💀 {opSunk.length}/{SHIPS.length} coulés
         </div>
       </div>
 
-      <motion.div key={isPlayerTurn ? 'y' : 'n'} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-        style={{ padding: '5px 20px', borderRadius: 12, fontSize: 14, fontWeight: 700, fontStyle: 'italic', marginBottom: 8,
-          background: over ? (win === playerId ? 'rgba(52,199,89,0.1)' : 'rgba(200,50,50,0.08)') : isPlayerTurn ? 'rgba(123,16,36,0.1)' : 'rgba(80,80,80,0.04)',
+      <motion.div key={isPlayerTurn ? 'y' : 'n'} initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
+        style={{ padding: '6px 22px', borderRadius: 14, fontSize: 15, fontWeight: 800, fontStyle: 'italic', marginBottom: 10,
+          background: over
+            ? (win === playerId ? 'linear-gradient(135deg, rgba(52,199,89,0.12), rgba(52,199,89,0.04))' : 'linear-gradient(135deg, rgba(200,50,50,0.1), rgba(200,50,50,0.04))')
+            : isPlayerTurn ? 'linear-gradient(135deg, rgba(123,16,36,0.12), rgba(123,16,36,0.04))' : 'rgba(80,80,80,0.05)',
           color: over ? (win === playerId ? '#4ade80' : '#e85050') : isPlayerTurn ? '#c9a050' : '#555',
-          border: `1px solid ${over ? (win === playerId ? 'rgba(52,199,89,0.2)' : 'rgba(200,50,50,0.15)') : isPlayerTurn ? 'rgba(201,160,80,0.2)' : 'rgba(80,80,80,0.06)'}`,
+          border: `1px solid ${over ? (win === playerId ? 'rgba(52,199,89,0.25)' : 'rgba(200,50,50,0.2)') : isPlayerTurn ? 'rgba(201,160,80,0.25)' : 'rgba(80,80,80,0.06)'}`,
           backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
-          boxShadow: over || isPlayerTurn ? '0 2px 12px rgba(0,0,0,0.15)' : 'none',
-          textShadow: over || isPlayerTurn ? '0 1px 4px rgba(0,0,0,0.2)' : 'none',
+          boxShadow: over || isPlayerTurn ? '0 4px 16px rgba(0,0,0,0.18), 0 0 20px rgba(201,160,80,0.04)' : 'none',
+          textShadow: over || isPlayerTurn ? '0 1px 5px rgba(0,0,0,0.25)' : 'none',
+          letterSpacing: 0.5,
         }}>
         {over ? (win === playerId ? '🏆 Victoire !' : '💔 Défaite…') : isPlayerTurn ? '🎯 À toi de tirer !' : '⏳ Tour adverse…'}
       </motion.div>
 
       <AnimatePresence>
         {sunkMsg && (
-          <motion.div initial={{ scale: 0.5, opacity: 0, y: -8 }} animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.5, opacity: 0, y: -8 }}
-            style={{ padding: '6px 20px', borderRadius: 10, fontSize: 15, fontWeight: 700, fontStyle: 'italic', marginBottom: 6,
-              background: 'rgba(123,16,36,0.15)', border: '1px solid rgba(123,16,36,0.25)',
-              color: '#d4506a', textShadow: '0 0 8px rgba(180,20,50,0.2)',
-              boxShadow: '0 4px 16px rgba(123,16,36,0.1)',
+          <motion.div initial={{ scale: 0.5, opacity: 0, y: -10 }} animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.5, opacity: 0, y: -10 }}
+            style={{ padding: '8px 24px', borderRadius: 14, fontSize: 16, fontWeight: 800, fontStyle: 'italic', marginBottom: 8,
+              background: 'linear-gradient(135deg, rgba(123,16,36,0.2), rgba(123,16,36,0.08))', border: '1.5px solid rgba(123,16,36,0.3)',
+              color: '#d4506a', textShadow: '0 0 12px rgba(180,20,50,0.25), 0 2px 4px rgba(0,0,0,0.3)',
+              boxShadow: '0 6px 24px rgba(123,16,36,0.15), 0 0 30px rgba(123,16,36,0.06)',
             }}>
             {sunkMsg}
           </motion.div>
@@ -698,24 +705,26 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
       </AnimatePresence>
 
       {/* Enemy grid */}
-      <div style={{ marginBottom: 6 }}>
-        <div style={{ textAlign: 'center', fontSize: 10, fontWeight: 700, letterSpacing: 2, fontStyle: 'italic',
-          color: 'rgba(180,60,80,0.35)', marginBottom: 3, textTransform: 'uppercase' }}>🎯 Cave Ennemie</div>
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ textAlign: 'center', fontSize: 11, fontWeight: 800, letterSpacing: 3, fontStyle: 'italic',
+          color: 'rgba(180,60,80,0.4)', marginBottom: 4, textTransform: 'uppercase',
+          textShadow: '0 1px 3px rgba(0,0,0,0.2)' }}>🎯 Cave Ennemie</div>
         <BattleGrid grid={opGrid} click={over ? null : isPlayerTurn ? onFire : null} hov={null} showShips={false} small={false} />
       </div>
 
       {/* Fleet status */}
-      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 8, maxWidth: 400 }}>
+      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 10, maxWidth: 420 }}>
         {SHIPS.map(def => {
           const sunk = opSunk.includes(def.name);
           return (
-            <span key={def.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 8px', borderRadius: 6,
-              fontSize: 10, fontWeight: 600, fontStyle: 'italic',
-              background: sunk ? 'rgba(20,10,8,0.25)' : 'rgba(123,16,36,0.06)',
-              color: sunk ? 'rgba(60,30,20,0.3)' : 'rgba(201,160,80,0.45)',
+            <span key={def.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 8,
+              fontSize: 11, fontWeight: 700, fontStyle: 'italic',
+              background: sunk ? 'rgba(20,10,8,0.3)' : 'linear-gradient(135deg, rgba(123,16,36,0.08), rgba(123,16,36,0.03))',
+              color: sunk ? 'rgba(60,30,20,0.3)' : 'rgba(201,160,80,0.5)',
               textDecoration: sunk ? 'line-through' : 'none',
-              border: `1px solid ${sunk ? 'rgba(60,30,20,0.1)' : 'rgba(123,16,36,0.06)'}`,
+              border: `1px solid ${sunk ? 'rgba(60,30,20,0.12)' : 'rgba(123,16,36,0.08)'}`,
               transition: 'all 0.3s',
+              boxShadow: sunk ? 'none' : '0 1px 4px rgba(0,0,0,0.08)',
             }}>
               {def.label} {def.name}
             </span>
@@ -724,15 +733,17 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
       </div>
 
       {/* My grid */}
-      <div style={{ marginBottom: 10 }}>
-        <div style={{ textAlign: 'center', fontSize: 10, fontWeight: 700, letterSpacing: 2, fontStyle: 'italic',
-          color: 'rgba(201,160,80,0.25)', marginBottom: 3, textTransform: 'uppercase' }}>🛡️ Ma Cave</div>
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ textAlign: 'center', fontSize: 11, fontWeight: 800, letterSpacing: 3, fontStyle: 'italic',
+          color: 'rgba(201,160,80,0.3)', marginBottom: 4, textTransform: 'uppercase',
+          textShadow: '0 1px 3px rgba(0,0,0,0.15)' }}>🛡️ Ma Cave</div>
         <BattleGrid grid={myGrid} click={null} hov={null} showShips={true} small={true} />
       </div>
 
       {/* My sunk info */}
       {mySunk.length > 0 && (
-        <div style={{ textAlign: 'center', fontSize: 10, fontStyle: 'italic', color: 'rgba(200,60,80,0.4)', marginBottom: 6 }}>
+        <div style={{ textAlign: 'center', fontSize: 11, fontStyle: 'italic', color: 'rgba(200,60,80,0.45)', marginBottom: 8,
+          textShadow: '0 1px 3px rgba(0,0,0,0.15)' }}>
           Perdus : {mySunk.join(', ')}
         </div>
       )}

@@ -64,68 +64,94 @@ function RoséGlass({ x, y, scale, alive, hit, glow }: {
   const s = scale;
 
   return (
-    <g transform={`translate(${x}, ${y})`} opacity={hit ? 0.2 : 1}>
+    <g transform={`translate(${x}, ${y})`} opacity={hit ? 0.15 : 1}>
       {/* Shadow on table */}
-      <ellipse cx={0} cy={10 * s} rx={5 * s} ry={1.5 * s} fill="rgba(0,0,0,0.15)" />
+      <ellipse cx={0} cy={10 * s} rx={5.5 * s} ry={1.8 * s} fill="rgba(0,0,0,0.25)" />
 
-      {/* Base */}
-      <ellipse cx={0} cy={9 * s} rx={4 * s} ry={1.2 * s}
-        fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.15)" strokeWidth={0.3} />
+      {/* Base — crystal foot */}
+      <ellipse cx={0} cy={9 * s} rx={4.5 * s} ry={1.4 * s}
+        fill="rgba(255,255,255,0.18)" stroke="rgba(255,255,255,0.25)" strokeWidth={0.4} />
 
-      {/* Stem */}
-      <rect x={-0.6 * s} y={2 * s} width={1.2 * s} height={7 * s}
-        fill="rgba(255,255,255,0.15)" rx={0.4 * s} />
+      {/* Stem — crystal */}
+      <rect x={-0.7 * s} y={2 * s} width={1.4 * s} height={7 * s}
+        fill="rgba(255,255,255,0.22)" rx={0.5 * s} />
+      <rect x={-0.3 * s} y={2.5 * s} width={0.6 * s} height={6 * s}
+        fill="rgba(255,255,255,0.08)" rx={0.3 * s} />
 
       {/* Bowl — elegant wine glass shape */}
       <path d={`
-        M ${-5 * s} ${-7 * s}
-        Q ${-6 * s} ${-1 * s}, ${-1.5 * s} ${2.5 * s}
+        M ${-5.5 * s} ${-7.5 * s}
+        Q ${-6.5 * s} ${-1 * s}, ${-1.5 * s} ${2.5 * s}
         L ${1.5 * s} ${2.5 * s}
-        Q ${6 * s} ${-1 * s}, ${5 * s} ${-7 * s}
+        Q ${6.5 * s} ${-1 * s}, ${5.5 * s} ${-7.5 * s}
         Z
       `}
-        fill={hit ? 'rgba(60,30,40,0.2)' : 'rgba(255,255,255,0.06)'}
-        stroke="rgba(255,255,255,0.2)" strokeWidth={0.3} />
+        fill={hit ? 'rgba(60,30,40,0.15)' : 'rgba(255,255,255,0.1)'}
+        stroke="rgba(255,255,255,0.35)" strokeWidth={0.4} />
 
-      {/* Rosé wine inside */}
+      {/* Rosé wine inside — stronger pink */}
       {!hit && (
-        <path d={`
-          M ${-4.5 * s} ${-5.5 * s}
-          Q ${-5.5 * s} ${-1 * s}, ${-1.5 * s} ${2 * s}
-          L ${1.5 * s} ${2 * s}
-          Q ${5.5 * s} ${-1 * s}, ${4.5 * s} ${-5.5 * s}
-          Z
-        `}
-          fill="rgba(232,135,159,0.35)" />
+        <>
+          <path d={`
+            M ${-5 * s} ${-6 * s}
+            Q ${-5.8 * s} ${-1 * s}, ${-1.5 * s} ${2 * s}
+            L ${1.5 * s} ${2 * s}
+            Q ${5.8 * s} ${-1 * s}, ${5 * s} ${-6 * s}
+            Z
+          `}
+            fill="rgba(232,100,140,0.55)" />
+          {/* Wine depth gradient */}
+          <path d={`
+            M ${-4 * s} ${-3 * s}
+            Q ${-4.5 * s} ${0}, ${-1.5 * s} ${2 * s}
+            L ${1.5 * s} ${2 * s}
+            Q ${4.5 * s} ${0}, ${4 * s} ${-3 * s}
+            Z
+          `}
+            fill="rgba(180,50,80,0.25)" />
+        </>
       )}
 
-      {/* Wine surface shimmer */}
+      {/* Wine surface shimmer — more visible */}
       {!hit && (
-        <ellipse cx={0} cy={-5.5 * s} rx={4 * s} ry={0.8 * s}
-          fill="rgba(244,176,195,0.15)" />
+        <ellipse cx={0} cy={-6 * s} rx={4.5 * s} ry={1 * s}
+          fill="rgba(255,180,210,0.3)" />
       )}
 
-      {/* Glass highlight — left side shine */}
+      {/* Glass highlight — left side shine, stronger */}
       {!hit && (
         <path d={`
-          M ${-4 * s} ${-6 * s}
-          Q ${-5 * s} ${-2 * s}, ${-2 * s} ${1 * s}
+          M ${-4.2 * s} ${-6.5 * s}
+          Q ${-5.2 * s} ${-2 * s}, ${-2 * s} ${1 * s}
           L ${-1.5 * s} ${0}
-          Q ${-4 * s} ${-3 * s}, ${-3.2 * s} ${-6 * s}
+          Q ${-4 * s} ${-3 * s}, ${-3.5 * s} ${-6.5 * s}
           Z
         `}
-          fill="rgba(255,255,255,0.18)" />
+          fill="rgba(255,255,255,0.28)" />
       )}
 
-      {/* Rim */}
-      <ellipse cx={0} cy={-7 * s} rx={5 * s} ry={1 * s}
-        fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth={0.3} />
+      {/* Right side subtle highlight */}
+      {!hit && (
+        <path d={`
+          M ${4 * s} ${-5 * s}
+          Q ${4.5 * s} ${-2 * s}, ${2 * s} ${0.5 * s}
+          L ${1.8 * s} ${0}
+          Q ${3.8 * s} ${-2.5 * s}, ${3.5 * s} ${-5 * s}
+          Z
+        `}
+          fill="rgba(255,255,255,0.08)" />
+      )}
+
+      {/* Rim — stronger */}
+      <ellipse cx={0} cy={-7.5 * s} rx={5.5 * s} ry={1.2 * s}
+        fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth={0.4} />
 
       {/* Ambient glow when it's your turn */}
       {glow && !hit && (
-        <circle cx={0} cy={-2 * s} r={6 * s} fill="none"
-          stroke="rgba(232,135,159,0.08)" strokeWidth={0.3}>
-          <animate attributeName="r" values={`${5 * s};${7 * s};${5 * s}`} dur="2s" repeatCount="indefinite" />
+        <circle cx={0} cy={-2 * s} r={7 * s} fill="none"
+          stroke="rgba(232,135,159,0.12)" strokeWidth={0.5}>
+          <animate attributeName="r" values={`${6 * s};${8 * s};${6 * s}`} dur="2s" repeatCount="indefinite" />
+          <animate attributeName="opacity" values="0.6;1;0.6" dur="2s" repeatCount="indefinite" />
         </circle>
       )}
     </g>
@@ -375,51 +401,74 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
   return (
     <div style={{
       minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
-      background: 'linear-gradient(180deg, #1a0818 0%, #0e0808 50%)', overflow: 'hidden', touchAction: 'none',
-      fontFamily: "'Didot', 'Bodoni MT', Georgia, serif",
+      background: 'linear-gradient(180deg, #1e0a20 0%, #2a1028 20%, #3a1530 40%, #0e0808 70%)',
+      overflow: 'hidden', touchAction: 'none',
+      fontFamily: "'Didot', 'Bodoni MT', Georgia, serif", position: 'relative',
     }}>
 
+      {/* Ambient glow effects */}
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none',
+        background: 'radial-gradient(ellipse at 50% 15%, rgba(232,135,159,0.06) 0%, transparent 50%), radial-gradient(ellipse at 50% 60%, rgba(212,144,58,0.04) 0%, transparent 40%)',
+      }} />
+
       {/* Header */}
-      <div style={{ padding: '10px 0 4px', textAlign: 'center', width: '100%', zIndex: 2 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 900, fontStyle: 'italic', margin: 0,
+      <div style={{ padding: '12px 0 6px', textAlign: 'center', width: '100%', zIndex: 2 }}>
+        <h1 style={{ fontSize: 30, fontWeight: 900, fontStyle: 'italic', margin: 0,
           background: 'linear-gradient(135deg, #f4b0c3, #e8527a, #d4a053)',
           WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-          letterSpacing: 1, textShadow: 'none',
+          letterSpacing: 2, filter: 'drop-shadow(0 2px 8px rgba(232,82,122,0.3))',
         }}>🥂 Sandy Pong</h1>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 6, alignItems: 'center' }}>
-          <div style={{ padding: '2px 12px', borderRadius: 8, background: 'rgba(232,82,122,0.08)',
-            border: '1px solid rgba(232,82,122,0.12)' }}>
-            <span style={{ fontSize: 11, color: 'rgba(244,176,195,0.6)', fontWeight: 700 }}>
-              🎯 <strong style={{ color: '#e8527a', fontSize: 14 }}>{opAlive}</strong><span style={{ fontSize: 9 }}>/10</span>
+        <div style={{ fontSize: 9, color: 'rgba(244,176,195,0.35)', fontStyle: 'italic', letterSpacing: 2, marginTop: 2 }}>
+          Beer Pong × Rosé × Plage Chic
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 8, alignItems: 'center' }}>
+          <div style={{ padding: '4px 16px', borderRadius: 10,
+            background: 'linear-gradient(135deg, rgba(232,82,122,0.12), rgba(232,82,122,0.06))',
+            border: '1px solid rgba(232,82,122,0.2)',
+            boxShadow: '0 2px 8px rgba(232,82,122,0.08), inset 0 1px 0 rgba(255,255,255,0.03)',
+          }}>
+            <span style={{ fontSize: 12, color: 'rgba(244,176,195,0.7)', fontWeight: 700, fontStyle: 'italic' }}>
+              🎯 <strong style={{ color: '#e8527a', fontSize: 18 }}>{opAlive}</strong><span style={{ fontSize: 10, opacity: 0.6 }}>/10</span>
             </span>
           </div>
           {/* Shot indicator */}
           {isPlayerTurn && !over && (
-            <div style={{ padding: '2px 10px', borderRadius: 8, background: 'rgba(255,200,100,0.08)',
-              border: '1px solid rgba(255,200,100,0.15)' }}>
-              <span style={{ fontSize: 11, color: 'rgba(255,200,100,0.7)', fontWeight: 700 }}>
-                🏐 <strong style={{ fontSize: 13 }}>{shotsLeft}</strong> <span style={{ fontSize: 9 }}>tir{shotsLeft > 1 ? 's' : ''}</span>
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              style={{ padding: '4px 14px', borderRadius: 10,
+                background: 'linear-gradient(135deg, rgba(255,200,100,0.12), rgba(255,170,50,0.06))',
+                border: '1px solid rgba(255,200,100,0.25)',
+                boxShadow: '0 2px 10px rgba(255,180,50,0.1)',
+              }}>
+              <span style={{ fontSize: 12, color: 'rgba(255,210,130,0.85)', fontWeight: 800, fontStyle: 'italic' }}>
+                🏐 <strong style={{ fontSize: 16, color: '#ffcc44' }}>{shotsLeft}</strong> <span style={{ fontSize: 10 }}>tir{shotsLeft > 1 ? 's' : ''}</span>
               </span>
-            </div>
+            </motion.div>
           )}
-          <div style={{ padding: '2px 12px', borderRadius: 8, background: 'rgba(244,176,195,0.06)',
-            border: '1px solid rgba(244,176,195,0.1)' }}>
-            <span style={{ fontSize: 11, color: 'rgba(244,176,195,0.6)', fontWeight: 700 }}>
-              🛡️ <strong style={{ color: '#f4b0c3', fontSize: 14 }}>{myAlive}</strong><span style={{ fontSize: 9 }}>/10</span>
+          <div style={{ padding: '4px 16px', borderRadius: 10,
+            background: 'linear-gradient(135deg, rgba(244,176,195,0.08), rgba(244,176,195,0.04))',
+            border: '1px solid rgba(244,176,195,0.15)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.02)',
+          }}>
+            <span style={{ fontSize: 12, color: 'rgba(244,176,195,0.7)', fontWeight: 700, fontStyle: 'italic' }}>
+              🛡️ <strong style={{ color: '#f4b0c3', fontSize: 18 }}>{myAlive}</strong><span style={{ fontSize: 10, opacity: 0.6 }}>/10</span>
             </span>
           </div>
         </div>
       </div>
 
       {/* Status */}
-      <motion.div key={over ? 'o' : isPlayerTurn ? 't' : 'w'} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-        style={{ padding: '4px 18px', borderRadius: 12, fontSize: 13, fontWeight: 700, fontStyle: 'italic', marginBottom: 6, zIndex: 2,
-          background: over ? (win === playerId ? 'rgba(52,199,89,0.1)' : 'rgba(232,82,122,0.08)') : isPlayerTurn ? 'rgba(232,135,159,0.1)' : 'rgba(80,80,80,0.04)',
-          color: over ? (win === playerId ? '#4ade80' : '#e8527a') : isPlayerTurn ? '#f4b0c3' : '#555',
-          border: `1px solid ${over ? (win === playerId ? 'rgba(52,199,89,0.2)' : 'rgba(232,82,122,0.2)') : isPlayerTurn ? 'rgba(232,135,159,0.15)' : 'rgba(50,50,50,0.05)'}`,
-          backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-          boxShadow: over || isPlayerTurn ? '0 2px 12px rgba(0,0,0,0.1)' : 'none',
-          textShadow: over ? '0 1px 4px rgba(0,0,0,0.2)' : 'none',
+      <motion.div key={over ? 'o' : isPlayerTurn ? 't' : 'w'} initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
+        style={{ padding: '6px 22px', borderRadius: 14, fontSize: 14, fontWeight: 800, fontStyle: 'italic', marginBottom: 8, zIndex: 2,
+          background: over
+            ? (win === playerId ? 'linear-gradient(135deg, rgba(52,199,89,0.15), rgba(52,199,89,0.08))' : 'linear-gradient(135deg, rgba(232,82,122,0.12), rgba(232,82,122,0.06))')
+            : isPlayerTurn ? 'linear-gradient(135deg, rgba(232,135,159,0.15), rgba(232,82,122,0.06))' : 'rgba(80,80,80,0.06)',
+          color: over ? (win === playerId ? '#4ade80' : '#e8527a') : isPlayerTurn ? '#f4b0c3' : '#666',
+          border: `1px solid ${over ? (win === playerId ? 'rgba(52,199,89,0.3)' : 'rgba(232,82,122,0.25)') : isPlayerTurn ? 'rgba(232,135,159,0.25)' : 'rgba(80,80,80,0.08)'}`,
+          backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+          boxShadow: over || isPlayerTurn ? '0 4px 16px rgba(0,0,0,0.15), 0 0 20px rgba(232,135,159,0.06)' : 'none',
+          textShadow: over || isPlayerTurn ? '0 1px 6px rgba(0,0,0,0.3)' : 'none',
+          letterSpacing: 0.5,
         }}>
         {over ? (win === playerId ? '🏆 Victoire !' : '💔 Défaite…') : isPlayerTurn ? (shotsLeft > 0 ? `🎯 Tir ${3 - shotsLeft}/2 — Glisse !` : '⏳ Fin du tour…') : '⏳ Tour adverse…'}
       </motion.div>
@@ -427,14 +476,20 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
       {/* Result popup */}
       <AnimatePresence>
         {lastResult && (
-          <motion.div initial={{ scale: 0, opacity: 0, y: 10 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.5, opacity: 0, y: -10 }}
-            style={{ position: 'absolute', top: '25%', left: '50%', transform: 'translateX(-50%)',
-              padding: '10px 26px', borderRadius: 16, fontSize: 20, fontWeight: 900, fontStyle: 'italic',
-              background: lastResult.includes('Touché') || lastResult.includes('Balls back') ? 'rgba(232,82,122,0.2)' : 'rgba(50,40,35,0.2)',
-              color: lastResult.includes('Balls back') ? '#ffaa00' : lastResult.includes('Touché') ? '#e8527a' : '#999',
-              border: `1.5px solid ${lastResult.includes('Touché') || lastResult.includes('Balls back') ? 'rgba(232,82,122,0.3)' : 'rgba(80,80,80,0.15)'}`,
-              zIndex: 20, backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-              boxShadow: lastResult.includes('Touché') || lastResult.includes('Balls back') ? '0 4px 20px rgba(232,82,122,0.15)' : 'none',
+          <motion.div initial={{ scale: 0, opacity: 0, y: 15 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.5, opacity: 0, y: -15 }}
+            style={{ position: 'absolute', top: '22%', left: '50%', transform: 'translateX(-50%)',
+              padding: '12px 32px', borderRadius: 18, fontSize: 22, fontWeight: 900, fontStyle: 'italic',
+              background: lastResult.includes('Balls back')
+                ? 'linear-gradient(135deg, rgba(255,170,0,0.25), rgba(255,100,0,0.15))'
+                : lastResult.includes('Touché')
+                  ? 'linear-gradient(135deg, rgba(232,82,122,0.25), rgba(200,40,80,0.15))'
+                  : 'rgba(50,40,35,0.25)',
+              color: lastResult.includes('Balls back') ? '#ffbb33' : lastResult.includes('Touché') ? '#e8527a' : '#888',
+              border: `2px solid ${lastResult.includes('Balls back') ? 'rgba(255,170,0,0.4)' : lastResult.includes('Touché') ? 'rgba(232,82,122,0.4)' : 'rgba(80,80,80,0.15)'}`,
+              zIndex: 20, backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+              boxShadow: lastResult.includes('Touché') || lastResult.includes('Balls back')
+                ? '0 8px 32px rgba(232,82,122,0.2), 0 0 40px rgba(232,82,122,0.08)' : 'none',
+              textShadow: '0 2px 8px rgba(0,0,0,0.3)',
             }}>
             {lastResult}
           </motion.div>
@@ -445,11 +500,14 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
       <AnimatePresence>
         {rerackMsg && (
           <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}
-            style={{ position: 'absolute', top: '18%', left: '50%', transform: 'translateX(-50%)',
-              padding: '8px 22px', borderRadius: 14, fontSize: 16, fontWeight: 800, fontStyle: 'italic',
-              background: 'rgba(100,200,255,0.15)', color: '#7ad4ff',
-              border: '1.5px solid rgba(100,200,255,0.25)',
-              zIndex: 21, backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+            style={{ position: 'absolute', top: '16%', left: '50%', transform: 'translateX(-50%)',
+              padding: '10px 26px', borderRadius: 16, fontSize: 17, fontWeight: 800, fontStyle: 'italic',
+              background: 'linear-gradient(135deg, rgba(100,200,255,0.2), rgba(80,150,220,0.1))',
+              color: '#7ad4ff',
+              border: '2px solid rgba(100,200,255,0.3)',
+              zIndex: 21, backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+              boxShadow: '0 6px 24px rgba(100,200,255,0.1)',
+              textShadow: '0 1px 6px rgba(0,0,0,0.3)',
             }}>
             {rerackMsg}
           </motion.div>
@@ -464,27 +522,39 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
           onTouchStart={onStart} onTouchMove={onDrag} onTouchEnd={onEnd}>
 
           <defs>
-            {/* Sunset sky */}
+            {/* Sunset sky — richer, more colorful */}
             <linearGradient id="sky" x1="50%" y1="0%" x2="50%" y2="100%">
-              <stop offset="0%" stopColor="#0a0318" />
-              <stop offset="15%" stopColor="#1a0525" />
-              <stop offset="30%" stopColor="#3a0830" />
-              <stop offset="48%" stopColor="#8b2050" />
-              <stop offset="60%" stopColor="#c45030" />
-              <stop offset="75%" stopColor="#d4903a" />
-              <stop offset="90%" stopColor="#e8c070" />
-              <stop offset="100%" stopColor="#f0d888" />
+              <stop offset="0%" stopColor="#0c0420" />
+              <stop offset="10%" stopColor="#180830" />
+              <stop offset="22%" stopColor="#2e0a3a" />
+              <stop offset="36%" stopColor="#6a1845" />
+              <stop offset="48%" stopColor="#a82850" />
+              <stop offset="56%" stopColor="#cc4535" />
+              <stop offset="65%" stopColor="#d87028" />
+              <stop offset="75%" stopColor="#e09838" />
+              <stop offset="85%" stopColor="#e8b848" />
+              <stop offset="95%" stopColor="#f0d060" />
+              <stop offset="100%" stopColor="#f5e070" />
             </linearGradient>
-            {/* Wood table */}
+            {/* Wood table — warmer */}
             <linearGradient id="wood" x1="50%" y1="0%" x2="50%" y2="100%">
-              <stop offset="0%" stopColor="#3a2218" />
-              <stop offset="30%" stopColor="#4a2c1e" />
-              <stop offset="70%" stopColor="#5a3424" />
-              <stop offset="100%" stopColor="#6a3c2a" />
+              <stop offset="0%" stopColor="#4a2c1e" />
+              <stop offset="25%" stopColor="#5a3424" />
+              <stop offset="50%" stopColor="#6a3c2a" />
+              <stop offset="75%" stopColor="#5a3220" />
+              <stop offset="100%" stopColor="#7a4430" />
             </linearGradient>
-            {/* Table glow */}
-            <radialGradient id="tableGlow" cx="50%" cy="20%" r="60%">
-              <stop offset="0%" stopColor="rgba(232,135,159,0.08)" />
+            {/* Table warm glow from sunset reflection */}
+            <radialGradient id="tableGlow" cx="50%" cy="15%" r="70%">
+              <stop offset="0%" stopColor="rgba(240,180,80,0.12)" />
+              <stop offset="40%" stopColor="rgba(232,135,159,0.06)" />
+              <stop offset="100%" stopColor="transparent" />
+            </radialGradient>
+            {/* Sun glow gradient */}
+            <radialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="rgba(255,240,200,0.5)" />
+              <stop offset="30%" stopColor="rgba(240,200,100,0.3)" />
+              <stop offset="60%" stopColor="rgba(220,160,60,0.15)" />
               <stop offset="100%" stopColor="transparent" />
             </radialGradient>
           </defs>
@@ -492,55 +562,80 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
           {/* Sky background */}
           <rect width="100" height="100" fill="url(#sky)" />
 
-          {/* Sun glow */}
-          <circle cx="50" cy="10" r="22" fill="rgba(212,144,58,0.12)" />
-          <circle cx="50" cy="10" r="10" fill="rgba(232,192,112,0.18)" />
-          <circle cx="50" cy="10" r="4" fill="rgba(255,220,160,0.25)" />
-          <circle cx="50" cy="10" r="1.5" fill="rgba(255,240,200,0.4)" />
+          {/* Sun — larger, more luminous */}
+          <circle cx="50" cy="52" r="30" fill="url(#sunGlow)" />
+          <circle cx="50" cy="52" r="12" fill="rgba(255,220,120,0.25)" />
+          <circle cx="50" cy="52" r="6" fill="rgba(255,235,160,0.35)" />
+          <circle cx="50" cy="52" r="3" fill="rgba(255,245,200,0.5)" />
+          <circle cx="50" cy="52" r="1.5" fill="rgba(255,250,220,0.7)" />
+
+          {/* Horizon glow band */}
+          <rect x="0" y="48" width="100" height="10" fill="rgba(255,200,80,0.06)" />
 
           {/* Stars (faint in sunset) */}
-          {[12, 28, 72, 85, 40, 65, 18, 55, 90, 8].map((sx, i) => (
-            <circle key={i} cx={sx} cy={2 + i * 1.2} r={0.25} fill="white" opacity={0.12 + i * 0.02}>
-              <animate attributeName="opacity" values={`${0.08 + i * 0.02};${0.2 + i * 0.02};${0.08 + i * 0.02}`}
+          {[12, 28, 72, 85, 40, 65, 18, 55, 90, 8, 35, 78].map((sx, i) => (
+            <circle key={i} cx={sx} cy={2 + i * 1.5} r={0.3} fill="white" opacity={0.1 + (i % 4) * 0.03}>
+              <animate attributeName="opacity" values={`${0.06 + i * 0.02};${0.18 + i * 0.02};${0.06 + i * 0.02}`}
                 dur={`${2 + i % 3}s`} repeatCount="indefinite" />
             </circle>
           ))}
 
-          {/* Palm tree silhouettes */}
-          <g opacity={0.12}>
+          {/* Clouds — wispy sunset clouds */}
+          <ellipse cx="25" cy="20" rx="12" ry="2" fill="rgba(180,80,100,0.06)" />
+          <ellipse cx="70" cy="15" rx="10" ry="1.5" fill="rgba(160,60,90,0.05)" />
+          <ellipse cx="45" cy="25" rx="8" ry="1.2" fill="rgba(200,100,120,0.04)" />
+
+          {/* Ocean/horizon band */}
+          <rect x="0" y="52" width="100" height="3" fill="rgba(20,60,80,0.15)" />
+          <line x1="0" y1="52" x2="100" y2="52" stroke="rgba(240,200,100,0.2)" strokeWidth="0.4" />
+
+          {/* Water reflections */}
+          {[20, 35, 50, 65, 80].map((wx, i) => (
+            <line key={i} x1={wx - 3} y1={53 + i * 0.15} x2={wx + 3} y2={53 + i * 0.15}
+              stroke="rgba(240,200,100,0.06)" strokeWidth="0.3">
+              <animate attributeName="opacity" values="0.04;0.1;0.04" dur={`${1.5 + i * 0.3}s`} repeatCount="indefinite" />
+            </line>
+          ))}
+
+          {/* Palm tree silhouettes — more detailed */}
+          <g opacity={0.18}>
             {/* Left palm */}
-            <line x1="8" y1="55" x2="10" y2="30" stroke="#1a0510" strokeWidth="1" />
-            <ellipse cx="6" cy="28" rx="6" ry="3" fill="#1a0510" transform="rotate(-20, 6, 28)" />
-            <ellipse cx="14" cy="29" rx="5" ry="2.5" fill="#1a0510" transform="rotate(15, 14, 29)" />
-            <ellipse cx="10" cy="26" rx="5" ry="2" fill="#1a0510" transform="rotate(-5, 10, 26)" />
+            <line x1="8" y1="55" x2="11" y2="26" stroke="#1a0510" strokeWidth="1.2" />
+            <ellipse cx="5" cy="24" rx="7" ry="2.8" fill="#1a0510" transform="rotate(-25, 5, 24)" />
+            <ellipse cx="15" cy="25" rx="6" ry="2.2" fill="#1a0510" transform="rotate(15, 15, 25)" />
+            <ellipse cx="11" cy="22" rx="6" ry="2" fill="#1a0510" transform="rotate(-5, 11, 22)" />
+            <ellipse cx="8" cy="27" rx="5" ry="1.8" fill="#1a0510" transform="rotate(-40, 8, 27)" />
             {/* Right palm */}
-            <line x1="92" y1="55" x2="90" y2="32" stroke="#1a0510" strokeWidth="0.8" />
-            <ellipse cx="86" cy="30" rx="5" ry="2.5" fill="#1a0510" transform="rotate(-15, 86, 30)" />
-            <ellipse cx="94" cy="31" rx="5" ry="2" fill="#1a0510" transform="rotate(20, 94, 31)" />
+            <line x1="92" y1="55" x2="89" y2="28" stroke="#1a0510" strokeWidth="1" />
+            <ellipse cx="85" cy="26" rx="6" ry="2.2" fill="#1a0510" transform="rotate(-15, 85, 26)" />
+            <ellipse cx="93" cy="27" rx="5.5" ry="2" fill="#1a0510" transform="rotate(20, 93, 27)" />
+            <ellipse cx="88" cy="24" rx="5" ry="1.8" fill="#1a0510" transform="rotate(5, 88, 24)" />
           </g>
 
-          {/* Horizon glow */}
-          <line x1="0" y1="55" x2="100" y2="55" stroke="rgba(240,180,80,0.12)" strokeWidth="0.5" />
-
           {/* Table surface — wood in perspective */}
-          <polygon points="12,55 88,55 100,100 0,100" fill="url(#wood)" />
-          <polygon points="12,55 88,55 100,100 0,100" fill="url(#tableGlow)" />
+          <polygon points="8,55 92,55 100,100 0,100" fill="url(#wood)" />
+          <polygon points="8,55 92,55 100,100 0,100" fill="url(#tableGlow)" />
 
-          {/* Wood grain lines */}
-          {[60, 68, 76, 84, 92].map((yy, i) => {
-            const xShrink = (100 - yy) * 0.28;
+          {/* Wood grain lines — more detail */}
+          {[58, 63, 68, 73, 78, 83, 88, 93].map((yy, i) => {
+            const xShrink = (100 - yy) * 0.3;
             return (
               <line key={i} x1={xShrink} y1={yy} x2={100 - xShrink} y2={yy}
-                stroke="rgba(100,60,30,0.1)" strokeWidth={0.3} />
+                stroke={i % 2 === 0 ? 'rgba(120,70,35,0.12)' : 'rgba(80,45,20,0.08)'} strokeWidth={0.3} />
             );
           })}
 
-          {/* Table edge highlight */}
-          <line x1="12" y1="55" x2="88" y2="55" stroke="rgba(255,200,150,0.1)" strokeWidth="0.6" />
+          {/* Wood knots */}
+          <circle cx="30" cy="72" r="1.2" fill="rgba(80,45,20,0.1)" />
+          <circle cx="70" cy="85" r="0.8" fill="rgba(80,45,20,0.08)" />
+
+          {/* Table edge highlight — warm glow */}
+          <line x1="8" y1="55" x2="92" y2="55" stroke="rgba(255,220,150,0.15)" strokeWidth="0.8" />
+          <line x1="8" y1="55.5" x2="92" y2="55.5" stroke="rgba(255,180,100,0.06)" strokeWidth="1.5" />
 
           {/* Center line on table */}
-          <line x1="42" y1="55" x2="50" y2="100" stroke="rgba(255,200,150,0.03)" strokeWidth="0.3" />
-          <line x1="58" y1="55" x2="50" y2="100" stroke="rgba(255,200,150,0.03)" strokeWidth="0.3" />
+          <line x1="42" y1="55" x2="50" y2="100" stroke="rgba(255,200,150,0.04)" strokeWidth="0.3" />
+          <line x1="58" y1="55" x2="50" y2="100" stroke="rgba(255,200,150,0.04)" strokeWidth="0.3" />
 
           {/* ── Opponent cups (far end, smaller) ── */}
           {opCups.map(cup => (
@@ -548,44 +643,56 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
               alive={cup.alive} hit={!cup.alive} glow={isPlayerTurn} />
           ))}
 
-          {/* Splash when hit */}
+          {/* Splash when hit — more dramatic rosé explosion */}
           {splash && (
             <g>
-              {[...Array(10)].map((_, i) => {
-                const a = (i / 10) * Math.PI * 2;
-                const r = 2 + Math.random() * 5;
+              {[...Array(14)].map((_, i) => {
+                const a = (i / 14) * Math.PI * 2;
+                const r = 2 + Math.random() * 6;
                 return (
                   <motion.circle key={i}
-                    initial={{ cx: splash.x, cy: splash.y, r: 0.4, opacity: 0.7 }}
+                    initial={{ cx: splash.x, cy: splash.y, r: 0.5, opacity: 0.8 }}
                     animate={{ cx: splash.x + Math.cos(a) * r, cy: splash.y + Math.sin(a) * r, r: 0, opacity: 0 }}
-                    transition={{ duration: 0.7 }}
-                    fill="rgba(232,135,159,0.6)" />
+                    transition={{ duration: 0.8, ease: 'easeOut' }}
+                    fill={i % 3 === 0 ? 'rgba(255,180,200,0.7)' : 'rgba(232,100,140,0.6)'} />
                 );
               })}
-              <motion.circle initial={{ r: 0.5, opacity: 0.5 }} animate={{ r: 7, opacity: 0 }}
-                transition={{ duration: 0.9 }}
-                cx={splash.x} cy={splash.y} fill="none" stroke="rgba(244,176,195,0.3)" strokeWidth={0.2} />
+              {/* Wine spill stain */}
+              <motion.circle initial={{ r: 0, opacity: 0.6 }} animate={{ r: 4, opacity: 0.2 }}
+                transition={{ duration: 1.2 }}
+                cx={splash.x} cy={splash.y} fill="rgba(232,100,140,0.4)" />
+              {/* Ripple ring */}
+              <motion.circle initial={{ r: 0.5, opacity: 0.6 }} animate={{ r: 8, opacity: 0 }}
+                transition={{ duration: 1 }}
+                cx={splash.x} cy={splash.y} fill="none" stroke="rgba(255,180,200,0.4)" strokeWidth={0.3} />
+              <motion.circle initial={{ r: 1, opacity: 0.4 }} animate={{ r: 10, opacity: 0 }}
+                transition={{ duration: 1.2, delay: 0.1 }}
+                cx={splash.x} cy={splash.y} fill="none" stroke="rgba(244,176,195,0.2)" strokeWidth={0.2} />
             </g>
           )}
 
-          {/* Ball in flight */}
+          {/* Ball in flight — more visible */}
           {ballPos && (
             <g>
-              {/* Ball trail */}
+              {/* Ball trail — gradient fade */}
               {ballTrail.length > 1 && (
                 <polyline
                   points={ballTrail.map(p => `${p.x},${p.y}`).join(' ')}
-                  fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth={1.2 * ballPos.s}
+                  fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth={1.5 * ballPos.s}
                   strokeLinecap="round" />
               )}
+              {/* Ball glow */}
+              <circle cx={ballPos.x} cy={ballPos.y} r={3.5 * ballPos.s}
+                fill="rgba(255,255,255,0.08)" />
               {/* Ball shadow on table */}
-              <ellipse cx={ballPos.x} cy={Math.max(ballPos.y + 3, 58)} rx={1.5 * ballPos.s} ry={0.5 * ballPos.s}
-                fill="rgba(0,0,0,0.1)" />
+              <ellipse cx={ballPos.x} cy={Math.max(ballPos.y + 3, 58)} rx={2 * ballPos.s} ry={0.6 * ballPos.s}
+                fill="rgba(0,0,0,0.15)" />
               {/* Ball */}
-              <circle cx={ballPos.x} cy={ballPos.y} r={1.8 * ballPos.s}
-                fill="white" stroke="rgba(220,220,220,0.4)" strokeWidth={0.2} />
-              <circle cx={ballPos.x - 0.4 * ballPos.s} cy={ballPos.y - 0.4 * ballPos.s}
-                r={0.5 * ballPos.s} fill="rgba(255,255,255,0.7)" />
+              <circle cx={ballPos.x} cy={ballPos.y} r={2 * ballPos.s}
+                fill="white" stroke="rgba(200,200,200,0.5)" strokeWidth={0.25} />
+              {/* Ball highlight */}
+              <circle cx={ballPos.x - 0.5 * ballPos.s} cy={ballPos.y - 0.5 * ballPos.s}
+                r={0.6 * ballPos.s} fill="rgba(255,255,255,0.8)" />
             </g>
           )}
 
