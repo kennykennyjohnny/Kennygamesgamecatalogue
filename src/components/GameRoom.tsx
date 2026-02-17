@@ -102,11 +102,28 @@ export function GameRoom({ game, currentUserId, currentUserName, onBack }: GameR
 
     if (!current) return;
 
-    const newState = { ...(current.game_state || {}), ...moveData };
-    // Switch turn to the other player
-    const nextTurn = current.from_user_id === currentUserId
-      ? current.to_user_id
-      : current.from_user_id;
+    // Deep merge: preserve per-player state while adding new move data
+    const prevState = current.game_state || {};
+    const newState = {
+      ...prevState,
+      moves: [...(prevState.moves || []), { playerId: currentUserId, ts: Date.now(), ...moveData }],
+      lastMove: { playerId: currentUserId, ...moveData },
+    };
+
+    // Copy player-specific state if provided
+    if (moveData._playerState) {
+      newState[`player_${currentUserId}`] = moveData._playerState;
+      delete newState.lastMove._playerState;
+    }
+
+    // Determine next turn (some moves keep the same turn)
+    const keepTurn = moveData._keepTurn === true;
+    const nextTurn = keepTurn
+      ? currentUserId
+      : (current.from_user_id === currentUserId ? current.to_user_id : current.from_user_id);
+
+    // Clean internal flags
+    if (newState.lastMove._keepTurn !== undefined) delete newState.lastMove._keepTurn;
 
     await supabase
       .from('challenges')
@@ -117,7 +134,7 @@ export function GameRoom({ game, currentUserId, currentUserName, onBack }: GameR
       .eq('id', game.id);
 
     setGameState(newState);
-    setIsMyTurn(false);
+    setIsMyTurn(keepTurn);
   };
 
   const handleGameEnd = async (finalState: any) => {
@@ -149,6 +166,7 @@ export function GameRoom({ game, currentUserId, currentUserName, onBack }: GameR
       playerId: currentUserId,
       opponentId: opponent?.user_id || '',
       isPlayerTurn: isMyTurn,
+      gameState: gameState,
       onMove: handleGameMove,
       onGameOver: handleGameEnd,
     };

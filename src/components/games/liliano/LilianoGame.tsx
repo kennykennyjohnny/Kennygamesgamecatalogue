@@ -1,670 +1,508 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 
-// ── constants ────────────────────────────────────────────────
-const GAME_W = 600;
+// ── Constants ────────────────────────────────────────────────────────────────
+
+const GAME_W = 800;
 const GAME_H = 400;
 const GROUND_Y = 340;
-const GRAVITY = 0.12;
-const WIND_MAX = 0.04;
-const TANK_W = 50;
-const TANK_H = 30;
-const BARREL_LEN = 28;
-const HIT_RADIUS = 40;
+const GRAVITY = 0.15;
+const TANK_W = 44;
+const TANK_H = 26;
+const BARREL_LEN = 24;
+const HIT_RADIUS = 38;
 const MAX_HP = 3;
+const POWER_MULT = 0.14;
 
 function clamp(v: number, lo: number, hi: number) { return Math.max(lo, Math.min(hi, v)); }
 
-// ── generate stars once ─────────────────────────────────────
-function generateStars(count: number) {
-  const colors = ['#ff00ff', '#00ffff', '#ffffff'];
-  return Array.from({ length: count }, () => ({
-    x: Math.random() * 100,
-    y: Math.random() * 60,
-    size: Math.random() * 2 + 1,
-    color: colors[Math.floor(Math.random() * colors.length)],
-    delay: Math.random() * 3,
-    duration: 1.5 + Math.random() * 2,
-  }));
-}
+// ── Palette ──────────────────────────────────────────────────────────────────
 
-// ── generate floating particles ─────────────────────────────
-function generateParticles(count: number) {
-  return Array.from({ length: count }, () => ({
-    x: Math.random() * 100,
-    startY: 90 + Math.random() * 20,
-    size: Math.random() * 3 + 2,
-    color: Math.random() > 0.5 ? '#ff00ff' : '#00ffff',
-    duration: 4 + Math.random() * 6,
-    delay: Math.random() * 5,
-  }));
-}
+const C = {
+  bg1: '#0a0d15', bg2: '#0d1320',
+  ground: 'linear-gradient(180deg, #1a2435, #0d1520)',
+  accent: '#6e42e5', accent2: '#a855f7',
+  cyan: '#22d3ee', yellow: '#fbbf24',
+  hit: '#ff4444', miss: '#3b82f6',
+  text: '#e2e8f0', dim: '#64748b',
+  glass: 'rgba(13,19,32,0.8)',
+  border: 'rgba(110,66,229,0.25)',
+};
 
-// ── generate buildings ──────────────────────────────────────
-function generateBuildings() {
-  return Array.from({ length: 10 }, (_, i) => ({
-    x: i * 10,
-    width: 6 + Math.random() * 4,
-    height: 15 + Math.random() * 25,
-    windows: Array.from({ length: Math.floor(Math.random() * 6) + 2 }, () => ({
-      wx: 15 + Math.random() * 70,
-      wy: 15 + Math.random() * 70,
-      color: Math.random() > 0.5 ? '#ff00ff' : '#00ffff',
-      flicker: Math.random() * 3,
-    })),
-  }));
-}
+// Static decoration generated once
+const stars = Array.from({ length: 30 }, () => ({
+  x: Math.random() * 100, y: Math.random() * 55,
+  s: Math.random() * 2 + 0.5, d: Math.random() * 4,
+}));
 
-// ── obstacle positions ──────────────────────────────────────
-const OBSTACLES = [
-  { x: GAME_W * 0.35, w: 30, h: 40 },
-  { x: GAME_W * 0.50, w: 25, h: 50 },
-  { x: GAME_W * 0.65, w: 30, h: 35 },
+const mountains = [
+  { x: 0, w: 35, h: 22, c: 'rgba(30,40,60,0.6)' },
+  { x: 25, w: 30, h: 30, c: 'rgba(25,35,55,0.5)' },
+  { x: 55, w: 40, h: 26, c: 'rgba(20,30,50,0.5)' },
+  { x: 80, w: 25, h: 18, c: 'rgba(30,40,60,0.6)' },
 ];
 
-// ── component ───────────────────────────────────────────────
-export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn, onMove, onGameOver }: any) {
-  const [angle, setAngle] = useState(45);
-  const [power, setPower] = useState(60);
-  const [hp1, setHp1] = useState(MAX_HP);
-  const [hp2, setHp2] = useState(MAX_HP);
-  const [firing, setFiring] = useState(false);
-  const [gameOver, setGameOver] = useState(false);
-  const [winner, setWinner] = useState<string | null>(null);
-  const [wind, setWind] = useState(() => (Math.random() - 0.5) * WIND_MAX * 2);
-  const [projectile, setProjectile] = useState<{ x: number; y: number; vx: number; vy: number; trail: { x: number; y: number }[]; rotation: number } | null>(null);
-  const [explosionPos, setExplosionPos] = useState<{ x: number; y: number } | null>(null);
-  const animRef = useRef<number>(0);
-  const hp1Ref = useRef(MAX_HP);
-  const hp2Ref = useRef(MAX_HP);
+// ── Terrain generation ───────────────────────────────────────────────────────
 
-  const stars = useMemo(() => generateStars(120), []);
-  const particles = useMemo(() => generateParticles(15), []);
-  const buildings = useMemo(() => generateBuildings(), []);
+function generateTerrain(seed: number): number[] {
+  const t: number[] = [];
+  let h = GROUND_Y;
+  const rng = (s: number) => {
+    s = ((s * 9301 + 49297) % 233280);
+    return s / 233280;
+  };
+  let s = seed;
+  for (let x = 0; x < GAME_W; x++) {
+    s = ((s * 9301 + 49297) % 233280);
+    const r = s / 233280;
+    if (x > 100 && x < GAME_W - 100) {
+      h += (r - 0.5) * 3;
+      h = clamp(h, GROUND_Y - 60, GROUND_Y + 10);
+    }
+    t.push(h);
+  }
+  // Smooth
+  for (let pass = 0; pass < 3; pass++) {
+    for (let x = 2; x < GAME_W - 2; x++) {
+      t[x] = (t[x - 2] + t[x - 1] + t[x] + t[x + 1] + t[x + 2]) / 5;
+    }
+  }
+  return t;
+}
+
+// ── Wind ─────────────────────────────────────────────────────────────────────
+
+function randomWind() {
+  return (Math.random() - 0.5) * 0.06;
+}
+
+// ── Component ────────────────────────────────────────────────────────────────
+
+interface Props {
+  gameId: string; playerId: string; opponentId: string;
+  isPlayerTurn: boolean; gameState: any;
+  onMove: (data: any) => void; onGameOver: (data: any) => void;
+}
+
+export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn, gameState, onMove, onGameOver }: Props) {
+  const isHost = playerId < opponentId; // deterministic: lower ID = left tank
+
+  // Terrain (same for both)
+  const seed = useMemo(() => {
+    const id = gameId || 'default';
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = ((h << 5) - h + id.charCodeAt(i)) | 0;
+    return Math.abs(h);
+  }, [gameId]);
+
+  const terrain = useMemo(() => generateTerrain(seed), [seed]);
 
   // Tank positions
-  const tank1X = GAME_W * 0.12;
-  const tank2X = GAME_W * 0.88;
-  const tankY = GROUND_Y;
+  const myX = isHost ? 80 : GAME_W - 80;
+  const opX = isHost ? GAME_W - 80 : 80;
+  const myY = terrain[Math.round(myX)] || GROUND_Y;
+  const opY = terrain[Math.round(opX)] || GROUND_Y;
 
-  // ── fire ──────────────────────────────────────────────
-  const fire = useCallback(() => {
-    if (firing || gameOver || !isPlayerTurn) return;
+  // State
+  const [angle, setAngle] = useState(isHost ? 45 : 135);
+  const [power, setPower] = useState(60);
+  const [myHp, setMyHp] = useState(MAX_HP);
+  const [opHp, setOpHp] = useState(MAX_HP);
+  const [wind, setWind] = useState(() => randomWind());
+  const [firing, setFiring] = useState(false);
+  const [projPath, setProjPath] = useState<{ x: number; y: number }[]>([]);
+  const [projIdx, setProjIdx] = useState(0);
+  const [explosions, setExplosions] = useState<{ x: number; y: number; hit: boolean; id: number }[]>([]);
+  const [gameOver, setGameOver] = useState(false);
+  const [winner, setWinner] = useState<string | null>(null);
+  const [turnMessage, setTurnMessage] = useState<string | null>(null);
+
+  const animFrame = useRef<number>(0);
+  const expCounter = useRef(0);
+
+  // ── Simulate projectile trajectory ─────────────────────────────────────────
+
+  const simulate = useCallback((fromX: number, fromY: number, a: number, p: number, w: number): { x: number; y: number }[] => {
+    const rad = (a * Math.PI) / 180;
+    let vx = Math.cos(rad) * p * POWER_MULT;
+    let vy = -Math.sin(rad) * p * POWER_MULT;
+    let x = fromX, y = fromY - TANK_H;
+    const path: { x: number; y: number }[] = [{ x, y }];
+
+    for (let i = 0; i < 600; i++) {
+      vx += w;
+      vy += GRAVITY;
+      x += vx;
+      y += vy;
+      path.push({ x, y });
+      if (y > GAME_H + 20 || x < -50 || x > GAME_W + 50) break;
+      const tx = clamp(Math.round(x), 0, GAME_W - 1);
+      if (y >= (terrain[tx] || GROUND_Y)) break;
+    }
+    return path;
+  }, [terrain]);
+
+  // ── Fire! ──────────────────────────────────────────────────────────────────
+
+  const fire = useCallback((fromX: number, fromY: number, a: number, p: number, w: number, targetX: number, targetY: number, isMine: boolean) => {
+    const path = simulate(fromX, fromY, a, p, w);
+    setProjPath(path);
+    setProjIdx(0);
     setFiring(true);
-    const rad = (angle * Math.PI) / 180;
-    const speed = (power / 100) * 10;
-    const tipX = tank1X + Math.cos(rad) * BARREL_LEN;
-    const tipY = tankY - TANK_H / 2 - Math.sin(rad) * BARREL_LEN;
-    setProjectile({
-      x: tipX, y: tipY,
-      vx: Math.cos(rad) * speed,
-      vy: -Math.sin(rad) * speed,
-      trail: [],
-      rotation: 0,
-    });
-  }, [angle, power, firing, gameOver, isPlayerTurn, tank1X, tankY]);
 
-  // ── projectile physics loop ───────────────────────────
-  const projRef = useRef(projectile);
-  projRef.current = projectile;
-
-  useEffect(() => {
-    if (!firing || !projRef.current) return;
-    const p = { ...projRef.current, trail: [...projRef.current.trail] };
-    let running = true;
-
+    let idx = 0;
     const step = () => {
-      if (!running) return;
-      p.trail.push({ x: p.x, y: p.y });
-      if (p.trail.length > 30) p.trail.shift();
-      p.vx += wind;
-      p.vy += GRAVITY;
-      p.x += p.vx;
-      p.y += p.vy;
-      p.rotation += 15;
+      idx += 2; // speed
+      if (idx >= path.length) {
+        // Impact
+        const end = path[path.length - 1];
+        const dist = Math.sqrt((end.x - targetX) ** 2 + (end.y - targetY) ** 2);
+        const isHit = dist < HIT_RADIUS;
 
-      for (const obs of OBSTACLES) {
-        if (p.x > obs.x - obs.w / 2 && p.x < obs.x + obs.w / 2 &&
-            p.y > GROUND_Y - obs.h && p.y < GROUND_Y) {
-          handleImpact(p.x, p.y, false); running = false; return;
+        expCounter.current++;
+        setExplosions(prev => [...prev, { x: end.x, y: end.y, hit: isHit, id: expCounter.current }]);
+        setTimeout(() => {
+          setExplosions(prev => prev.filter(e => e.id !== expCounter.current));
+        }, 1200);
+
+        if (isHit) {
+          if (isMine) {
+            setOpHp(prev => {
+              const next = prev - 1;
+              if (next <= 0) {
+                setGameOver(true);
+                setWinner(playerId);
+                onGameOver({ winner_id: playerId });
+              }
+              return next;
+            });
+          } else {
+            setMyHp(prev => {
+              const next = prev - 1;
+              if (next <= 0) {
+                setGameOver(true);
+                setWinner(opponentId);
+              }
+              return next;
+            });
+          }
         }
-      }
 
-      if (p.y >= GROUND_Y) { handleImpact(p.x, GROUND_Y, false); running = false; return; }
-
-      const d2 = Math.sqrt((p.x - tank2X) ** 2 + (p.y - (tankY - TANK_H / 2)) ** 2);
-      if (d2 < HIT_RADIUS) { handleImpact(p.x, p.y, true); running = false; return; }
-
-      if (p.x < -50 || p.x > GAME_W + 50 || p.y > GAME_H + 50) {
-        handleImpact(p.x, p.y, false); running = false; return;
-      }
-
-      setProjectile({ x: p.x, y: p.y, vx: p.vx, vy: p.vy, trail: [...p.trail], rotation: p.rotation });
-      animRef.current = requestAnimationFrame(step);
-    };
-
-    animRef.current = requestAnimationFrame(step);
-    return () => { running = false; cancelAnimationFrame(animRef.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firing]);
-
-  const handleImpact = useCallback((x: number, y: number, hit: boolean) => {
-    setProjectile(null);
-    setExplosionPos({ x, y });
-    setTimeout(() => setExplosionPos(null), 600);
-
-    const damage = hit ? 1 : 0;
-    if (hit) {
-      const newHp2 = hp2Ref.current - 1;
-      hp2Ref.current = newHp2;
-      setHp2(newHp2);
-
-      if (newHp2 <= 0) {
-        setGameOver(true);
-        setWinner(playerId);
-        setTimeout(() => onGameOver?.({ winner_id: playerId }), 800);
         setFiring(false);
+        setProjPath([]);
+        setWind(randomWind()); // new wind each turn
         return;
       }
-    }
+      setProjIdx(idx);
+      animFrame.current = requestAnimationFrame(step);
+    };
+    animFrame.current = requestAnimationFrame(step);
+  }, [simulate, playerId, opponentId, onGameOver]);
 
+  useEffect(() => () => { if (animFrame.current) cancelAnimationFrame(animFrame.current); }, []);
+
+  // ── Handle my shot ─────────────────────────────────────────────────────────
+
+  const handleFire = useCallback(() => {
+    if (!isPlayerTurn || firing || gameOver) return;
+    fire(myX, myY, angle, power, wind, opX, opY, true);
+    onMove({ type: 'fire', angle, power, wind });
+  }, [isPlayerTurn, firing, gameOver, myX, myY, angle, power, wind, opX, opY, fire, onMove]);
+
+  // ── Handle opponent's shot ─────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!gameState?.lastMove) return;
+    const move = gameState.lastMove;
+    if (move.playerId === playerId || move.type !== 'fire') return;
+
+    // Animate opponent's shot
+    const { angle: a, power: p, wind: w } = move;
+    setWind(w);
     setTimeout(() => {
-      onMove?.({ angle, power, hit, damage });
-      setFiring(false);
-      setWind((Math.random() - 0.5) * WIND_MAX * 2);
-    }, 500);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [angle, power, playerId, onMove, onGameOver]);
+      fire(opX, opY, a, p, w, myX, myY, false);
+    }, 400);
+  }, [gameState?.lastMove]);
 
-  // Sync refs
-  useEffect(() => { hp1Ref.current = hp1; }, [hp1]);
-  useEffect(() => { hp2Ref.current = hp2; }, [hp2]);
+  // ── Trajectory preview ─────────────────────────────────────────────────────
 
-  const barrelRad = (angle * Math.PI) / 180;
-  const windDisplay = wind > 0 ? `→ ${(wind * 1000).toFixed(1)}` : `← ${(Math.abs(wind) * 1000).toFixed(1)}`;
-  const anglePct = ((angle - 10) / 70) * 100;
-  const powerPct = ((power - 20) / 80) * 100;
-  const disabled = firing || !isPlayerTurn || gameOver;
+  const preview = useMemo(() => {
+    if (!isPlayerTurn || firing || gameOver) return [];
+    const path = simulate(myX, myY, angle, power, wind);
+    return path.filter((_, i) => i % 6 === 0).slice(0, 20);
+  }, [isPlayerTurn, firing, gameOver, myX, myY, angle, power, wind, simulate]);
+
+  // ── Current projectile position ────────────────────────────────────────────
+
+  const projPos = firing && projPath[projIdx] ? projPath[projIdx] : null;
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  const renderTank = (x: number, ty: number, color1: string, color2: string, facingRight: boolean, hp: number) => (
+    <g>
+      {/* Body */}
+      <rect
+        x={x - TANK_W / 2} y={ty - TANK_H}
+        width={TANK_W} height={TANK_H}
+        rx={6} fill={`url(#tank-${color1})`}
+        stroke={color2} strokeWidth={1.5}
+      />
+      {/* Treads */}
+      <rect
+        x={x - TANK_W / 2 - 3} y={ty - 5}
+        width={TANK_W + 6} height={8}
+        rx={4} fill="#1a1a2e" stroke={color2} strokeWidth={1}
+      />
+      {/* HP indicator */}
+      {Array.from({ length: MAX_HP }, (_, i) => (
+        <circle
+          key={i}
+          cx={x - 8 + i * 8} cy={ty - TANK_H - 10}
+          r={3.5}
+          fill={i < hp ? '#34d399' : '#374151'}
+          stroke={i < hp ? '#10b981' : '#4b5563'}
+          strokeWidth={1}
+        />
+      ))}
+    </g>
+  );
+
+  const barrelAngle = isHost ? -angle : -(180 - angle);
+  const opBarrelAngle = isHost ? -(180 - 45) : -45;
 
   return (
     <div style={{
-      width: '100%', maxWidth: 620, margin: '0 auto', fontFamily: 'Arial, sans-serif',
-      userSelect: 'none', borderRadius: 12, overflow: 'hidden',
-      boxShadow: '0 0 40px rgba(255,0,255,0.3), 0 0 80px rgba(0,255,255,0.15)',
+      minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', background: C.bg1, fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
+      padding: 16,
     }}>
-      {/* ── GAME AREA ─────────────────────────────────── */}
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8 }}>
+        <motion.h1
+          initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+          style={{
+            fontSize: 22, fontWeight: 900,
+            background: 'linear-gradient(135deg, #a855f7, #22d3ee)',
+            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+          }}
+        >⚡ LILIANO THUNDER</motion.h1>
+      </div>
+
+      {/* Turn / Status */}
       <div style={{
-        position: 'relative', width: '100%', paddingBottom: `${(GAME_H / GAME_W) * 100}%`,
-        background: 'radial-gradient(ellipse at 50% 30%, #1a0033 0%, #0d001a 50%, #000 100%)',
-        overflow: 'hidden',
+        padding: '4px 16px', borderRadius: 16, fontSize: 13, fontWeight: 700, marginBottom: 8,
+        background: gameOver ? 'rgba(52,199,89,0.15)' : isPlayerTurn ? `${C.accent}22` : 'rgba(100,100,100,0.1)',
+        color: gameOver ? '#34C759' : isPlayerTurn ? C.cyan : C.dim,
+        border: `1px solid ${gameOver ? 'rgba(52,199,89,0.3)' : isPlayerTurn ? C.border : 'rgba(100,100,100,0.15)'}`,
       }}>
-        <div style={{ position: 'absolute', inset: 0 }}>
+        {gameOver
+          ? (winner === playerId ? '🏆 Victoire !' : '💥 Défaite...')
+          : firing ? '💨 Tir en cours...'
+            : isPlayerTurn ? '�� Règle ton tir !' : '⏳ L\'adversaire vise...'}
+      </div>
 
-          {/* ── Stars ────────────────────────────────── */}
+      {/* Wind indicator */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8,
+        fontSize: 12, fontWeight: 600, color: C.dim,
+      }}>
+        <span>🌬️ Vent</span>
+        <div style={{
+          width: 80, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.08)',
+          position: 'relative',
+        }}>
+          <div style={{
+            position: 'absolute', top: -2, height: 10, width: 4, borderRadius: 2,
+            background: C.cyan, left: `${50 + wind * 600}%`,
+            transition: 'left 0.3s',
+          }} />
+        </div>
+        <span style={{ color: wind > 0 ? '#22d3ee' : '#f472b6', fontSize: 11 }}>
+          {wind > 0 ? '→' : '←'} {Math.abs(wind * 100).toFixed(1)}
+        </span>
+      </div>
+
+      {/* Game canvas */}
+      <div style={{
+        borderRadius: 16, overflow: 'hidden', border: `1px solid ${C.border}`,
+        boxShadow: `0 0 30px ${C.accent}22`,
+      }}>
+        <svg width={GAME_W} height={GAME_H} viewBox={`0 0 ${GAME_W} ${GAME_H}`}
+          style={{ background: C.bg2, display: 'block' }}>
+          <defs>
+            <linearGradient id="tank-purple" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#a855f7" />
+              <stop offset="100%" stopColor="#7c3aed" />
+            </linearGradient>
+            <linearGradient id="tank-red" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#ef4444" />
+              <stop offset="100%" stopColor="#b91c1c" />
+            </linearGradient>
+            <linearGradient id="sky-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#0a0d15" />
+              <stop offset="100%" stopColor="#0d1320" />
+            </linearGradient>
+          </defs>
+
+          {/* Sky */}
+          <rect width={GAME_W} height={GAME_H} fill="url(#sky-grad)" />
+
+          {/* Stars */}
           {stars.map((s, i) => (
-            <motion.div key={`star-${i}`}
-              animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1.2, 0.8] }}
-              transition={{ duration: s.duration, delay: s.delay, repeat: Infinity }}
-              style={{
-                position: 'absolute', left: `${s.x}%`, top: `${s.y}%`,
-                width: s.size, height: s.size, borderRadius: '50%',
-                background: s.color,
-                boxShadow: `0 0 ${s.size * 2}px ${s.color}`,
-              }}
+            <circle key={i} cx={`${s.x}%`} cy={`${s.y}%`} r={s.s} fill="#fff" opacity={0.4}>
+              <animate attributeName="opacity" values="0.2;0.6;0.2" dur={`${2 + s.d}s`} repeatCount="indefinite" />
+            </circle>
+          ))}
+
+          {/* Mountains */}
+          {mountains.map((m, i) => (
+            <polygon key={i}
+              points={`${(m.x / 100) * GAME_W},${GROUND_Y} ${((m.x + m.w / 2) / 100) * GAME_W},${GROUND_Y - (m.h / 100) * GAME_H} ${((m.x + m.w) / 100) * GAME_W},${GROUND_Y}`}
+              fill={m.c}
             />
           ))}
 
-          {/* ── Neon light beams ──────────────────────── */}
-          <div style={{
-            position: 'absolute', left: '30%', top: 0, bottom: 0, width: 2,
-            background: '#ff00ff', opacity: 0.08, filter: 'blur(8px)',
-          }} />
-          <div style={{
-            position: 'absolute', left: '70%', top: 0, bottom: 0, width: 2,
-            background: '#00ffff', opacity: 0.08, filter: 'blur(8px)',
-          }} />
+          {/* Terrain */}
+          <path
+            d={`M0,${GAME_H} ${terrain.map((y, x) => `L${x},${y}`).join(' ')} L${GAME_W},${GAME_H} Z`}
+            fill="#111827" stroke="rgba(110,66,229,0.15)" strokeWidth={1}
+          />
+          {/* Terrain top glow */}
+          <path
+            d={terrain.map((y, x) => `${x === 0 ? 'M' : 'L'}${x},${y}`).join(' ')}
+            fill="none" stroke="rgba(110,66,229,0.3)" strokeWidth={1.5}
+          />
 
-          {/* ── Neon grid floor ───────────────────────── */}
-          <div style={{
-            position: 'absolute', left: 0, right: 0, bottom: 0, height: '25%',
-            perspective: 300, overflow: 'hidden',
-          }}>
-            <div style={{
-              width: '100%', height: '100%', transformOrigin: 'bottom center',
-              transform: 'rotateX(60deg)',
-              backgroundImage:
-                'linear-gradient(0deg, rgba(255,0,255,0.15) 1px, transparent 1px),' +
-                'linear-gradient(90deg, rgba(0,255,255,0.15) 1px, transparent 1px)',
-              backgroundSize: '30px 20px',
-            }} />
-          </div>
+          {/* My tank */}
+          {renderTank(myX, myY, 'purple', '#a855f7', isHost, myHp)}
+          {/* My barrel */}
+          <line
+            x1={myX} y1={myY - TANK_H + 4}
+            x2={myX + Math.cos((barrelAngle * Math.PI) / 180) * BARREL_LEN}
+            y2={myY - TANK_H + 4 + Math.sin((barrelAngle * Math.PI) / 180) * BARREL_LEN}
+            stroke="#c084fc" strokeWidth={4} strokeLinecap="round"
+          />
 
-          {/* ── City silhouette ───────────────────────── */}
-          {buildings.map((b, i) => (
-            <div key={`bldg-${i}`} style={{
-              position: 'absolute', left: `${b.x}%`, bottom: `${((GAME_H - GROUND_Y) / GAME_H) * 100}%`,
-              width: `${b.width}%`, height: `${b.height}%`,
-              background: '#0a0014', borderTop: '1px solid rgba(255,0,255,0.2)',
-            }}>
-              {b.windows.map((w, j) => (
-                <motion.div key={`win-${i}-${j}`}
-                  animate={{ opacity: [0.4, 1, 0.4] }}
-                  transition={{ duration: 1 + w.flicker, repeat: Infinity, delay: w.flicker }}
-                  style={{
-                    position: 'absolute', left: `${w.wx}%`, top: `${w.wy}%`,
-                    width: 3, height: 3, background: w.color,
-                    boxShadow: `0 0 4px ${w.color}`,
-                  }}
-                />
-              ))}
-            </div>
+          {/* Opponent tank */}
+          {renderTank(opX, opY, 'red', '#ef4444', !isHost, opHp)}
+          {/* Opponent barrel */}
+          <line
+            x1={opX} y1={opY - TANK_H + 4}
+            x2={opX + Math.cos((opBarrelAngle * Math.PI) / 180) * BARREL_LEN}
+            y2={opY - TANK_H + 4 + Math.sin((opBarrelAngle * Math.PI) / 180) * BARREL_LEN}
+            stroke="#f87171" strokeWidth={4} strokeLinecap="round"
+          />
+
+          {/* Trajectory preview */}
+          {preview.map((p, i) => (
+            <circle key={i} cx={p.x} cy={p.y} r={2} fill={C.cyan} opacity={0.15 + (i / preview.length) * 0.35} />
           ))}
 
-          {/* ── Floating neon particles ───────────────── */}
-          {particles.map((p, i) => (
-            <motion.div key={`particle-${i}`}
-              animate={{ y: [0, -200], opacity: [0, 0.8, 0] }}
-              transition={{ duration: p.duration, delay: p.delay, repeat: Infinity }}
-              style={{
-                position: 'absolute', left: `${p.x}%`, top: `${p.startY}%`,
-                width: p.size, height: p.size, borderRadius: '50%',
-                background: p.color, boxShadow: `0 0 6px ${p.color}`,
-              }}
-            />
-          ))}
-
-          {/* ── Ground line ───────────────────────────── */}
-          <div style={{
-            position: 'absolute', left: 0, right: 0,
-            top: `${(GROUND_Y / GAME_H) * 100}%`, height: 2,
-            background: '#ff00ff',
-            boxShadow: '0 0 10px #ff00ff, 0 0 20px #ff00ff, 0 -2px 15px rgba(255,0,255,0.4)',
-          }} />
-
-          {/* ── Obstacles ─────────────────────────────── */}
-          {OBSTACLES.map((obs, i) => (
-            <motion.div key={`obs-${i}`}
-              animate={{ boxShadow: [
-                '0 0 8px #ff00ff, 0 0 16px rgba(255,0,255,0.4)',
-                '0 0 14px #00ffff, 0 0 24px rgba(0,255,255,0.5)',
-                '0 0 8px #ff00ff, 0 0 16px rgba(255,0,255,0.4)',
-              ]}}
-              transition={{ duration: 2, repeat: Infinity, delay: i * 0.3 }}
-              style={{
-                position: 'absolute',
-                left: `${((obs.x - obs.w / 2) / GAME_W) * 100}%`,
-                top: `${((GROUND_Y - obs.h) / GAME_H) * 100}%`,
-                width: `${(obs.w / GAME_W) * 100}%`,
-                height: `${(obs.h / GAME_H) * 100}%`,
-                background: 'linear-gradient(180deg, rgba(255,0,255,0.15), rgba(0,255,255,0.1))',
-                border: '1px solid',
-                borderImage: 'linear-gradient(180deg, #ff00ff, #00ffff) 1',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 16,
-              }}
-            >
-              ⚡
-            </motion.div>
-          ))}
-
-          {/* ── Wind display ──────────────────────────── */}
-          <div style={{
-            position: 'absolute', top: '4%', left: '50%', transform: 'translateX(-50%)',
-            background: 'rgba(0,0,0,0.8)', border: '1px solid #00ffff',
-            borderRadius: 20, padding: '4px 14px',
-            color: '#00ffff', fontSize: 11, fontWeight: 700, letterSpacing: 1,
-            boxShadow: '0 0 10px rgba(0,255,255,0.3)',
-            fontFamily: 'Arial, sans-serif',
-          }}>
-            WIND {windDisplay}
-          </div>
-
-          {/* ── Health displays ───────────────────────── */}
-          <div style={{ position: 'absolute', top: '4%', left: '4%', display: 'flex', gap: 6 }}>
-            {Array.from({ length: MAX_HP }).map((_, i) => (
-              <motion.div key={`hp1-${i}`}
-                animate={i < hp1 ? { boxShadow: [
-                  '0 0 6px #ff00ff', '0 0 14px #ff00ff', '0 0 6px #ff00ff',
-                ]} : {}}
-                transition={{ duration: 1.5, repeat: Infinity }}
-                style={{
-                  width: 14, height: 14, borderRadius: 2,
-                  background: i < hp1 ? '#ff00ff' : 'rgba(255,0,255,0.15)',
-                  border: '1px solid #ff00ff',
-                  transition: 'background 0.3s',
-                }}
-              />
-            ))}
-          </div>
-          <div style={{ position: 'absolute', top: '4%', right: '4%', display: 'flex', gap: 6 }}>
-            {Array.from({ length: MAX_HP }).map((_, i) => (
-              <motion.div key={`hp2-${i}`}
-                animate={i < hp2 ? { boxShadow: [
-                  '0 0 6px #00ffff', '0 0 14px #00ffff', '0 0 6px #00ffff',
-                ]} : {}}
-                transition={{ duration: 1.5, repeat: Infinity }}
-                style={{
-                  width: 14, height: 14, borderRadius: 2,
-                  background: i < hp2 ? '#00ffff' : 'rgba(0,255,255,0.15)',
-                  border: '1px solid #00ffff',
-                  transition: 'background 0.3s',
-                }}
-              />
-            ))}
-          </div>
-
-          {/* ── Player Tank (magenta) ─────────────────── */}
-          <div style={{
-            position: 'absolute',
-            left: `${(tank1X / GAME_W) * 100}%`,
-            top: `${((tankY - TANK_H) / GAME_H) * 100}%`,
-            transform: 'translateX(-50%)',
-          }}>
-            {/* Emoji floating above */}
-            <motion.div
-              animate={{ y: [-4, 4, -4] }}
-              transition={{ duration: 2, repeat: Infinity }}
-              style={{ textAlign: 'center', fontSize: 18, marginBottom: 4,
-                filter: 'drop-shadow(0 0 6px #ff00ff)' }}
-            >⚡</motion.div>
-            {/* Barrel */}
-            <div style={{
-              position: 'absolute',
-              left: '50%', top: `${TANK_H * 0.3}px`,
-              width: BARREL_LEN, height: 6,
-              background: 'linear-gradient(90deg, #ff00ff, #ff66ff)',
-              borderRadius: 3,
-              transformOrigin: '0% 50%',
-              transform: `rotate(${-angle}deg)`,
-              boxShadow: '0 0 8px #ff00ff',
-              zIndex: 2,
-            }} />
-            {/* Body */}
-            <div style={{
-              width: TANK_W, height: TANK_H,
-              background: 'linear-gradient(180deg, #ff00ff, #990099)',
-              border: '2px solid #ff00ff',
-              borderRadius: 4,
-              boxShadow: '0 0 15px #ff00ff, 0 0 30px rgba(255,0,255,0.3)',
-              position: 'relative',
-            }} />
-          </div>
-
-          {/* ── Opponent Tank (cyan) ──────────────────── */}
-          <div style={{
-            position: 'absolute',
-            left: `${(tank2X / GAME_W) * 100}%`,
-            top: `${((tankY - TANK_H) / GAME_H) * 100}%`,
-            transform: 'translateX(-50%)',
-          }}>
-            <motion.div
-              animate={{ y: [-4, 4, -4] }}
-              transition={{ duration: 2, repeat: Infinity, delay: 0.5 }}
-              style={{ textAlign: 'center', fontSize: 18, marginBottom: 4,
-                filter: 'drop-shadow(0 0 6px #00ffff)' }}
-            >⚡</motion.div>
-            {/* Barrel (pointing left) */}
-            <div style={{
-              position: 'absolute',
-              right: '50%', top: `${TANK_H * 0.3}px`,
-              width: BARREL_LEN, height: 6,
-              background: 'linear-gradient(270deg, #00ffff, #0099cc)',
-              borderRadius: 3,
-              transformOrigin: '100% 50%',
-              transform: 'rotate(30deg)',
-              boxShadow: '0 0 8px #00ffff',
-              zIndex: 2,
-            }} />
-            <div style={{
-              width: TANK_W, height: TANK_H,
-              background: 'linear-gradient(180deg, #00ffff, #006699)',
-              border: '2px solid #00ffff',
-              borderRadius: 4,
-              boxShadow: '0 0 15px #00ffff, 0 0 30px rgba(0,255,255,0.3)',
-            }} />
-          </div>
-
-          {/* ── Projectile ────────────────────────────── */}
-          {projectile && (
+          {/* Projectile */}
+          {projPos && (
             <>
-              {/* Glow trail */}
-              {projectile.trail.map((t, i) => (
-                <div key={`trail-${i}`} style={{
-                  position: 'absolute',
-                  left: `${(t.x / GAME_W) * 100}%`,
-                  top: `${(t.y / GAME_H) * 100}%`,
-                  width: 6, height: 6, borderRadius: '50%',
-                  background: '#ff00ff',
-                  opacity: (i / projectile.trail.length) * 0.6,
-                  boxShadow: '0 0 8px #ff00ff',
-                  transform: 'translate(-50%, -50%)',
-                }} />
-              ))}
-              {/* Spinning thunder bolt */}
-              <div style={{
-                position: 'absolute',
-                left: `${(projectile.x / GAME_W) * 100}%`,
-                top: `${(projectile.y / GAME_H) * 100}%`,
-                fontSize: 20,
-                transform: `translate(-50%, -50%) rotate(${projectile.rotation}deg)`,
-                filter: 'drop-shadow(0 0 10px #ff00ff) drop-shadow(0 0 20px #ff00ff)',
-              }}>⚡</div>
+              <circle cx={projPos.x} cy={projPos.y} r={5} fill={C.yellow}>
+                <animate attributeName="r" values="4;6;4" dur="0.15s" repeatCount="indefinite" />
+              </circle>
+              <circle cx={projPos.x} cy={projPos.y} r={12} fill={C.yellow} opacity={0.15} />
             </>
           )}
 
-          {/* ── Explosion ─────────────────────────────── */}
-          <AnimatePresence>
-            {explosionPos && (
-              <motion.div
-                initial={{ scale: 0, opacity: 1 }}
-                animate={{ scale: 3, opacity: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.6 }}
-                style={{
-                  position: 'absolute',
-                  left: `${(explosionPos.x / GAME_W) * 100}%`,
-                  top: `${(explosionPos.y / GAME_H) * 100}%`,
-                  width: 30, height: 30, borderRadius: '50%',
-                  background: 'radial-gradient(#fff, #ff00ff, transparent)',
-                  transform: 'translate(-50%, -50%)',
-                  boxShadow: '0 0 40px #ff00ff, 0 0 80px #00ffff',
-                }}
-              />
-            )}
-          </AnimatePresence>
-
-          {/* ── Turn overlay ──────────────────────────── */}
-          {!isPlayerTurn && !firing && !gameOver && (
-            <div style={{
-              position: 'absolute', inset: 0,
-              background: 'rgba(0,0,0,0.6)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <motion.div
-                animate={{ opacity: [0.5, 1, 0.5] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                style={{
-                  color: '#00ffff', fontSize: 22, fontWeight: 700, letterSpacing: 2,
-                  textShadow: '0 0 20px #00ffff',
-                  fontFamily: 'Arial, sans-serif',
-                }}
-              >⏳ L'adversaire vise...</motion.div>
-            </div>
-          )}
-
-          {isPlayerTurn && !firing && !gameOver && (
-            <motion.div
-              animate={{ opacity: [0.6, 1, 0.6] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-              style={{
-                position: 'absolute', top: '14%', left: '50%', transform: 'translateX(-50%)',
-                color: '#ff00ff', fontSize: 16, fontWeight: 700, letterSpacing: 2,
-                textShadow: '0 0 15px #ff00ff, 0 0 30px #ff00ff',
-                fontFamily: 'Arial, sans-serif',
-              }}
-            >YOUR TURN</motion.div>
-          )}
-
-          {/* ── Game Over overlay ─────────────────────── */}
-          {gameOver && (
-            <div style={{
-              position: 'absolute', inset: 0,
-              background: 'rgba(0,0,0,0.7)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexDirection: 'column', gap: 10,
-            }}>
-              <motion.div
-                animate={{ scale: [1, 1.1, 1], textShadow: [
-                  '0 0 20px #ff00ff', '0 0 40px #00ffff', '0 0 20px #ff00ff',
-                ]}}
-                transition={{ duration: 2, repeat: Infinity }}
-                style={{
-                  color: winner === playerId ? '#ff00ff' : '#00ffff',
-                  fontSize: 28, fontWeight: 900, letterSpacing: 3,
-                  fontFamily: 'Arial, sans-serif',
-                }}
-              >
-                {winner === playerId ? '🏆 VICTOIRE! ⚡' : '💥 DÉFAITE!'}
-              </motion.div>
-            </div>
-          )}
-        </div>
+          {/* Explosions */}
+          {explosions.map(e => (
+            <g key={e.id}>
+              <circle cx={e.x} cy={e.y} r={5} fill={e.hit ? '#ff4444' : '#64748b'}>
+                <animate attributeName="r" from="5" to={e.hit ? '45' : '25'} dur="0.6s" fill="freeze" />
+                <animate attributeName="opacity" from="0.9" to="0" dur="0.8s" fill="freeze" />
+              </circle>
+              {e.hit && (
+                <text x={e.x} y={e.y - 30} textAnchor="middle" fill="#ff4444" fontSize="14" fontWeight="bold">
+                  💥 TOUCHÉ !
+                  <animate attributeName="y" from={e.y - 20} to={e.y - 50} dur="1s" fill="freeze" />
+                  <animate attributeName="opacity" from="1" to="0" dur="1s" fill="freeze" />
+                </text>
+              )}
+            </g>
+          ))}
+        </svg>
       </div>
 
-      {/* ── CONTROLS PANEL ────────────────────────────── */}
-      <div style={{
-        background: 'linear-gradient(180deg, #0d001a, #000)',
-        borderTop: '2px solid #ff00ff',
-        boxShadow: '0 -4px 20px rgba(255,0,255,0.3)',
-        padding: '14px 18px 16px',
-      }}>
-        {/* Angle slider */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-          <span style={{
-            color: '#00ffff', fontSize: 12, fontWeight: 700, minWidth: 50,
-            textTransform: 'uppercase', letterSpacing: 1,
-            textShadow: '0 0 8px #00ffff',
-          }}>ANGLE</span>
-          <div style={{
-            flex: 1, height: 24, position: 'relative', borderRadius: 12,
-            background: 'rgba(0,255,255,0.1)', border: '1px solid rgba(0,255,255,0.3)',
-            overflow: 'hidden', cursor: disabled ? 'not-allowed' : 'pointer',
-          }}
-            onPointerDown={(e) => {
-              if (disabled) return;
-              const rect = e.currentTarget.getBoundingClientRect();
-              const ratio = clamp((e.clientX - rect.left) / rect.width, 0, 1);
-              setAngle(Math.round(10 + ratio * 70));
-              (e.target as HTMLElement).setPointerCapture(e.pointerId);
-            }}
-            onPointerMove={(e) => {
-              if (disabled || !(e.buttons > 0)) return;
-              const rect = e.currentTarget.getBoundingClientRect();
-              const ratio = clamp((e.clientX - rect.left) / rect.width, 0, 1);
-              setAngle(Math.round(10 + ratio * 70));
-            }}
-          >
-            <div style={{
-              position: 'absolute', top: 0, left: 0, bottom: 0,
-              width: `${anglePct}%`, background: 'linear-gradient(90deg, #006666, #00ffff)',
-              borderRadius: 12, transition: 'width 0.05s',
-            }} />
-            <div style={{
-              position: 'absolute', top: '50%', left: `${anglePct}%`,
-              transform: 'translate(-50%, -50%)', width: 18, height: 18,
-              borderRadius: '50%', background: '#00ffff',
-              boxShadow: '0 0 10px #00ffff',
-              transition: 'left 0.05s',
-            }} />
-          </div>
-          <span style={{
-            background: 'rgba(0,0,0,0.8)', border: '1px solid #00ffff',
-            borderRadius: 10, padding: '2px 10px',
-            color: '#00ffff', fontSize: 13, fontWeight: 700, minWidth: 42, textAlign: 'center',
-            boxShadow: '0 0 6px rgba(0,255,255,0.3)',
-          }}>{angle}°</span>
-        </div>
-
-        {/* Power slider */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-          <span style={{
-            color: '#ff00ff', fontSize: 12, fontWeight: 700, minWidth: 50,
-            textTransform: 'uppercase', letterSpacing: 1,
-            textShadow: '0 0 8px #ff00ff',
-          }}>POWER</span>
-          <div style={{
-            flex: 1, height: 24, position: 'relative', borderRadius: 12,
-            background: 'rgba(255,0,255,0.1)', border: '1px solid rgba(255,0,255,0.3)',
-            overflow: 'hidden', cursor: disabled ? 'not-allowed' : 'pointer',
-          }}
-            onPointerDown={(e) => {
-              if (disabled) return;
-              const rect = e.currentTarget.getBoundingClientRect();
-              const ratio = clamp((e.clientX - rect.left) / rect.width, 0, 1);
-              setPower(Math.round(20 + ratio * 80));
-              (e.target as HTMLElement).setPointerCapture(e.pointerId);
-            }}
-            onPointerMove={(e) => {
-              if (disabled || !(e.buttons > 0)) return;
-              const rect = e.currentTarget.getBoundingClientRect();
-              const ratio = clamp((e.clientX - rect.left) / rect.width, 0, 1);
-              setPower(Math.round(20 + ratio * 80));
-            }}
-          >
-            <div style={{
-              position: 'absolute', top: 0, left: 0, bottom: 0,
-              width: `${powerPct}%`, background: 'linear-gradient(90deg, #660066, #ff00ff)',
-              borderRadius: 12, transition: 'width 0.05s',
-            }} />
-            <div style={{
-              position: 'absolute', top: '50%', left: `${powerPct}%`,
-              transform: 'translate(-50%, -50%)', width: 18, height: 18,
-              borderRadius: '50%', background: '#ff00ff',
-              boxShadow: '0 0 10px #ff00ff',
-              transition: 'left 0.05s',
-            }} />
-          </div>
-          <span style={{
-            background: 'rgba(0,0,0,0.8)', border: '1px solid #ff00ff',
-            borderRadius: 10, padding: '2px 10px',
-            color: '#ff00ff', fontSize: 13, fontWeight: 700, minWidth: 42, textAlign: 'center',
-            boxShadow: '0 0 6px rgba(255,0,255,0.3)',
-          }}>{power}%</span>
-        </div>
-
-        {/* FIRE button */}
-        <motion.button
-          whileHover={disabled ? {} : { scale: 1.02 }}
-          whileTap={disabled ? {} : { scale: 0.97 }}
-          disabled={disabled}
-          onClick={fire}
-          style={{
-            width: '100%', padding: '14px 0', border: 'none', borderRadius: 10,
-            background: disabled
-              ? 'rgba(100,100,100,0.3)'
-              : 'linear-gradient(90deg, #ff00ff, #00ffff)',
-            color: disabled ? '#666' : '#000',
-            fontSize: 18, fontWeight: 900, letterSpacing: 3,
-            cursor: disabled ? 'not-allowed' : 'pointer',
-            fontFamily: 'Arial, sans-serif',
-            position: 'relative', overflow: 'hidden',
-            boxShadow: disabled ? 'none' : '0 0 20px rgba(255,0,255,0.4), 0 0 40px rgba(0,255,255,0.2)',
-          }}
-        >
-          {/* Shimmer animation */}
-          {!disabled && (
-            <motion.div
-              animate={{ x: ['-100%', '200%'] }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-              style={{
-                position: 'absolute', top: 0, left: 0, width: '50%', height: '100%',
-                background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)',
-              }}
+      {/* Controls */}
+      {!gameOver && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 16, marginTop: 12, padding: '8px 16px',
+          background: C.glass, borderRadius: 16, border: `1px solid ${C.border}`,
+        }}>
+          {/* Angle */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+            <label style={{ fontSize: 10, fontWeight: 700, color: C.dim, textTransform: 'uppercase', letterSpacing: 1 }}>Angle</label>
+            <input type="range" min={10} max={80} value={isHost ? angle : 180 - angle}
+              onChange={e => setAngle(isHost ? +e.target.value : 180 - +e.target.value)}
+              disabled={!isPlayerTurn || firing}
+              style={{ width: 120, accentColor: C.accent }}
             />
-          )}
-          <span style={{ position: 'relative', zIndex: 1 }}>FIRE ⚡</span>
-        </motion.button>
-      </div>
+            <span style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{isHost ? angle : 180 - angle}°</span>
+          </div>
+
+          {/* Power */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+            <label style={{ fontSize: 10, fontWeight: 700, color: C.dim, textTransform: 'uppercase', letterSpacing: 1 }}>Puissance</label>
+            <input type="range" min={20} max={100} value={power}
+              onChange={e => setPower(+e.target.value)}
+              disabled={!isPlayerTurn || firing}
+              style={{ width: 120, accentColor: C.yellow }}
+            />
+            <span style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{power}%</span>
+          </div>
+
+          {/* Fire button */}
+          <motion.button
+            whileTap={{ scale: 0.92 }}
+            onClick={handleFire}
+            disabled={!isPlayerTurn || firing}
+            style={{
+              padding: '10px 24px', borderRadius: 12, fontSize: 15, fontWeight: 800,
+              background: isPlayerTurn && !firing
+                ? 'linear-gradient(135deg, #a855f7, #7c3aed)'
+                : 'rgba(60,60,60,0.3)',
+              color: '#fff', border: 'none',
+              cursor: isPlayerTurn && !firing ? 'pointer' : 'not-allowed',
+              opacity: isPlayerTurn && !firing ? 1 : 0.4,
+              boxShadow: isPlayerTurn && !firing ? '0 4px 16px rgba(168,85,247,0.4)' : 'none',
+            }}
+          >⚡ FEU !</motion.button>
+        </div>
+      )}
+
+      {/* Game over overlay */}
+      <AnimatePresence>
+        {gameOver && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            style={{
+              position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)',
+              zIndex: 100,
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.5 }} animate={{ scale: 1 }}
+              style={{
+                padding: '32px 48px', borderRadius: 24, textAlign: 'center',
+                background: C.glass, border: `1px solid ${C.border}`,
+              }}
+            >
+              <p style={{ fontSize: 48, marginBottom: 8 }}>{winner === playerId ? '🏆' : '💥'}</p>
+              <h2 style={{ fontSize: 24, fontWeight: 900, color: C.text, marginBottom: 4 }}>
+                {winner === playerId ? 'Victoire !' : 'Défaite...'}
+              </h2>
+              <p style={{ fontSize: 14, color: C.dim }}>
+                {winner === playerId ? 'Tonnerre triomphant !' : 'La foudre t\'a frappé...'}
+              </p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

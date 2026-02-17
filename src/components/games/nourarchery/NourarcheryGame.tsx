@@ -1,446 +1,382 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import './NourarcheryGame.css';
 
-/* ─── constants ──────────────────────────────────────────────── */
+// ── Constants ────────────────────────────────────────────────────────────────
+
 const TOTAL_ROUNDS = 3;
 const ARROWS_PER_ROUND = 3;
-const TOTAL_ARROWS = TOTAL_ROUNDS * ARROWS_PER_ROUND;
-const TARGET_SIZE = 260;
-const RING_RADII = [1.0, 0.78, 0.56, 0.36, 0.18];
-const RING_SCORES = [2, 4, 6, 8, 10];
-const MATRIX_CHARS = '🍃🌿🍂🌱🌲🪵☘️🌳🍁🌾🦌🏹🎯🎋🪶✦✧◆◇●○■□▲△';
+const TARGET_RADIUS = 130;
+const RINGS = [
+  { r: 1.0, score: 1, color: '#e2e8f0', label: '1' },
+  { r: 0.8, score: 2, color: '#93c5fd', label: '2' },
+  { r: 0.6, score: 3, color: '#60a5fa', label: '3' },
+  { r: 0.4, score: 5, color: '#f59e0b', label: '5' },
+  { r: 0.2, score: 8, color: '#ef4444', label: '8' },
+  { r: 0.08, score: 10, color: '#fbbf24', label: '10' },
+];
 
-interface StuckArrow { x: number; y: number; score: number }
-interface ScorePopup { id: number; score: number; x: number; y: number }
+const C = {
+  bg: 'linear-gradient(180deg, #0f1b12 0%, #162215 40%, #0d1a10 100%)',
+  glass: 'rgba(15, 27, 18, 0.8)',
+  border: 'rgba(74, 222, 128, 0.2)',
+  accent: '#4ade80',
+  gold: '#fbbf24',
+  text: '#d1fae5',
+  dim: 'rgba(74, 222, 128, 0.5)',
+};
 
-function randomWind() {
-  const speed = +(Math.random() * 8 - 4).toFixed(1);
-  return speed;
+const font = '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+
+// Deterministic wind per round (same for both players)
+function getWind(gameId: string, round: number): { x: number; y: number; label: string } {
+  let h = 0;
+  const s = `${gameId}-r${round}`;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  const wx = ((h & 0xff) / 255 - 0.5) * 2;
+  const wy = (((h >> 8) & 0xff) / 255 - 0.5) * 2;
+  const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
+  const a = Math.atan2(-wy, wx);
+  const idx = Math.round(((a + Math.PI) / (Math.PI * 2)) * 8) % 8;
+  const spd = Math.sqrt(wx * wx + wy * wy);
+  return { x: wx * 15, y: wy * 15, label: `${dirs[idx]} ${(spd * 10).toFixed(0)} km/h` };
 }
 
-function getScore(dx: number, dy: number): number {
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  const r = TARGET_SIZE / 2;
-  for (let i = RING_RADII.length - 1; i >= 0; i--) {
-    if (dist <= r * RING_RADII[i]) return RING_SCORES[i];
-  }
-  return 0;
+// ── Component ────────────────────────────────────────────────────────────────
+
+interface Props {
+  gameId: string; playerId: string; opponentId: string;
+  isPlayerTurn: boolean; gameState: any;
+  onMove: (data: any) => void; onGameOver: (data: any) => void;
 }
 
-/* ─── Matrix rain column ─── */
-function MatrixColumn({ index, total }: { index: number; total: number }) {
-  const chars = useMemo(() => {
-    const len = 8 + Math.floor(Math.random() * 14);
-    return Array.from({ length: len }, () =>
-      MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)]
-    ).join('\n');
-  }, []);
-
-  const duration = 3 + Math.random() * 5;
-  const delay = Math.random() * 4;
-  const left = `${(index / total) * 100}%`;
-  const opacity = 0.15 + Math.random() * 0.25;
-  const fontSize = 10 + Math.floor(Math.random() * 4);
-
-  return (
-    <div
-      className="na-matrix-col"
-      style={{
-        left,
-        animationDuration: `${duration}s`,
-        animationDelay: `${delay}s`,
-        opacity,
-        fontSize,
-      }}
-    >
-      {chars}
-    </div>
-  );
-}
-
-/* ─── component ──────────────────────────────────────────────── */
-export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayerTurn, onMove, onGameOver }: any) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [phase, setPhase] = useState<'aiming' | 'flying' | 'scored' | 'done'>('aiming');
-  const [round, setRound] = useState(1);
-  const [arrowInRound, setArrowInRound] = useState(1);
-  const [playerScore, setPlayerScore] = useState(0);
-  const [opponentScore] = useState(0);
-  const [wind, setWind] = useState(() => randomWind());
-  const [crosshairPos, setCrosshairPos] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [stuckArrows, setStuckArrows] = useState<StuckArrow[]>([]);
-  const [arrowFlying, setArrowFlying] = useState(false);
-  const [arrowTarget, setArrowTarget] = useState({ x: 0, y: 0 });
-  const [hitFlash, setHitFlash] = useState(false);
-  const [scorePopups, setScorePopups] = useState<ScorePopup[]>([]);
-  const [roundArrowScores, setRoundArrowScores] = useState<number[]>([]);
-  const [allScores, setAllScores] = useState<number[]>([]);
-  const totalArrowsFired = useRef(0);
-  const popupId = useRef(0);
+export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayerTurn, gameState, onMove, onGameOver }: Props) {
+  const [round, setRound] = useState(0);
+  const [arrowInRound, setArrowInRound] = useState(0);
+  const [myScores, setMyScores] = useState<number[]>([]); // per-arrow
+  const [opScores, setOpScores] = useState<number[]>([]);
+  const [myArrows, setMyArrows] = useState<{ x: number; y: number; score: number }[]>([]);
+  const [aiming, setAiming] = useState(false);
+  const [aimPos, setAimPos] = useState({ x: 0, y: 0 });
+  const [landed, setLanded] = useState<{ x: number; y: number; score: number } | null>(null);
+  const [gameOver, setGameOverState] = useState(false);
+  const [winner, setWinner] = useState<string | null>(null);
+  const [showScore, setShowScore] = useState<number | null>(null);
 
   const targetRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    setWind(randomWind());
-  }, [round]);
+  const totalMyScore = myScores.reduce((a, b) => a + b, 0);
+  const totalOpScore = opScores.reduce((a, b) => a + b, 0);
+  const totalArrows = TOTAL_ROUNDS * ARROWS_PER_ROUND;
+  const wind = useMemo(() => getWind(gameId, round), [gameId, round]);
+  const myArrowCount = myScores.length;
+  const allMyArrowsDone = myArrowCount >= totalArrows;
 
-  const getRelativePos = useCallback((clientX: number, clientY: number) => {
-    const el = targetRef.current;
-    if (!el) return { x: 0, y: 0 };
-    const rect = el.getBoundingClientRect();
-    return {
-      x: clientX - rect.left - rect.width / 2,
-      y: clientY - rect.top - rect.height / 2,
-    };
-  }, []);
+  // ── Process opponent's moves ───────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!gameState?.lastMove) return;
+    const move = gameState.lastMove;
+    if (move.playerId === playerId || move.type !== 'arrow') return;
+
+    setOpScores(prev => [...prev, move.score]);
+  }, [gameState?.lastMove]);
+
+  // ── Check game over ────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!allMyArrowsDone) return;
+    // Check if opponent also done
+    if (opScores.length < totalArrows) return;
+
+    setGameOverState(true);
+    const myTotal = myScores.reduce((a, b) => a + b, 0);
+    const opTotal = opScores.reduce((a, b) => a + b, 0);
+    const w = myTotal > opTotal ? playerId : myTotal < opTotal ? opponentId : null;
+    setWinner(w);
+    if (w === playerId) onGameOver({ winner_id: playerId });
+  }, [myScores, opScores, allMyArrowsDone, totalArrows]);
+
+  // ── Aiming ─────────────────────────────────────────────────────────────────
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    if (phase !== 'aiming' || !isPlayerTurn) return;
-    e.preventDefault();
-    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-    setIsDragging(true);
-    const pos = getRelativePos(e.clientX, e.clientY);
-    setCrosshairPos(pos);
-  }, [phase, isPlayerTurn, getRelativePos]);
+    if (!isPlayerTurn || gameOver || allMyArrowsDone) return;
+    const rect = targetRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setAiming(true);
+    setAimPos({ x: e.clientX - rect.left - rect.width / 2, y: e.clientY - rect.top - rect.height / 2 });
+  }, [isPlayerTurn, gameOver, allMyArrowsDone]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!isDragging) return;
-    e.preventDefault();
-    const pos = getRelativePos(e.clientX, e.clientY);
-    setCrosshairPos(pos);
-  }, [isDragging, getRelativePos]);
+    if (!aiming) return;
+    const rect = targetRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setAimPos({ x: e.clientX - rect.left - rect.width / 2, y: e.clientY - rect.top - rect.height / 2 });
+  }, [aiming]);
 
-  const shoot = useCallback(() => {
-    if (phase !== 'aiming') return;
-    setIsDragging(false);
+  const handlePointerUp = useCallback(() => {
+    if (!aiming) return;
+    setAiming(false);
 
-    // Apply wind offset
-    const windOffset = wind * 3;
-    const finalX = crosshairPos.x + windOffset + (Math.random() - 0.5) * 10;
-    const finalY = crosshairPos.y + (Math.random() - 0.5) * 10;
+    // Apply wind drift
+    const finalX = aimPos.x + wind.x;
+    const finalY = aimPos.y + wind.y;
 
-    setArrowTarget({ x: finalX, y: finalY });
-    setArrowFlying(true);
-    setPhase('flying');
+    // Score
+    const dist = Math.sqrt(finalX * finalX + finalY * finalY);
+    const ratio = dist / TARGET_RADIUS;
+    let score = 0;
+    for (const ring of RINGS) {
+      if (ratio <= ring.r) score = ring.score;
+    }
 
-    // Arrow flight duration
-    setTimeout(() => {
-      setArrowFlying(false);
-      const score = getScore(finalX, finalY);
+    const arrow = { x: finalX, y: finalY, score };
+    setMyArrows(prev => [...prev, arrow]);
+    setMyScores(prev => [...prev, score]);
+    setLanded(arrow);
+    setShowScore(score);
+    setTimeout(() => { setShowScore(null); setLanded(null); }, 1200);
 
-      setStuckArrows(prev => [...prev, { x: finalX, y: finalY, score }]);
-      setPlayerScore(prev => prev + score);
-      setRoundArrowScores(prev => [...prev, score]);
-      setAllScores(prev => [...prev, score]);
-      setHitFlash(true);
-      setTimeout(() => setHitFlash(false), 300);
+    // Advance round/arrow
+    const nextArrow = arrowInRound + 1;
+    if (nextArrow >= ARROWS_PER_ROUND) {
+      setArrowInRound(0);
+      setRound(prev => prev + 1);
+      // Clear arrows for next round
+      setTimeout(() => setMyArrows([]), 1500);
+    } else {
+      setArrowInRound(nextArrow);
+    }
 
-      const pid = ++popupId.current;
-      setScorePopups(prev => [...prev, { id: pid, score, x: finalX, y: finalY }]);
-      setTimeout(() => setScorePopups(prev => prev.filter(p => p.id !== pid)), 1500);
+    // Send to opponent
+    onMove({ type: 'arrow', score, x: finalX, y: finalY, round, arrowInRound: nextArrow });
+  }, [aiming, aimPos, wind, round, arrowInRound, onMove]);
 
-      totalArrowsFired.current += 1;
-      const currentArrowInRound = arrowInRound;
-      const currentRound = round;
-
-      onMove?.({
-        round: currentRound,
-        arrowNumber: currentArrowInRound,
-        score,
-        position: { x: finalX, y: finalY },
-      });
-
-      setTimeout(() => {
-        if (currentArrowInRound >= ARROWS_PER_ROUND) {
-          // End of round
-          if (currentRound >= TOTAL_ROUNDS) {
-            setPhase('done');
-            const finalScore = allScores.reduce((a, b) => a + b, 0) + score;
-            onGameOver?.({
-              winner_id: finalScore >= opponentScore ? playerId : opponentId,
-              scores: { player: finalScore, opponent: opponentScore },
-            });
-          } else {
-            setRound(r => r + 1);
-            setArrowInRound(1);
-            setStuckArrows([]);
-            setRoundArrowScores([]);
-            setPhase('aiming');
-            setCrosshairPos({ x: 0, y: 0 });
-          }
-        } else {
-          setArrowInRound(a => a + 1);
-          setPhase('aiming');
-          setCrosshairPos({ x: 0, y: 0 });
-        }
-      }, 1000);
-
-      setPhase('scored');
-    }, 600);
-  }, [phase, crosshairPos, wind, arrowInRound, round, allScores, opponentScore, playerId, opponentId, onMove, onGameOver, isPlayerTurn]);
-
-  const handlePointerUp = useCallback((e: React.PointerEvent) => {
-    if (!isDragging) return;
-    e.preventDefault();
-    shoot();
-  }, [isDragging, shoot]);
-
-  const matrixCols = useMemo(() =>
-    Array.from({ length: 30 }, (_, i) => <MatrixColumn key={i} index={i} total={30} />),
-  []);
-
-  const showWaiting = !isPlayerTurn && phase !== 'done';
-  const showDone = phase === 'done';
-  const totalFired = totalArrowsFired.current;
-  const overallArrow = (round - 1) * ARROWS_PER_ROUND + arrowInRound;
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="na-container" ref={containerRef}>
-      {/* Matrix rain background */}
-      <div className="na-matrix-rain">{matrixCols}</div>
+    <div style={{
+      minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', background: C.bg, fontFamily: font, padding: 16,
+      userSelect: 'none',
+    }}>
+      {/* Header */}
+      <motion.h1
+        initial={{ y: -15, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+        style={{
+          fontSize: 22, fontWeight: 900, marginBottom: 4,
+          background: 'linear-gradient(135deg, #4ade80, #fbbf24)',
+          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+        }}
+      >🏹 NOUR ARCHERY</motion.h1>
 
-      {/* Floating particles */}
-      <div className="na-particles">
-        {Array.from({ length: 12 }, (_, i) => (
-          <div key={i} className="na-particle" style={{
-            left: `${Math.random() * 100}%`,
-            top: `${Math.random() * 100}%`,
-            animationDelay: `${Math.random() * 6}s`,
-            animationDuration: `${4 + Math.random() * 4}s`,
-          }} />
-        ))}
-      </div>
-
-      {/* Circuit pattern overlay */}
-      <div className="na-circuit-overlay" />
-
-      {/* ─── Top HUD ─── */}
-      <div className="na-hud-top">
-        <div className="na-panel na-round-panel">
-          <span className="na-label">ROUND</span>
-          <span className="na-value">{round}/{TOTAL_ROUNDS}</span>
+      {/* Scores */}
+      <div style={{
+        display: 'flex', gap: 24, marginBottom: 8, alignItems: 'center',
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.dim, textTransform: 'uppercase' }}>Toi</div>
+          <div style={{ fontSize: 28, fontWeight: 900, color: C.accent }}>{totalMyScore}</div>
         </div>
-        <div className="na-panel na-arrow-panel">
-          <span className="na-label">ARROW</span>
-          <span className="na-value">{arrowInRound}/{ARROWS_PER_ROUND}</span>
+        <div style={{
+          fontSize: 12, fontWeight: 700, color: C.dim,
+          padding: '4px 12px', borderRadius: 10, background: C.glass, border: `1px solid ${C.border}`,
+        }}>
+          Round {Math.min(round + 1, TOTAL_ROUNDS)}/{TOTAL_ROUNDS} • Flèche {Math.min(arrowInRound + 1, ARROWS_PER_ROUND)}/{ARROWS_PER_ROUND}
         </div>
-      </div>
-
-      {/* ─── Wind indicator ─── */}
-      <div className="na-panel na-wind-panel">
-        <span className="na-label">WIND</span>
-        <div className="na-wind-readout">
-          <span className="na-wind-arrow">{wind > 0 ? '▶' : wind < 0 ? '◀' : '●'}</span>
-          <span className="na-wind-val">{Math.abs(wind).toFixed(1)} m/s</span>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.dim, textTransform: 'uppercase' }}>Adversaire</div>
+          <div style={{ fontSize: 28, fontWeight: 900, color: '#ef4444' }}>{totalOpScore}</div>
         </div>
       </div>
 
-      {/* ─── Target area ─── */}
+      {/* Wind */}
+      <div style={{
+        fontSize: 12, fontWeight: 600, color: C.dim, marginBottom: 10,
+        display: 'flex', alignItems: 'center', gap: 6,
+      }}>
+        <span>🌬️</span>
+        <span>{wind.label}</span>
+        <span style={{
+          display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+          background: C.accent, transform: `translate(${wind.x / 2}px, ${wind.y / 2}px)`,
+        }} />
+      </div>
+
+      {/* Turn indicator */}
+      <div style={{
+        padding: '4px 16px', borderRadius: 12, fontSize: 13, fontWeight: 700, marginBottom: 10,
+        background: gameOver ? 'rgba(52,199,89,0.12)' : isPlayerTurn ? 'rgba(74,222,128,0.12)' : 'rgba(100,100,100,0.1)',
+        color: gameOver ? '#34C759' : isPlayerTurn ? C.accent : '#8e8e93',
+        border: `1px solid ${gameOver ? 'rgba(52,199,89,0.3)' : isPlayerTurn ? C.border : 'rgba(100,100,100,0.15)'}`,
+      }}>
+        {gameOver
+          ? (winner === playerId ? '🏆 Victoire !' : winner === null ? '🤝 Égalité !' : '😔 Défaite...')
+          : allMyArrowsDone
+            ? '⏳ En attente de l\'adversaire...'
+            : isPlayerTurn ? '🎯 Vise et tire !' : '⏳ L\'adversaire tire...'}
+      </div>
+
+      {/* Target area */}
       <div
-        className="na-target-area"
         ref={targetRef}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
+        style={{
+          position: 'relative', width: TARGET_RADIUS * 2 + 40, height: TARGET_RADIUS * 2 + 40,
+          borderRadius: 24, background: C.glass, border: `1px solid ${C.border}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: isPlayerTurn && !gameOver && !allMyArrowsDone ? 'crosshair' : 'default',
+          touchAction: 'none',
+          boxShadow: `0 0 40px rgba(74,222,128,0.08)`,
+        }}
       >
-        {/* Target rings */}
-        <div className={`na-target ${hitFlash ? 'na-hit-flash' : ''}`}>
-          {RING_RADII.map((frac, i) => (
-            <div
+        {/* Rings */}
+        <svg width={TARGET_RADIUS * 2 + 40} height={TARGET_RADIUS * 2 + 40}
+          viewBox={`0 0 ${TARGET_RADIUS * 2 + 40} ${TARGET_RADIUS * 2 + 40}`}
+          style={{ position: 'absolute', top: 0, left: 0 }}
+        >
+          {RINGS.map((ring, i) => (
+            <circle
               key={i}
-              className="na-ring"
-              style={{
-                width: TARGET_SIZE * frac,
-                height: TARGET_SIZE * frac,
-                borderColor: i === RING_RADII.length - 1
-                  ? '#FF3B30'
-                  : `rgba(143, 188, 143, ${0.3 + i * 0.15})`,
-                boxShadow: i === RING_RADII.length - 1
-                  ? '0 0 12px #FF3B30, inset 0 0 8px rgba(255,59,48,0.3)'
-                  : `0 0 ${6 + i * 3}px rgba(143,188,143,${0.15 + i * 0.08})`,
-              }}
-            >
-              <span className="na-ring-score">{RING_SCORES[i]}</span>
-            </div>
+              cx={TARGET_RADIUS + 20} cy={TARGET_RADIUS + 20}
+              r={TARGET_RADIUS * ring.r}
+              fill="none" stroke={ring.color} strokeWidth={2} opacity={0.4}
+            />
           ))}
-          {/* Target crosshair lines */}
-          <div className="na-target-cross-h" />
-          <div className="na-target-cross-v" />
-        </div>
+          {/* Bullseye */}
+          <circle cx={TARGET_RADIUS + 20} cy={TARGET_RADIUS + 20} r={TARGET_RADIUS * 0.08}
+            fill="rgba(251,191,36,0.3)" stroke="#fbbf24" strokeWidth={1} />
+          {/* Crosshair */}
+          <line x1={TARGET_RADIUS + 20} y1={0} x2={TARGET_RADIUS + 20} y2={TARGET_RADIUS * 2 + 40}
+            stroke="rgba(74,222,128,0.15)" strokeWidth={1} />
+          <line x1={0} y1={TARGET_RADIUS + 20} x2={TARGET_RADIUS * 2 + 40} y2={TARGET_RADIUS + 20}
+            stroke="rgba(74,222,128,0.15)" strokeWidth={1} />
+        </svg>
 
-        {/* Stuck arrows */}
-        {stuckArrows.map((a, i) => (
-          <motion.div
-            key={`stuck-${i}`}
-            className="na-stuck-arrow"
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            style={{
-              left: `calc(50% + ${a.x}px)`,
-              top: `calc(50% + ${a.y}px)`,
-            }}
-          >
-            <div className="na-arrow-head" />
-          </motion.div>
+        {/* Ring labels */}
+        {RINGS.slice(0, 5).map((ring, i) => (
+          <span key={i} style={{
+            position: 'absolute', fontSize: 9, fontWeight: 700, color: ring.color,
+            top: TARGET_RADIUS + 20 - TARGET_RADIUS * ring.r - 6,
+            left: TARGET_RADIUS + 20 + 6,
+            opacity: 0.5,
+          }}>{ring.label}</span>
         ))}
 
-        {/* Arrow in flight */}
+        {/* Landed arrows */}
+        {myArrows.map((arrow, i) => (
+          <motion.div
+            key={i}
+            initial={{ scale: 0 }} animate={{ scale: 1 }}
+            style={{
+              position: 'absolute',
+              left: TARGET_RADIUS + 20 + arrow.x - 6,
+              top: TARGET_RADIUS + 20 + arrow.y - 6,
+              width: 12, height: 12, borderRadius: '50%',
+              background: arrow.score >= 8 ? '#fbbf24' : arrow.score >= 5 ? '#f59e0b' : '#4ade80',
+              border: '2px solid rgba(0,0,0,0.5)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 7, fontWeight: 900, color: '#000',
+            }}
+          >{arrow.score}</motion.div>
+        ))}
+
+        {/* Aiming cursor */}
+        {aiming && (
+          <motion.div
+            style={{
+              position: 'absolute',
+              left: TARGET_RADIUS + 20 + aimPos.x - 10,
+              top: TARGET_RADIUS + 20 + aimPos.y - 10,
+              width: 20, height: 20, borderRadius: '50%',
+              border: `2px solid ${C.gold}`,
+              pointerEvents: 'none',
+            }}
+          />
+        )}
+
+        {/* Score popup */}
         <AnimatePresence>
-          {arrowFlying && (
+          {showScore !== null && landed && (
             <motion.div
-              className="na-flying-arrow"
-              initial={{ bottom: -60, left: '50%', opacity: 1, scale: 0.3 }}
-              animate={{
-                bottom: `calc(50% + ${-arrowTarget.y}px - 6px)`,
-                left: `calc(50% + ${arrowTarget.x}px)`,
-                opacity: 1,
-                scale: 1,
+              initial={{ scale: 0.5, opacity: 0, y: 0 }}
+              animate={{ scale: 1.2, opacity: 1, y: -30 }}
+              exit={{ opacity: 0, y: -60 }}
+              transition={{ duration: 0.5 }}
+              style={{
+                position: 'absolute',
+                left: TARGET_RADIUS + 20 + landed.x - 20,
+                top: TARGET_RADIUS + 20 + landed.y - 20,
+                fontSize: 22, fontWeight: 900,
+                color: showScore >= 8 ? '#fbbf24' : showScore >= 5 ? '#f59e0b' : '#4ade80',
+                textShadow: '0 0 12px rgba(0,0,0,0.8)',
+                pointerEvents: 'none',
               }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.55, ease: 'easeIn' }}
-            >
-              <div className="na-arrow-glow-trail" />
-              <div className="na-arrow-head" />
-            </motion.div>
+            >+{showScore}</motion.div>
           )}
         </AnimatePresence>
+      </div>
 
-        {/* Crosshair */}
-        {phase === 'aiming' && isPlayerTurn && (
+      {/* Arrow scores list */}
+      <div style={{
+        display: 'flex', gap: 4, marginTop: 10, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 360,
+      }}>
+        {myScores.map((s, i) => (
+          <span key={i} style={{
+            width: 24, height: 24, borderRadius: 6, display: 'flex',
+            alignItems: 'center', justifyContent: 'center',
+            fontSize: 11, fontWeight: 700,
+            background: s >= 8 ? 'rgba(251,191,36,0.2)' : s >= 5 ? 'rgba(245,158,11,0.15)' : 'rgba(74,222,128,0.12)',
+            color: s >= 8 ? '#fbbf24' : s >= 5 ? '#f59e0b' : C.accent,
+            border: `1px solid ${s >= 8 ? 'rgba(251,191,36,0.3)' : s >= 5 ? 'rgba(245,158,11,0.2)' : C.border}`,
+          }}>{s}</span>
+        ))}
+        {/* Empty slots */}
+        {Array.from({ length: totalArrows - myScores.length }, (_, i) => (
+          <span key={`e${i}`} style={{
+            width: 24, height: 24, borderRadius: 6, display: 'flex',
+            alignItems: 'center', justifyContent: 'center',
+            fontSize: 11, color: C.dim,
+            background: 'rgba(15,27,18,0.4)', border: `1px solid ${C.border}`,
+          }}>·</span>
+        ))}
+      </div>
+
+      {/* Game Over overlay */}
+      <AnimatePresence>
+        {gameOver && (
           <motion.div
-            className="na-crosshair"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             style={{
-              left: `calc(50% + ${crosshairPos.x}px)`,
-              top: `calc(50% + ${crosshairPos.y}px)`,
+              position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)',
+              zIndex: 100,
             }}
-            animate={{ rotate: 360 }}
-            transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
           >
-            <div className="na-crosshair-ring" />
-            <div className="na-crosshair-dot" />
-            <div className="na-crosshair-line na-ch-top" />
-            <div className="na-crosshair-line na-ch-right" />
-            <div className="na-crosshair-line na-ch-bottom" />
-            <div className="na-crosshair-line na-ch-left" />
-          </motion.div>
-        )}
-
-        {/* Score popups */}
-        <AnimatePresence>
-          {scorePopups.map(p => (
             <motion.div
-              key={p.id}
-              className="na-score-popup"
-              initial={{ opacity: 1, y: 0, x: p.x, scale: 0.5 }}
-              animate={{ opacity: 0, y: -60, scale: 1.3 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 1.2 }}
+              initial={{ scale: 0.5 }} animate={{ scale: 1 }}
               style={{
-                left: `calc(50% + ${p.x}px)`,
-                top: `calc(50% + ${p.y}px)`,
+                padding: '32px 48px', borderRadius: 24, textAlign: 'center',
+                background: C.glass, border: `1px solid ${C.border}`,
               }}
             >
-              +{p.score}
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
-
-      {/* ─── Bottom HUD ─── */}
-      <div className="na-hud-bottom">
-        <div className="na-panel na-score-panel">
-          <span className="na-label">YOUR_SCORE</span>
-          <span className="na-score-value">{playerScore}</span>
-        </div>
-        <div className="na-panel na-score-panel">
-          <span className="na-label">OPP_SCORE</span>
-          <span className="na-score-value na-opp">{opponentScore}</span>
-        </div>
-      </div>
-
-      {/* Arrow scores for current round */}
-      {roundArrowScores.length > 0 && (
-        <div className="na-panel na-shots-panel">
-          <span className="na-label">MANCHE_{round}_SHOTS&gt;</span>
-          {roundArrowScores.map((s, i) => (
-            <span key={i} className="na-shot-score">{s}</span>
-          ))}
-        </div>
-      )}
-
-      {/* Instruction nudge */}
-      <AnimatePresence>
-        {phase === 'aiming' && isPlayerTurn && !isDragging && (
-          <motion.div
-            className="na-nudge"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-          >
-            '🏹 Glisse pour viser, relâche pour tirer'
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Waiting overlay */}
-      <AnimatePresence>
-        {showWaiting && (
-          <motion.div
-            className="na-overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <div className="na-overlay-text">
-              <span className="na-blink">&gt;_</span> AWAITING_OPPONENT_INPUT...
-            </div>
-            <div className="na-overlay-sub">Target system locked. Standby.</div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Game over overlay */}
-      <AnimatePresence>
-        {showDone && (
-          <motion.div
-            className="na-overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.div
-              className="na-gameover-box"
-              initial={{ scale: 0.7, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.2, type: 'spring' }}
-            >
-              <div className="na-gameover-title">
-                '🏹 Résultat Final'
-              </div>
-              <div className="na-gameover-scores">
-                <div className="na-go-row">
-                  <span className="na-label">PLAYER_SCORE:</span>
-                  <span className="na-score-value">{playerScore}</span>
+              <p style={{ fontSize: 48, marginBottom: 8 }}>
+                {winner === playerId ? '🏆' : winner === null ? '🤝' : '😔'}
+              </p>
+              <h2 style={{ fontSize: 24, fontWeight: 900, color: C.text, marginBottom: 8 }}>
+                {winner === playerId ? 'Victoire !' : winner === null ? 'Égalité !' : 'Défaite...'}
+              </h2>
+              <div style={{ display: 'flex', gap: 24, justifyContent: 'center' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: C.dim }}>Toi</div>
+                  <div style={{ fontSize: 28, fontWeight: 900, color: C.accent }}>{totalMyScore}</div>
                 </div>
-                <div className="na-go-row">
-                  <span className="na-label">OPPONENT_SCORE:</span>
-                  <span className="na-score-value na-opp">{opponentScore}</span>
+                <div style={{ fontSize: 20, color: C.dim, alignSelf: 'center' }}>vs</div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: C.dim }}>Adversaire</div>
+                  <div style={{ fontSize: 28, fontWeight: 900, color: '#ef4444' }}>{totalOpScore}</div>
                 </div>
-              </div>
-              <div className="na-gameover-result">
-                {playerScore > opponentScore
-                  ? '🏆 VICTOIRE !'
-                  : playerScore < opponentScore
-                  ? '💥 DÉFAITE !'
-                  : '🤝 ÉGALITÉ !'}
-              </div>
-              <div className="na-all-shots">
-                {allScores.map((s, i) => (
-                  <span key={i} className="na-shot-score">{s}</span>
-                ))}
               </div>
             </motion.div>
           </motion.div>
