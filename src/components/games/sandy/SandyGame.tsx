@@ -11,23 +11,48 @@ import { motion, AnimatePresence } from 'motion/react';
 
 interface Cup { id: number; x: number; y: number; alive: boolean }
 
-// Triangle 10 cups — positioned in percentage of SVG viewBox
-function makeCups(): Cup[] {
-  const cups: Cup[] = [];
-  const rows = [1, 2, 3, 4];
-  let id = 0;
-  for (const rowSize of rows) {
-    const rowIdx = rows.indexOf(rowSize);
-    for (let i = 0; i < rowSize; i++) {
-      cups.push({
-        id: id++,
-        x: 50 + (i - (rowSize - 1) / 2) * 11,
-        y: 15 + rowIdx * 10,
-        alive: true,
-      });
+// Re-rack formations (triangle shapes centered at x=50)
+function triangleFormation(n: number, startY: number): { x: number; y: number }[] {
+  const positions: { x: number; y: number }[] = [];
+  if (n === 10) {
+    const rows = [1, 2, 3, 4];
+    for (const rowSize of rows) {
+      const rowIdx = rows.indexOf(rowSize);
+      for (let i = 0; i < rowSize; i++) {
+        positions.push({ x: 50 + (i - (rowSize - 1) / 2) * 11, y: startY + rowIdx * 10 });
+      }
+    }
+  } else if (n === 6) {
+    const rows = [1, 2, 3];
+    for (const rowSize of rows) {
+      const rowIdx = rows.indexOf(rowSize);
+      for (let i = 0; i < rowSize; i++) {
+        positions.push({ x: 50 + (i - (rowSize - 1) / 2) * 11, y: startY + rowIdx * 10 });
+      }
+    }
+  } else if (n === 3) {
+    const rows = [1, 2];
+    for (const rowSize of rows) {
+      const rowIdx = rows.indexOf(rowSize);
+      for (let i = 0; i < rowSize; i++) {
+        positions.push({ x: 50 + (i - (rowSize - 1) / 2) * 11, y: startY + rowIdx * 10 });
+      }
     }
   }
-  return cups;
+  return positions;
+}
+
+function makeCups(): Cup[] {
+  return triangleFormation(10, 15).map((p, i) => ({ id: i, ...p, alive: true }));
+}
+
+// Re-rack: reposition alive cups into a tight triangle
+function rerackCups(cups: Cup[]): Cup[] {
+  const alive = cups.filter(c => c.alive);
+  const n = alive.length;
+  const positions = triangleFormation(n, 15);
+  if (positions.length === 0) return cups;
+  return alive.map((c, i) => ({ ...c, x: positions[i].x, y: positions[i].y }));
 }
 
 // ── Rosé Wine Glass SVG ──────────────────────────────────────────────────────
@@ -121,6 +146,10 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
   const [dragStart, setDragStart] = useState<{x: number; y: number} | null>(null);
   const [dragCur, setDragCur] = useState<{x: number; y: number} | null>(null);
   const [ballTrail, setBallTrail] = useState<{x: number; y: number}[]>([]);
+  // Beer pong turn state: 2 shots per turn, "balls back" if both hit
+  const [shotsLeft, setShotsLeft] = useState(2);
+  const [turnHits, setTurnHits] = useState(0);
+  const [rerackMsg, setRerackMsg] = useState<string | null>(null);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const raf = useRef<number>(0);
@@ -140,12 +169,15 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
     for (const m of moves) {
       if (m.type === 'throw' && m.hitId !== null && m.hitId !== undefined) {
         if (m.playerId === playerId) {
-          // I hit opponent's cup
           opC = opC.map(c => c.id === m.hitId ? { ...c, alive: false } : c);
         } else {
-          // Opponent hit my cup
           myC = myC.map(c => c.id === m.hitId ? { ...c, alive: false } : c);
         }
+      }
+      if (m.type === 'rerack' && m.playerId === playerId) {
+        opC = rerackCups(opC);
+      } else if (m.type === 'rerack' && m.playerId !== playerId) {
+        myC = rerackCups(myC);
       }
     }
 
@@ -182,6 +214,12 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
       if (resultT.current) clearTimeout(resultT.current);
       resultT.current = setTimeout(() => setLastResult(null), 1800);
     }
+
+    if (m.type === 'rerack') {
+      setMyCups(prev => rerackCups(prev));
+      setRerackMsg('🔄 Réalignement !');
+      setTimeout(() => setRerackMsg(null), 2000);
+    }
   }, [gameState?.lastMove]);
 
   useEffect(() => () => {
@@ -189,13 +227,20 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
     if (resultT.current) clearTimeout(resultT.current);
   }, []);
 
+  // Reset shots when it becomes my turn
+  useEffect(() => {
+    if (isPlayerTurn) {
+      setShotsLeft(2);
+      setTurnHits(0);
+    }
+  }, [isPlayerTurn]);
+
   // ── Throw ──────────────────────────────────────────────────────────────────
 
   const doThrow = useCallback((dx: number, dy: number) => {
-    if (throwing || !isPlayerTurn || over) return;
+    if (throwing || !isPlayerTurn || over || shotsLeft <= 0) return;
     setThrowing(true);
 
-    // Better aiming: dx controls left/right, dy controls depth
     const aimX = 50 + dx * 50;
     const power = Math.min(1, Math.sqrt(dx * dx + dy * dy) * 2);
     const noise = Math.max(0, 0.5 - power * 0.6) * 8;
@@ -226,6 +271,9 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
           if (d < 8 && d < bestDist) { hitCup = cup; bestDist = d; }
         }
 
+        const newShotsLeft = shotsLeft - 1;
+        const newHits = hitCup ? turnHits + 1 : turnHits;
+
         if (hitCup) {
           setOpCups(prev => prev.map(c => c.id === hitCup!.id ? { ...c, alive: false } : c));
           setSplash({ x: hitCup.x, y: hitCup.y });
@@ -235,12 +283,51 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
           if (remaining.length === 0) {
             setOver(true); setWin(playerId);
             onGameOver({ winner_id: playerId });
+            onMove({ type: 'throw', hitId: hitCup.id, _keepTurn: false });
+            if (resultT.current) clearTimeout(resultT.current);
+            resultT.current = setTimeout(() => setLastResult(null), 1800);
+            setTimeout(() => { setBallPos(null); setThrowing(false); setBallTrail([]); }, 400);
+            return;
+          }
+
+          // Check re-rack thresholds (6 and 3 cups)
+          const aliveCount = remaining.length;
+          if (aliveCount === 6 || aliveCount === 3) {
+            setTimeout(() => {
+              setOpCups(prev => rerackCups(prev));
+              setRerackMsg(`🔄 Réalignement ! (${aliveCount} verres)`);
+              setTimeout(() => setRerackMsg(null), 2000);
+              onMove({ type: 'rerack', _keepTurn: true });
+            }, 600);
           }
         } else {
           setLastResult('💨 Raté…');
         }
 
-        onMove({ type: 'throw', hitId: hitCup?.id ?? null, _keepTurn: false });
+        // Send the throw move — keep turn as long as we have shots or balls back triggers
+        const isLastShot = newShotsLeft <= 0;
+        const ballsBack = isLastShot && newHits >= 2;
+        const keepTurn = !isLastShot || ballsBack;
+
+        onMove({ type: 'throw', hitId: hitCup?.id ?? null, _keepTurn: keepTurn });
+
+        setTurnHits(newHits);
+
+        if (ballsBack) {
+          // Both shots hit! Grant 2 bonus shots
+          setShotsLeft(2);
+          setTurnHits(0);
+          setTimeout(() => {
+            setLastResult('🔥 Balls back ! 2 tirs bonus !');
+            if (resultT.current) clearTimeout(resultT.current);
+            resultT.current = setTimeout(() => setLastResult(null), 2500);
+          }, 500);
+        } else if (isLastShot) {
+          setShotsLeft(0);
+        } else {
+          setShotsLeft(newShotsLeft);
+        }
+
         if (resultT.current) clearTimeout(resultT.current);
         resultT.current = setTimeout(() => setLastResult(null), 1800);
 
@@ -249,7 +336,7 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
     };
 
     raf.current = requestAnimationFrame(animate);
-  }, [throwing, isPlayerTurn, over, opCups, onMove, onGameOver, playerId]);
+  }, [throwing, isPlayerTurn, over, opCups, onMove, onGameOver, playerId, shotsLeft, turnHits]);
 
   // ── Touch/Mouse ────────────────────────────────────────────────────────────
 
@@ -263,7 +350,7 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
   };
 
   const onStart = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isPlayerTurn || throwing || over) return;
+    if (!isPlayerTurn || throwing || over || shotsLeft <= 0) return;
     const p = getPos(e);
     if (p.y < 50) return;
     setDragStart(p); setDragCur(p);
@@ -299,13 +386,22 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
           WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
           letterSpacing: 1, textShadow: 'none',
         }}>🥂 Sandy Pong</h1>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 20, marginTop: 6 }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 6, alignItems: 'center' }}>
           <div style={{ padding: '2px 12px', borderRadius: 8, background: 'rgba(232,82,122,0.08)',
             border: '1px solid rgba(232,82,122,0.12)' }}>
             <span style={{ fontSize: 11, color: 'rgba(244,176,195,0.6)', fontWeight: 700 }}>
               🎯 <strong style={{ color: '#e8527a', fontSize: 14 }}>{opAlive}</strong><span style={{ fontSize: 9 }}>/10</span>
             </span>
           </div>
+          {/* Shot indicator */}
+          {isPlayerTurn && !over && (
+            <div style={{ padding: '2px 10px', borderRadius: 8, background: 'rgba(255,200,100,0.08)',
+              border: '1px solid rgba(255,200,100,0.15)' }}>
+              <span style={{ fontSize: 11, color: 'rgba(255,200,100,0.7)', fontWeight: 700 }}>
+                🏐 <strong style={{ fontSize: 13 }}>{shotsLeft}</strong> <span style={{ fontSize: 9 }}>tir{shotsLeft > 1 ? 's' : ''}</span>
+              </span>
+            </div>
+          )}
           <div style={{ padding: '2px 12px', borderRadius: 8, background: 'rgba(244,176,195,0.06)',
             border: '1px solid rgba(244,176,195,0.1)' }}>
             <span style={{ fontSize: 11, color: 'rgba(244,176,195,0.6)', fontWeight: 700 }}>
@@ -325,7 +421,7 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
           boxShadow: over || isPlayerTurn ? '0 2px 12px rgba(0,0,0,0.1)' : 'none',
           textShadow: over ? '0 1px 4px rgba(0,0,0,0.2)' : 'none',
         }}>
-        {over ? (win === playerId ? '🏆 Victoire !' : '💔 Défaite…') : isPlayerTurn ? '🎯 Glisse vers le haut !' : '⏳ Tour adverse…'}
+        {over ? (win === playerId ? '🏆 Victoire !' : '💔 Défaite…') : isPlayerTurn ? (shotsLeft > 0 ? `🎯 Tir ${3 - shotsLeft}/2 — Glisse !` : '⏳ Fin du tour…') : '⏳ Tour adverse…'}
       </motion.div>
 
       {/* Result popup */}
@@ -334,13 +430,28 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
           <motion.div initial={{ scale: 0, opacity: 0, y: 10 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.5, opacity: 0, y: -10 }}
             style={{ position: 'absolute', top: '25%', left: '50%', transform: 'translateX(-50%)',
               padding: '10px 26px', borderRadius: 16, fontSize: 20, fontWeight: 900, fontStyle: 'italic',
-              background: lastResult.includes('Touché') ? 'rgba(232,82,122,0.2)' : 'rgba(50,40,35,0.2)',
-              color: lastResult.includes('Touché') ? '#e8527a' : '#999',
-              border: `1.5px solid ${lastResult.includes('Touché') ? 'rgba(232,82,122,0.3)' : 'rgba(80,80,80,0.15)'}`,
+              background: lastResult.includes('Touché') || lastResult.includes('Balls back') ? 'rgba(232,82,122,0.2)' : 'rgba(50,40,35,0.2)',
+              color: lastResult.includes('Balls back') ? '#ffaa00' : lastResult.includes('Touché') ? '#e8527a' : '#999',
+              border: `1.5px solid ${lastResult.includes('Touché') || lastResult.includes('Balls back') ? 'rgba(232,82,122,0.3)' : 'rgba(80,80,80,0.15)'}`,
               zIndex: 20, backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-              boxShadow: lastResult.includes('Touché') ? '0 4px 20px rgba(232,82,122,0.15)' : 'none',
+              boxShadow: lastResult.includes('Touché') || lastResult.includes('Balls back') ? '0 4px 20px rgba(232,82,122,0.15)' : 'none',
             }}>
             {lastResult}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Re-rack message */}
+      <AnimatePresence>
+        {rerackMsg && (
+          <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}
+            style={{ position: 'absolute', top: '18%', left: '50%', transform: 'translateX(-50%)',
+              padding: '8px 22px', borderRadius: 14, fontSize: 16, fontWeight: 800, fontStyle: 'italic',
+              background: 'rgba(100,200,255,0.15)', color: '#7ad4ff',
+              border: '1.5px solid rgba(100,200,255,0.25)',
+              zIndex: 21, backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+            }}>
+            {rerackMsg}
           </motion.div>
         )}
       </AnimatePresence>
@@ -544,7 +655,7 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
           )}
 
           {/* Throw instruction */}
-          {isPlayerTurn && !throwing && !over && !dragStart && (
+          {isPlayerTurn && !throwing && !over && !dragStart && shotsLeft > 0 && (
             <motion.g animate={{ opacity: [0.2, 0.5, 0.2] }} transition={{ duration: 2, repeat: Infinity }}>
               <text x="50" y="80" textAnchor="middle" fill="rgba(244,176,195,0.2)" fontSize="2.5"
                 fontFamily="Georgia, serif" fontStyle="italic">↑ Glisse vers le haut pour lancer</text>

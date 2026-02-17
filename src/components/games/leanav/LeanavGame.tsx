@@ -249,7 +249,7 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
           return n;
         });
       }
-      onMove({ type: 'result', r, c, hit: !!hit, sunk, name: sunk ? hit?.name : null, _keepTurn: !!hit });
+      onMove({ type: 'result', r, c, hit: !!hit, sunk, name: sunk ? hit?.name : null, _keepTurn: !hit });
     }
 
     if (m.type === 'result') {
