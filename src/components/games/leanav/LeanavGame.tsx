@@ -1,48 +1,34 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // ═══════════════════════════════════════════════════════════════════════════
-// LÉA NAVAL — Bataille Navale thème Vin Rouge & Peinture
-// Les bateaux sont des bouteilles de vin, la grille est une toile de peintre
+// LÉA NAVAL — Bataille Navale  ×  Vin Rouge  ×  Peinture
+//
+// Ambiance : toile de peintre illuminée, cadre doré, fond atelier chaud
+// Pièces  : bouteilles de vin couchées (Grand Cru 5, Bordeaux 4 …)
+// Hits    : taches de vin / éclaboussures rouges
+// Misses  : coups de pinceau dorés
 // ═══════════════════════════════════════════════════════════════════════════
 
 type Phase = 'PLACEMENT' | 'WAITING' | 'BATTLE';
 type Dir = 'H' | 'V';
 type CellState = 'empty' | 'miss' | 'hit';
 
-interface ShipDef { id: string; name: string; size: number; color: string; light: string }
+interface ShipDef { id: string; name: string; size: number; color: string; label: string }
 interface Ship extends ShipDef { cells: [number, number][]; dir: Dir; sunk: boolean }
 
 const GRID = 10;
-const CELL = 36;
+const CELL = 34;
 
-// Wine bottle fleet — each "ship" is a wine bottle
 const SHIPS: ShipDef[] = [
-  { id: 'grand_cru',    name: 'Grand Cru',        size: 5, color: '#6b1030', light: '#9b1b48' },
-  { id: 'bordeaux',     name: 'Bordeaux',          size: 4, color: '#7c2d3a', light: '#a83c50' },
-  { id: 'bourgogne',    name: 'Bourgogne',         size: 3, color: '#581845', light: '#7b2262' },
-  { id: 'champagne',    name: 'Champagne',         size: 3, color: '#8b6914', light: '#c4972a' },
-  { id: 'beaujolais',   name: 'Beaujolais',        size: 2, color: '#922b3e', light: '#c44058' },
+  { id: 'grand_cru',  name: 'Grand Cru',   size: 5, color: '#7b1024', label: '🍷' },
+  { id: 'bordeaux',   name: 'Bordeaux',     size: 4, color: '#8b2040', label: '🍾' },
+  { id: 'bourgogne',  name: 'Bourgogne',    size: 3, color: '#601848', label: '🍇' },
+  { id: 'champagne',  name: 'Champagne',    size: 3, color: '#9b7820', label: '🥂' },
+  { id: 'beaujolais', name: 'Beaujolais',   size: 2, color: '#a03048', label: '🫗' },
 ];
 
-// Wine/painting palette
-const P = {
-  bg: 'linear-gradient(145deg, #1a0a12 0%, #2d1018 30%, #1a0d14 60%, #0f0a10 100%)',
-  canvas: 'rgba(25,12,18,0.6)',       // dark wine canvas
-  canvasBorder: 'rgba(139,32,56,0.2)',
-  cell: 'rgba(20,10,15,0.5)',
-  cellBorder: 'rgba(139,32,56,0.12)',
-  accent: '#c44058',
-  accentGold: '#d4a053',
-  text: '#e8c8d0',
-  dim: 'rgba(196,64,88,0.5)',
-  hit: '#ff2244',
-  miss: 'rgba(212,160,83,0.4)',
-};
-
 const grid0 = (): CellState[][] => Array.from({ length: GRID }, () => Array(GRID).fill('empty'));
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function cellsFor(r: number, c: number, size: number, dir: Dir): [number, number][] | null {
   const out: [number, number][] = [];
@@ -70,88 +56,77 @@ function overlaps(cells: [number, number][], ships: Ship[]): boolean {
   return cells.some(([r, c]) => s.has(`${r},${c}`));
 }
 
-// ── Wine Bottle SVG ──────────────────────────────────────────────────────────
+// ── Beautiful Wine Bottle ────────────────────────────────────────────────────
 
-function BottleSVG({ ship, cs, hits }: { ship: Ship; cs: number; hits?: Set<string> }) {
+function WineBottle({ ship, cs }: { ship: Ship; cs: number }) {
   const isH = ship.dir === 'H';
   const minR = Math.min(...ship.cells.map(c => c[0]));
   const minC = Math.min(...ship.cells.map(c => c[1]));
-  const w = isH ? ship.size * cs : cs;
-  const h = isH ? cs : ship.size * cs;
-  const pad = 4;
+  const bw = isH ? ship.size * cs : cs;
+  const bh = isH ? cs : ship.size * cs;
+  const m = 3;
 
-  return (
-    <g transform={`translate(${minC * cs},${minR * cs})`}>
-      {/* Shadow */}
-      <rect x={pad + 1} y={pad + 2} width={w - pad * 2} height={h - pad * 2}
-        rx={isH ? (h - pad * 2) / 2 : (w - pad * 2) / 2} fill="rgba(0,0,0,0.3)" />
-      {/* Bottle body */}
-      <rect x={pad} y={pad} width={w - pad * 2} height={h - pad * 2}
-        rx={isH ? (h - pad * 2) / 2 : (w - pad * 2) / 2}
-        fill={ship.color} stroke={ship.light} strokeWidth={1.2} />
-      {/* Glass shine */}
-      <rect
-        x={isH ? pad + 4 : pad + 2}
-        y={isH ? pad + 2 : pad + 4}
-        width={isH ? w - pad * 2 - 8 : (w - pad * 2) * 0.35}
-        height={isH ? (h - pad * 2) * 0.35 : h - pad * 2 - 8}
-        rx={4} fill="rgba(255,255,255,0.12)" />
+  // Bottle dimensions inside the bounding box
+  const bodyW = bw - m * 2;
+  const bodyH = bh - m * 2;
+  const neckRatio = 0.2;
 
-      {/* Neck (at the start of the bottle) */}
-      {isH ? (
-        <rect x={pad - 1} y={h / 2 - 4} width={8} height={8} rx={3}
-          fill={ship.light} opacity={0.6} />
-      ) : (
-        <rect x={w / 2 - 4} y={pad - 1} width={8} height={8} rx={3}
-          fill={ship.light} opacity={0.6} />
-      )}
-
-      {/* Cork */}
-      {isH ? (
-        <rect x={pad - 3} y={h / 2 - 2.5} width={5} height={5} rx={1.5}
-          fill="#b8860b" stroke="#8b6914" strokeWidth={0.5} />
-      ) : (
-        <rect x={w / 2 - 2.5} y={pad - 3} width={5} height={5} rx={1.5}
-          fill="#b8860b" stroke="#8b6914" strokeWidth={0.5} />
-      )}
-
-      {/* Label */}
-      {ship.size >= 3 && (
-        isH ? (
-          <g>
-            <rect x={w / 2 - 10} y={pad + 4} width={20} height={h - pad * 2 - 8}
-              rx={2} fill="rgba(255,235,200,0.15)" />
-            <rect x={w / 2 - 8} y={pad + 6} width={16} height={2} rx={1}
-              fill="rgba(255,235,200,0.2)" />
-          </g>
-        ) : (
-          <g>
-            <rect x={pad + 4} y={h / 2 - 10} width={w - pad * 2 - 8} height={20}
-              rx={2} fill="rgba(255,235,200,0.15)" />
-            <rect x={pad + 6} y={h / 2 - 8} width={2} height={16} rx={1}
-              fill="rgba(255,235,200,0.2)" />
-          </g>
-        )
-      )}
-
-      {/* Hit markers */}
-      {hits && ship.cells.map(([cr, cc], i) => {
-        if (!hits.has(`${cr},${cc}`)) return null;
-        const cx = (cc - minC) * cs + cs / 2;
-        const cy = (cr - minR) * cs + cs / 2;
-        return (
-          <g key={i}>
-            <circle cx={cx} cy={cy} r={cs / 3} fill="rgba(255,0,0,0.6)" />
-            {/* Wine splash */}
-            <circle cx={cx - 3} cy={cy - 4} r={2} fill="#8b1030" opacity={0.7} />
-            <circle cx={cx + 4} cy={cy + 2} r={1.5} fill="#6b1030" opacity={0.6} />
-            <line x1={cx - 5} y1={cy - 5} x2={cx + 5} y2={cy + 5} stroke="#ffccdd" strokeWidth={1.8} />
-            <line x1={cx + 5} y1={cy - 5} x2={cx - 5} y2={cy + 5} stroke="#ffccdd" strokeWidth={1.8} />
-          </g>
-        );
-      })}
-    </g>
-  );
+  if (isH) {
+    const neckW = bodyW * neckRatio;
+    const bodyMainW = bodyW - neckW;
+    const bodyR = bodyH * 0.4;
+    return (
+      <g transform={`translate(${minC * cs + m},${minR * cs + m})`}>
+        <rect x={0} y={1} width={bodyW} height={bodyH} rx={bodyR} fill="rgba(0,0,0,0.2)" />
+        {/* Main body */}
+        <rect x={neckW} y={0} width={bodyMainW} height={bodyH} rx={bodyR}
+          fill={ship.color} />
+        {/* Shine */}
+        <rect x={neckW + 3} y={2} width={bodyMainW - 6} height={bodyH * 0.3} rx={bodyR * 0.6}
+          fill="rgba(255,255,255,0.12)" />
+        {/* Neck */}
+        <rect x={0} y={bodyH * 0.25} width={neckW + bodyR} height={bodyH * 0.5}
+          rx={bodyH * 0.25} fill={ship.color} />
+        {/* Cork */}
+        <rect x={-2} y={bodyH * 0.32} width={6} height={bodyH * 0.36}
+          rx={3} fill="#c9a050" stroke="#a07830" strokeWidth={0.5} />
+        {/* Label */}
+        <rect x={bodyW * 0.4} y={bodyH * 0.18} width={bodyW * 0.35} height={bodyH * 0.64}
+          rx={2} fill="rgba(255,240,220,0.18)" stroke="rgba(255,220,180,0.12)" strokeWidth={0.3} />
+        <text x={bodyW * 0.57} y={bodyH * 0.58} textAnchor="middle"
+          fontSize={Math.min(7, bodyH * 0.3)} fill="rgba(255,220,180,0.4)"
+          fontFamily="Georgia, serif" fontStyle="italic" fontWeight={700}>
+          {ship.name.split(' ')[0]}
+        </text>
+        {/* Foil */}
+        <rect x={neckW - 2} y={bodyH * 0.2} width={4} height={bodyH * 0.6}
+          rx={1} fill={ship.id === 'champagne' ? '#d4a853' : ship.color} opacity={0.5} />
+      </g>
+    );
+  } else {
+    const neckH = bodyH * neckRatio;
+    const bodyMainH = bodyH - neckH;
+    const bodyR = bodyW * 0.4;
+    return (
+      <g transform={`translate(${minC * cs + m},${minR * cs + m})`}>
+        <rect x={1} y={0} width={bodyW} height={bodyH} rx={bodyR} fill="rgba(0,0,0,0.2)" />
+        <rect x={0} y={neckH} width={bodyW} height={bodyMainH} rx={bodyR} fill={ship.color} />
+        <rect x={2} y={neckH + 3} width={bodyW * 0.3} height={bodyMainH - 6} rx={bodyR * 0.6}
+          fill="rgba(255,255,255,0.12)" />
+        <rect x={bodyW * 0.25} y={0} width={bodyW * 0.5} height={neckH + bodyR}
+          rx={bodyW * 0.25} fill={ship.color} />
+        <rect x={bodyW * 0.32} y={-2} width={bodyW * 0.36} height={6}
+          rx={3} fill="#c9a050" stroke="#a07830" strokeWidth={0.5} />
+        <rect x={bodyW * 0.18} y={bodyH * 0.4} width={bodyW * 0.64} height={bodyH * 0.35}
+          rx={2} fill="rgba(255,240,220,0.18)" stroke="rgba(255,220,180,0.12)" strokeWidth={0.3} />
+        <text x={bodyW * 0.5} y={bodyH * 0.62} textAnchor="middle"
+          fontSize={Math.min(7, bodyW * 0.3)} fill="rgba(255,220,180,0.4)"
+          fontFamily="Georgia, serif" fontStyle="italic" fontWeight={700}>
+          {ship.name.split(' ')[0]}
+        </text>
+      </g>
+    );
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -163,18 +138,25 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
   const [dir, setDir] = useState<Dir>('H');
   const [hover, setHover] = useState<[number, number][]>([]);
   const [hoverOk, setHoverOk] = useState(true);
-
   const [myGrid, setMyGrid] = useState(grid0);
   const [opGrid, setOpGrid] = useState(grid0);
   const [mySunk, setMySunk] = useState<string[]>([]);
   const [opSunk, setOpSunk] = useState<string[]>([]);
-  const [lastHit, setLastHit] = useState<{ r: number; c: number; hit: boolean } | null>(null);
+  const [lastHit, setLastHit] = useState<{r: number; c: number; hit: boolean} | null>(null);
   const [sunkMsg, setSunkMsg] = useState<string | null>(null);
   const [over, setOver] = useState(false);
   const [win, setWin] = useState<string | null>(null);
-  const [hoverTgt, setHoverTgt] = useState<{ r: number; c: number } | null>(null);
-
+  const [hoverTgt, setHoverTgt] = useState<{r: number; c: number} | null>(null);
   const sunkT = useRef<ReturnType<typeof setTimeout>>();
+
+  // Random paint specks for canvas texture (memoized)
+  const canvasSpecks = useMemo(() =>
+    Array.from({ length: 35 }, (_, i) => ({
+      x: (i * 37 + 13) % (GRID * CELL),
+      y: (i * 23 + 7) % (GRID * CELL),
+      r: 0.5 + (i % 4) * 0.4,
+      color: ['rgba(139,32,56,0.06)', 'rgba(212,160,83,0.05)', 'rgba(160,48,72,0.04)', 'rgba(155,120,32,0.05)'][i % 4],
+    })), []);
 
   // ── Sync ───────────────────────────────────────────────────────────────────
 
@@ -192,8 +174,7 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
       g[r][c] = hit ? 'hit' : 'miss';
       setMyGrid(g);
       setLastHit({ r, c, hit: !!hit });
-      setTimeout(() => setLastHit(null), 900);
-
+      setTimeout(() => setLastHit(null), 1200);
       const sunk = hit ? hit.cells.every(([sr, sc]) => (sr === r && sc === c) || g[sr][sc] === 'hit') : false;
       if (sunk && hit) {
         setMySunk(prev => {
@@ -211,7 +192,7 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
       g[r][c] = hit ? 'hit' : 'miss';
       setOpGrid(g);
       setLastHit({ r, c, hit });
-      setTimeout(() => setLastHit(null), 900);
+      setTimeout(() => setLastHit(null), 1200);
       if (sunk && name) {
         setOpSunk(prev => {
           const n = [...prev, name];
@@ -220,7 +201,7 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
         });
         setSunkMsg(`🍷 ${name} brisé !`);
         if (sunkT.current) clearTimeout(sunkT.current);
-        sunkT.current = setTimeout(() => setSunkMsg(null), 2500);
+        sunkT.current = setTimeout(() => setSunkMsg(null), 3000);
       }
     }
   }, [gameState?.lastMove]);
@@ -269,202 +250,303 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
     onMove({ type: 'fire', r, c, _keepTurn: true });
   }, [isPlayerTurn, over, phase, opGrid, onMove]);
 
-  // ── Grid Renderer ──────────────────────────────────────────────────────────
+  // ── Grid Component ─────────────────────────────────────────────────────────
 
   const hoverSet = new Set(hover.map(([r, c]) => `${r},${c}`));
 
-  const Grid = ({ grid, click, hov, showShips, small }: {
+  const BattleGrid = ({ grid, click, hov, showShips, small }: {
     grid: CellState[][] | null; click: ((r: number, c: number) => void) | null;
     hov: ((r: number, c: number) => void) | null; showShips: boolean; small: boolean;
   }) => {
-    const cs = small ? 26 : CELL;
+    const cs = small ? 24 : CELL;
     const gp = GRID * cs;
-    const hitSet = new Set<string>();
-    if (grid) {
-      for (let r = 0; r < GRID; r++)
-        for (let c = 0; c < GRID; c++)
-          if (grid[r][c] === 'hit') hitSet.add(`${r},${c}`);
-    }
+    const pad = 20;
 
     return (
-      <svg width={gp + 22} height={gp + 22} viewBox={`-22 -22 ${gp + 22} ${gp + 22}`}>
-        {/* Labels */}
-        {'ABCDEFGHIJ'.split('').map((l, i) => (
-          <text key={l} x={-12} y={i * cs + cs / 2 + 3} textAnchor="middle"
-            fill={P.dim} fontSize={8} fontWeight={700} fontFamily="serif" fontStyle="italic">{l}</text>
-        ))}
-        {Array.from({ length: 10 }, (_, i) => (
-          <text key={i} x={i * cs + cs / 2} y={-8} textAnchor="middle"
-            fill={P.dim} fontSize={8} fontWeight={700} fontFamily="serif" fontStyle="italic">{i + 1}</text>
-        ))}
+      <div style={{ position: 'relative', display: 'inline-block' }}>
+        {/* Golden frame */}
+        <div style={{
+          padding: small ? 3 : 6,
+          borderRadius: small ? 6 : 10,
+          background: 'linear-gradient(145deg, #c9a050, #8b6920, #d4b060, #7a5a18)',
+          boxShadow: small
+            ? '0 2px 8px rgba(0,0,0,0.4)'
+            : '0 4px 24px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,220,160,0.3), 0 0 40px rgba(201,160,80,0.08)',
+        }}>
+          {/* Inner frame bevel */}
+          <div style={{
+            padding: small ? 2 : 4,
+            borderRadius: small ? 4 : 7,
+            background: 'linear-gradient(145deg, #5a3810, #3a2208)',
+          }}>
+            {/* Canvas surface */}
+            <svg width={gp + pad} height={gp + pad} viewBox={`-${pad} -${pad} ${gp + pad} ${gp + pad}`}
+              style={{ display: 'block', borderRadius: small ? 3 : 5 }}>
 
-        {/* Canvas texture overlay */}
-        <rect x={0} y={0} width={gp} height={gp} rx={4}
-          fill="rgba(25,12,18,0.15)" stroke={P.canvasBorder} strokeWidth={1} />
+              {/* Canvas background — warm linen texture */}
+              <defs>
+                <linearGradient id={`canvasBg${small ? 's' : ''}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#2a1810" />
+                  <stop offset="30%" stopColor="#321c14" />
+                  <stop offset="60%" stopColor="#2e1a12" />
+                  <stop offset="100%" stopColor="#241410" />
+                </linearGradient>
+                <pattern id={`canvasTex${small ? 's' : ''}`} width="4" height="4" patternUnits="userSpaceOnUse">
+                  <rect width="4" height="4" fill="transparent" />
+                  <line x1="0" y1="0" x2="4" y2="0" stroke="rgba(255,220,180,0.03)" strokeWidth="0.3" />
+                  <line x1="0" y1="0" x2="0" y2="4" stroke="rgba(255,220,180,0.02)" strokeWidth="0.3" />
+                </pattern>
+              </defs>
 
-        {/* Cells */}
-        {Array.from({ length: GRID }, (_, r) =>
-          Array.from({ length: GRID }, (_, c) => {
-            const st = grid ? grid[r][c] : 'empty';
-            const isH = !small && hoverSet.has(`${r},${c}`);
-            const canClick = !!click && st === 'empty';
-            const isTgt = hoverTgt?.r === r && hoverTgt?.c === c && canClick;
+              <rect x={-pad} y={-pad} width={gp + pad} height={gp + pad}
+                fill={`url(#canvasBg${small ? 's' : ''})`} />
+              <rect x={-pad} y={-pad} width={gp + pad} height={gp + pad}
+                fill={`url(#canvasTex${small ? 's' : ''})`} />
 
-            let fill = P.cell;
-            if (isH) fill = hoverOk ? `${cur?.color || '#6b1030'}33` : 'rgba(255,0,0,0.15)';
-            if (isTgt) fill = 'rgba(196,64,88,0.15)';
+              {/* Paint specks on canvas */}
+              {!small && canvasSpecks.map((s, i) => (
+                <circle key={i} cx={s.x} cy={s.y} r={s.r} fill={s.color} />
+              ))}
 
-            return (
-              <g key={`${r}-${c}`}>
-                <rect x={c * cs + 0.5} y={r * cs + 0.5} width={cs - 1} height={cs - 1}
-                  fill={fill} stroke={P.cellBorder} strokeWidth={0.5}
-                  style={{ cursor: canClick ? 'crosshair' : 'default' }}
-                  onClick={() => click?.(r, c)}
-                  onMouseEnter={() => { hov?.(r, c); if (canClick) setHoverTgt({ r, c }); }}
-                  onMouseLeave={() => { if (!small) setHover([]); setHoverTgt(null); }}
-                />
-                {st === 'miss' && (
-                  <g>
-                    {/* Paint splatter miss */}
-                    <circle cx={c * cs + cs / 2} cy={r * cs + cs / 2} r={cs / 6}
-                      fill={P.miss} />
-                    <circle cx={c * cs + cs / 2 + 3} cy={r * cs + cs / 2 - 2} r={cs / 10}
-                      fill={P.miss} opacity={0.6} />
-                  </g>
-                )}
-                {st === 'hit' && !showShips && (
-                  <g>
-                    {/* Wine stain hit */}
-                    <circle cx={c * cs + cs / 2} cy={r * cs + cs / 2} r={cs / 3}
-                      fill="rgba(139,16,48,0.6)" />
-                    <circle cx={c * cs + cs / 2} cy={r * cs + cs / 2} r={cs / 5}
-                      fill={P.hit} opacity={0.8} />
-                    <line x1={c * cs + cs * 0.3} y1={r * cs + cs * 0.3} x2={c * cs + cs * 0.7} y2={r * cs + cs * 0.7}
-                      stroke="#ffd0dd" strokeWidth={1.5} strokeLinecap="round" />
-                    <line x1={c * cs + cs * 0.7} y1={r * cs + cs * 0.3} x2={c * cs + cs * 0.3} y2={r * cs + cs * 0.7}
-                      stroke="#ffd0dd" strokeWidth={1.5} strokeLinecap="round" />
-                  </g>
-                )}
-              </g>
-            );
-          })
-        )}
+              {/* Row labels A-J */}
+              {'ABCDEFGHIJ'.split('').map((l, i) => (
+                <text key={l} x={-11} y={i * cs + cs / 2 + 3} textAnchor="middle"
+                  fill="rgba(201,160,80,0.35)" fontSize={small ? 6 : 8} fontWeight={700}
+                  fontFamily="Georgia, serif" fontStyle="italic">{l}</text>
+              ))}
+              {Array.from({ length: 10 }, (_, i) => (
+                <text key={i} x={i * cs + cs / 2} y={-6} textAnchor="middle"
+                  fill="rgba(201,160,80,0.35)" fontSize={small ? 6 : 8} fontWeight={700}
+                  fontFamily="Georgia, serif" fontStyle="italic">{i + 1}</text>
+              ))}
 
-        {/* Ships (wine bottles) */}
-        {showShips && ships.map(s => (
-          <BottleSVG key={s.id} ship={s} cs={cs} hits={hitSet} />
-        ))}
+              {/* Grid lines — subtle paint cracks */}
+              {Array.from({ length: GRID + 1 }, (_, i) => (
+                <g key={i}>
+                  <line x1={0} y1={i * cs} x2={gp} y2={i * cs}
+                    stroke="rgba(139,32,56,0.08)" strokeWidth={0.5} />
+                  <line x1={i * cs} y1={0} x2={i * cs} y2={gp}
+                    stroke="rgba(139,32,56,0.08)" strokeWidth={0.5} />
+                </g>
+              ))}
 
-        {/* Hover preview bottle */}
-        {!small && hover.length > 0 && cur && hoverOk && (
-          <g opacity={0.45}>
-            {(() => {
-              const minR = Math.min(...hover.map(c => c[0]));
-              const minC = Math.min(...hover.map(c => c[1]));
-              const w = dir === 'H' ? cur.size * cs : cs;
-              const h = dir === 'H' ? cs : cur.size * cs;
-              const rr = Math.min(w - 8, h - 8) / 2;
-              return <rect x={minC * cs + 4} y={minR * cs + 4} width={w - 8} height={h - 8} rx={rr}
-                fill={cur.color} stroke={cur.light} strokeWidth={1.2} />;
-            })()}
-          </g>
-        )}
+              {/* Cells */}
+              {Array.from({ length: GRID }, (_, r) =>
+                Array.from({ length: GRID }, (_, c) => {
+                  const st = grid ? grid[r][c] : 'empty';
+                  const isHov = !small && hoverSet.has(`${r},${c}`);
+                  const canClick = !!click && st === 'empty';
+                  const isTgt = hoverTgt?.r === r && hoverTgt?.c === c && canClick;
 
-        {/* Hit ripple */}
-        {lastHit && (
-          <circle cx={lastHit.c * cs + cs / 2} cy={lastHit.r * cs + cs / 2} r={2}
-            fill="none" stroke={lastHit.hit ? P.hit : P.accentGold} strokeWidth={2} opacity={0.8}>
-            <animate attributeName="r" from="2" to={`${cs}`} dur="0.6s" fill="freeze" />
-            <animate attributeName="opacity" from="0.8" to="0" dur="0.6s" fill="freeze" />
-          </circle>
-        )}
-      </svg>
+                  return (
+                    <g key={`${r}-${c}`}>
+                      {/* Hover highlight */}
+                      {isHov && (
+                        <rect x={c * cs + 1} y={r * cs + 1} width={cs - 2} height={cs - 2} rx={2}
+                          fill={hoverOk ? 'rgba(123,16,36,0.15)' : 'rgba(255,0,0,0.12)'} />
+                      )}
+                      {isTgt && (
+                        <rect x={c * cs + 1} y={r * cs + 1} width={cs - 2} height={cs - 2} rx={2}
+                          fill="rgba(201,160,80,0.08)" />
+                      )}
+
+                      {/* Clickable area */}
+                      <rect x={c * cs} y={r * cs} width={cs} height={cs}
+                        fill="transparent" style={{ cursor: canClick ? 'crosshair' : 'default' }}
+                        onClick={() => click?.(r, c)}
+                        onMouseEnter={() => { hov?.(r, c); if (canClick) setHoverTgt({ r, c }); }}
+                        onMouseLeave={() => { if (!small) setHover([]); setHoverTgt(null); }}
+                      />
+
+                      {/* Miss — golden paint brush stroke */}
+                      {st === 'miss' && (
+                        <g>
+                          <ellipse cx={c * cs + cs / 2} cy={r * cs + cs / 2}
+                            rx={cs * 0.25} ry={cs * 0.15}
+                            fill="rgba(201,160,80,0.25)"
+                            transform={`rotate(${((r * 7 + c * 13) % 60) - 30}, ${c * cs + cs / 2}, ${r * cs + cs / 2})`} />
+                          <ellipse cx={c * cs + cs / 2 + 2} cy={r * cs + cs / 2 - 1}
+                            rx={cs * 0.12} ry={cs * 0.08}
+                            fill="rgba(201,160,80,0.15)"
+                            transform={`rotate(${((r * 11 + c * 3) % 40) - 20}, ${c * cs + cs / 2 + 2}, ${r * cs + cs / 2 - 1})`} />
+                        </g>
+                      )}
+
+                      {/* Hit — wine spill stain */}
+                      {st === 'hit' && !showShips && (
+                        <g>
+                          <circle cx={c * cs + cs / 2} cy={r * cs + cs / 2}
+                            r={cs * 0.35} fill="rgba(123,16,36,0.5)" />
+                          <circle cx={c * cs + cs / 2} cy={r * cs + cs / 2}
+                            r={cs * 0.2} fill="rgba(180,20,50,0.6)" />
+                          {/* Splash drops */}
+                          <circle cx={c * cs + cs * 0.25} cy={r * cs + cs * 0.3}
+                            r={cs * 0.06} fill="rgba(160,20,40,0.4)" />
+                          <circle cx={c * cs + cs * 0.72} cy={r * cs + cs * 0.65}
+                            r={cs * 0.05} fill="rgba(140,16,35,0.35)" />
+                          {/* X mark */}
+                          <line x1={c * cs + cs * 0.3} y1={r * cs + cs * 0.3}
+                            x2={c * cs + cs * 0.7} y2={r * cs + cs * 0.7}
+                            stroke="rgba(255,200,210,0.5)" strokeWidth={1.5} strokeLinecap="round" />
+                          <line x1={c * cs + cs * 0.7} y1={r * cs + cs * 0.3}
+                            x2={c * cs + cs * 0.3} y2={r * cs + cs * 0.7}
+                            stroke="rgba(255,200,210,0.5)" strokeWidth={1.5} strokeLinecap="round" />
+                        </g>
+                      )}
+                    </g>
+                  );
+                })
+              )}
+
+              {/* Wine bottles (ships) */}
+              {showShips && ships.map(s => (
+                <WineBottle key={s.id} ship={s} cs={cs} />
+              ))}
+
+              {/* Hit on own ships — wine splash overlay */}
+              {showShips && grid && Array.from({ length: GRID }, (_, r) =>
+                Array.from({ length: GRID }, (_, c) => {
+                  if (grid[r][c] !== 'hit') return null;
+                  return (
+                    <g key={`h${r}-${c}`}>
+                      <circle cx={c * cs + cs / 2} cy={r * cs + cs / 2}
+                        r={cs * 0.3} fill="rgba(200,20,50,0.5)" />
+                      <line x1={c * cs + cs * 0.3} y1={r * cs + cs * 0.3}
+                        x2={c * cs + cs * 0.7} y2={r * cs + cs * 0.7}
+                        stroke="rgba(255,220,230,0.6)" strokeWidth={1.8} strokeLinecap="round" />
+                      <line x1={c * cs + cs * 0.7} y1={r * cs + cs * 0.3}
+                        x2={c * cs + cs * 0.3} y2={r * cs + cs * 0.7}
+                        stroke="rgba(255,220,230,0.6)" strokeWidth={1.8} strokeLinecap="round" />
+                    </g>
+                  );
+                })
+              )}
+
+              {/* Hover preview */}
+              {!small && hover.length > 0 && cur && hoverOk && (() => {
+                const previewShip: Ship = {
+                  ...cur, cells: hover as [number, number][], dir, sunk: false,
+                };
+                return <g opacity={0.4}><WineBottle ship={previewShip} cs={cs} /></g>;
+              })()}
+
+              {/* Hit/miss ripple */}
+              {lastHit && (
+                <circle cx={lastHit.c * cs + cs / 2} cy={lastHit.r * cs + cs / 2} r={2}
+                  fill="none" stroke={lastHit.hit ? '#c0183a' : '#c9a050'} strokeWidth={1.5} opacity={0.8}>
+                  <animate attributeName="r" from="2" to={`${cs * 0.8}`} dur="0.7s" fill="freeze" />
+                  <animate attributeName="opacity" from="0.8" to="0" dur="0.7s" fill="freeze" />
+                </circle>
+              )}
+            </svg>
+          </div>
+        </div>
+      </div>
     );
   };
 
   const allPlaced = ships.length === SHIPS.length;
-  const font = 'Georgia, "Times New Roman", serif';
+  const font = 'Georgia, "Playfair Display", serif';
+
+  // ── Background wrapper ─────────────────────────────────────────────────────
+
+  const Bg = ({ children }: { children: React.ReactNode }) => (
+    <div style={{
+      minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
+      padding: '12px 6px', fontFamily: font, overflow: 'auto',
+      background: 'linear-gradient(160deg, #18100c 0%, #241810 25%, #2a1c14 50%, #1e1410 75%, #14100c 100%)',
+    }}>
+      {/* Warm ambient glow */}
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none',
+        background: 'radial-gradient(ellipse at 50% 30%, rgba(201,160,80,0.04) 0%, transparent 60%)',
+      }} />
+      {children}
+    </div>
+  );
 
   // ── PLACEMENT ──────────────────────────────────────────────────────────────
 
   if (phase === 'PLACEMENT') {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
-        padding: '16px 8px', background: P.bg, fontFamily: font, overflow: 'auto' }}>
+      <Bg>
         <motion.div initial={{ y: -15, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-          style={{ textAlign: 'center', marginBottom: 12 }}>
-          <h1 style={{ fontSize: 28, fontWeight: 900, fontStyle: 'italic',
-            background: 'linear-gradient(135deg, #c44058, #d4a053, #922b3e)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+          style={{ textAlign: 'center', marginBottom: 10 }}>
+          <h1 style={{ fontSize: 26, fontWeight: 900, fontStyle: 'italic', margin: 0,
+            color: '#c9a050', textShadow: '0 0 20px rgba(201,160,80,0.15)',
           }}>🍷 Léa Naval</h1>
-          <p style={{ fontSize: 12, color: P.dim, marginTop: 2 }}>
-            Place tes bouteilles sur la toile — elles ne doivent pas se toucher !
+          <p style={{ fontSize: 11, color: 'rgba(201,160,80,0.35)', margin: '2px 0 0', fontStyle: 'italic' }}>
+            Dispose tes bouteilles sur la toile — elles ne doivent pas se toucher
           </p>
         </motion.div>
 
         {/* Bottle queue */}
-        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 10, maxWidth: 440 }}>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 8, maxWidth: 440 }}>
           {SHIPS.map((def, i) => {
             const placed = i < ships.length;
             const active = i === shipIdx;
             return (
-              <div key={def.id} style={{
-                display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 10,
-                background: placed ? 'rgba(20,10,15,0.3)' : active ? `${def.color}22` : 'rgba(20,10,15,0.2)',
-                border: active ? `2px solid ${def.light}` : `1px solid ${P.canvasBorder}`,
-                opacity: placed ? 0.3 : 1, transition: 'all 0.2s',
-              }}>
+              <motion.div key={def.id} animate={active ? { scale: [1, 1.03, 1] } : {}}
+                transition={{ duration: 1.5, repeat: Infinity }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 8,
+                  background: placed ? 'rgba(20,10,8,0.3)' : active ? 'rgba(123,16,36,0.08)' : 'rgba(20,10,8,0.15)',
+                  border: active ? '1.5px solid rgba(201,160,80,0.3)' : '1px solid rgba(201,160,80,0.08)',
+                  opacity: placed ? 0.25 : 1, transition: 'all 0.3s',
+                }}>
+                <span style={{ fontSize: 14 }}>{def.label}</span>
                 <div style={{
-                  width: def.size * 8 + 6, height: 10, borderRadius: 5,
-                  background: placed ? '#333' : `linear-gradient(90deg, ${def.color}, ${def.light})`,
+                  width: def.size * 8, height: 8, borderRadius: 4,
+                  background: placed ? 'rgba(40,20,15,0.5)' : `linear-gradient(90deg, ${def.color}, ${def.color}cc)`,
+                  boxShadow: placed ? 'none' : `0 0 6px ${def.color}33`,
                 }} />
-                <span style={{ fontSize: 11, fontWeight: 600, fontStyle: 'italic', color: P.text,
-                  textDecoration: placed ? 'line-through' : 'none' }}>{def.name} ({def.size})</span>
-              </div>
+                <span style={{ fontSize: 10, fontWeight: 600, fontStyle: 'italic',
+                  color: placed ? 'rgba(201,160,80,0.15)' : 'rgba(201,160,80,0.5)',
+                  textDecoration: placed ? 'line-through' : 'none',
+                }}>{def.name}</span>
+              </motion.div>
             );
           })}
         </div>
 
         {/* Controls */}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
           <button onClick={() => { setDir(d => d === 'H' ? 'V' : 'H'); setHover([]); }}
-            style={{ padding: '6px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700, fontStyle: 'italic',
-              background: P.canvas, border: `1px solid ${P.canvasBorder}`, color: P.text, cursor: 'pointer' }}>
+            style={{ padding: '5px 14px', borderRadius: 8, fontSize: 11, fontWeight: 700,
+              background: 'rgba(20,10,8,0.3)', border: '1px solid rgba(201,160,80,0.12)',
+              color: 'rgba(201,160,80,0.5)', cursor: 'pointer', fontStyle: 'italic' }}>
             ⇄ {dir === 'H' ? 'Horizontal' : 'Vertical'}
           </button>
           <button onClick={() => { if (!ships.length) return; setShips(p => p.slice(0, -1)); setShipIdx(i => i - 1); setHover([]); }}
             disabled={!ships.length}
-            style={{ padding: '6px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700,
-              background: P.canvas, border: `1px solid ${P.canvasBorder}`, color: P.text,
-              cursor: ships.length ? 'pointer' : 'not-allowed', opacity: ships.length ? 1 : 0.3 }}>
+            style={{ padding: '5px 14px', borderRadius: 8, fontSize: 11, fontWeight: 700,
+              background: 'rgba(20,10,8,0.3)', border: '1px solid rgba(201,160,80,0.12)',
+              color: 'rgba(201,160,80,0.5)', cursor: ships.length ? 'pointer' : 'not-allowed',
+              opacity: ships.length ? 1 : 0.3, fontStyle: 'italic' }}>
             ↩ Annuler
           </button>
         </div>
 
-        {/* Grid canvas */}
-        <div style={{ padding: 8, borderRadius: 16, background: P.canvas, border: `1px solid ${P.canvasBorder}`,
-          boxShadow: '0 0 40px rgba(139,32,56,0.1), inset 0 0 60px rgba(0,0,0,0.3)' }}>
-          <Grid grid={null} click={allPlaced ? null : onPlace} hov={allPlaced ? null : onHover} showShips={true} small={false} />
-        </div>
+        <BattleGrid grid={null} click={allPlaced ? null : onPlace} hov={allPlaced ? null : onHover} showShips={true} small={false} />
 
         {allPlaced && (
-          <motion.button initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            whileTap={{ scale: 0.95 }}
+          <motion.button initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
             onClick={onReady}
-            style={{ marginTop: 14, padding: '10px 28px', borderRadius: 12, fontSize: 16, fontWeight: 800,
-              fontStyle: 'italic', background: 'linear-gradient(135deg, #922b3e, #6b1030)',
-              color: '#ffe0e8', border: 'none', cursor: 'pointer',
-              boxShadow: '0 4px 20px rgba(146,43,62,0.4)' }}>
+            style={{ marginTop: 12, padding: '10px 30px', borderRadius: 10, fontSize: 15, fontWeight: 800,
+              fontStyle: 'italic', background: 'linear-gradient(135deg, #7b1024, #5a0c1a)',
+              color: '#e8c090', border: '1px solid rgba(201,160,80,0.2)', cursor: 'pointer',
+              boxShadow: '0 4px 20px rgba(123,16,36,0.25), 0 0 30px rgba(201,160,80,0.05)',
+              letterSpacing: 1 }}>
             🍷 Cave prête !
           </motion.button>
         )}
 
         {!allPlaced && cur && (
-          <p style={{ marginTop: 10, fontSize: 12, color: P.dim, fontStyle: 'italic' }}>
-            Place <strong style={{ color: P.text }}>{cur.name}</strong> — {cur.size} cases
+          <p style={{ marginTop: 8, fontSize: 11, color: 'rgba(201,160,80,0.3)', fontStyle: 'italic' }}>
+            {cur.label} Place <strong style={{ color: 'rgba(201,160,80,0.5)' }}>{cur.name}</strong> — {cur.size} cases
           </p>
         )}
-      </div>
+      </Bg>
     );
   }
 
@@ -472,49 +554,49 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
 
   if (phase === 'WAITING') {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        background: P.bg, fontFamily: font }}>
-        <motion.div animate={{ rotate: [0, 5, -5, 0] }} transition={{ duration: 4, repeat: Infinity }}
-          style={{ fontSize: 52, marginBottom: 16 }}>🍷</motion.div>
-        <h2 style={{ color: P.text, fontSize: 20, fontWeight: 800, fontStyle: 'italic', marginBottom: 6 }}>Cave prête !</h2>
-        <p style={{ color: P.dim, fontSize: 13 }}>En attente du sommelier adverse...</p>
-        <motion.div animate={{ opacity: [0.2, 0.7, 0.2] }} transition={{ duration: 2, repeat: Infinity }}
-          style={{ marginTop: 16, width: 40, height: 2, borderRadius: 1, background: P.accent }} />
-      </div>
+      <Bg>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <motion.div animate={{ rotate: [0, 8, -8, 0] }} transition={{ duration: 5, repeat: Infinity }}
+            style={{ fontSize: 56, marginBottom: 16, filter: 'drop-shadow(0 4px 12px rgba(123,16,36,0.3))' }}>🍷</motion.div>
+          <h2 style={{ color: '#c9a050', fontSize: 20, fontWeight: 800, fontStyle: 'italic', marginBottom: 6 }}>Cave prête !</h2>
+          <p style={{ color: 'rgba(201,160,80,0.3)', fontSize: 12, fontStyle: 'italic' }}>En attente du sommelier adverse…</p>
+          <motion.div animate={{ opacity: [0.15, 0.5, 0.15] }} transition={{ duration: 2.5, repeat: Infinity }}
+            style={{ marginTop: 20, width: 50, height: 1.5, borderRadius: 1, background: '#c9a050' }} />
+        </div>
+      </Bg>
     );
   }
 
   // ── BATTLE ─────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
-      padding: '8px 4px', background: P.bg, fontFamily: font, overflow: 'auto' }}>
-
+    <Bg>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 900, fontStyle: 'italic',
-          background: 'linear-gradient(135deg, #c44058, #d4a053)',
-          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-        }}>🍷 Léa Naval</h1>
-        <div style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
-          background: P.canvas, border: `1px solid ${P.canvasBorder}`, color: P.dim }}>
+        <h1 style={{ fontSize: 18, fontWeight: 900, fontStyle: 'italic', margin: 0,
+          color: '#c9a050', textShadow: '0 0 15px rgba(201,160,80,0.1)' }}>🍷 Léa Naval</h1>
+        <div style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 5,
+          background: 'rgba(123,16,36,0.1)', border: '1px solid rgba(123,16,36,0.15)',
+          color: 'rgba(201,160,80,0.4)', fontStyle: 'italic' }}>
           💀 {opSunk.length}/{SHIPS.length}
         </div>
       </div>
 
       <motion.div key={isPlayerTurn ? 'y' : 'n'} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-        style={{ padding: '4px 16px', borderRadius: 16, fontSize: 13, fontWeight: 700, fontStyle: 'italic', marginBottom: 6,
-          background: over ? 'rgba(52,199,89,0.1)' : isPlayerTurn ? 'rgba(196,64,88,0.1)' : 'rgba(80,80,80,0.08)',
-          color: over ? '#34C759' : isPlayerTurn ? P.accent : '#6b6b6b',
-          border: `1px solid ${over ? 'rgba(52,199,89,0.2)' : isPlayerTurn ? P.canvasBorder : 'rgba(80,80,80,0.1)'}`,
+        style={{ padding: '3px 14px', borderRadius: 12, fontSize: 12, fontWeight: 700, fontStyle: 'italic', marginBottom: 6,
+          background: over ? 'rgba(52,199,89,0.06)' : isPlayerTurn ? 'rgba(123,16,36,0.06)' : 'rgba(80,80,80,0.04)',
+          color: over ? '#4ade80' : isPlayerTurn ? '#c9a050' : '#555',
+          border: `1px solid ${over ? 'rgba(52,199,89,0.12)' : isPlayerTurn ? 'rgba(201,160,80,0.12)' : 'rgba(80,80,80,0.06)'}`,
         }}>
-        {over ? (win === playerId ? '🏆 Victoire !' : '💔 Défaite...') : isPlayerTurn ? '🎯 À toi !' : '⏳ Adversaire...'}
+        {over ? (win === playerId ? '🏆 Victoire !' : '💔 Défaite…') : isPlayerTurn ? '🎯 À toi de tirer !' : '⏳ Tour adverse…'}
       </motion.div>
 
       <AnimatePresence>
         {sunkMsg && (
-          <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}
-            style={{ padding: '6px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, fontStyle: 'italic', marginBottom: 4,
-              background: 'rgba(139,16,48,0.15)', border: '1px solid rgba(139,16,48,0.3)', color: '#ff6680' }}>
+          <motion.div initial={{ scale: 0.5, opacity: 0, y: -8 }} animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.5, opacity: 0, y: -8 }}
+            style={{ padding: '5px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, fontStyle: 'italic', marginBottom: 4,
+              background: 'rgba(123,16,36,0.12)', border: '1px solid rgba(123,16,36,0.2)',
+              color: '#d4506a', textShadow: '0 0 8px rgba(180,20,50,0.2)' }}>
             {sunkMsg}
           </motion.div>
         )}
@@ -522,11 +604,9 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
 
       {/* Enemy grid */}
       <div style={{ marginBottom: 4 }}>
-        <div style={{ textAlign: 'center', fontSize: 10, fontWeight: 700, letterSpacing: 2, color: 'rgba(255,100,100,0.4)',
-          marginBottom: 2, textTransform: 'uppercase', fontStyle: 'italic' }}>Cave Ennemie</div>
-        <div style={{ padding: 4, borderRadius: 14, background: P.canvas, border: `1px solid ${P.canvasBorder}` }}>
-          <Grid grid={opGrid} click={over ? null : isPlayerTurn ? onFire : null} hov={null} showShips={false} small={false} />
-        </div>
+        <div style={{ textAlign: 'center', fontSize: 9, fontWeight: 700, letterSpacing: 2, fontStyle: 'italic',
+          color: 'rgba(180,60,80,0.3)', marginBottom: 2, textTransform: 'uppercase' }}>Cave Ennemie</div>
+        <BattleGrid grid={opGrid} click={over ? null : isPlayerTurn ? onFire : null} hov={null} showShips={false} small={false} />
       </div>
 
       {/* Fleet status */}
@@ -534,13 +614,12 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
         {SHIPS.map(def => {
           const sunk = opSunk.includes(def.name);
           return (
-            <span key={def.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 5,
-              fontSize: 10, fontWeight: 600, fontStyle: 'italic',
-              background: sunk ? 'rgba(20,10,15,0.3)' : `${def.color}22`,
-              color: sunk ? '#4b3040' : P.text, textDecoration: sunk ? 'line-through' : 'none' }}>
-              <div style={{ width: def.size * 5, height: 4, borderRadius: 2,
-                background: sunk ? '#2a1520' : `linear-gradient(90deg, ${def.color}, ${def.light})` }} />
-              {def.name}
+            <span key={def.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 4,
+              fontSize: 9, fontWeight: 600, fontStyle: 'italic',
+              background: sunk ? 'rgba(20,10,8,0.2)' : 'rgba(123,16,36,0.06)',
+              color: sunk ? 'rgba(60,30,20,0.4)' : 'rgba(201,160,80,0.4)',
+              textDecoration: sunk ? 'line-through' : 'none' }}>
+              {def.label} {def.name}
             </span>
           );
         })}
@@ -548,12 +627,10 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
 
       {/* My grid */}
       <div>
-        <div style={{ textAlign: 'center', fontSize: 10, fontWeight: 700, letterSpacing: 2, color: P.dim,
-          marginBottom: 2, textTransform: 'uppercase', fontStyle: 'italic' }}>Ma Cave</div>
-        <div style={{ padding: 4, borderRadius: 14, background: P.canvas, border: `1px solid ${P.canvasBorder}` }}>
-          <Grid grid={myGrid} click={null} hov={null} showShips={true} small={true} />
-        </div>
+        <div style={{ textAlign: 'center', fontSize: 9, fontWeight: 700, letterSpacing: 2, fontStyle: 'italic',
+          color: 'rgba(201,160,80,0.2)', marginBottom: 2, textTransform: 'uppercase' }}>Ma Cave</div>
+        <BattleGrid grid={myGrid} click={null} hov={null} showShips={true} small={true} />
       </div>
-    </div>
+    </Bg>
   );
 }
