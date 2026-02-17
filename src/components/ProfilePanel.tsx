@@ -71,10 +71,10 @@ export function ProfilePanel({ user, onLogout }: ProfilePanelProps) {
     // Load recent completed games
     const { data: recentData } = await supabase
       .from('challenges')
-      .select('game_type, challenger_id, challenger_score, opponent_score, status')
-      .or(`challenger_id.eq.${user.id},opponent_id.eq.${user.id}`)
-      .eq('status', 'completed')
-      .order('updated_at', { ascending: false })
+      .select('game_type, from_user_id, game_state, status, winner_id')
+      .or(`from_user_id.eq.${user.id},to_user_id.eq.${user.id}`)
+      .eq('status', 'finished')
+      .order('finished_at', { ascending: false })
       .limit(5);
 
     if (recentData && recentData.length > 0) {
@@ -82,12 +82,14 @@ export function ProfilePanel({ user, onLogout }: ProfilePanelProps) {
         sandy: 'SandyPong', lea: 'LéaNaval', liliano: 'LilianoThunder', nour: 'NourArchery'
       };
       setRecentGames(recentData.map((g: any) => {
-        const isChallenger = g.challenger_id === user.id;
-        const myScore = isChallenger ? g.challenger_score : g.opponent_score;
-        const oppScore = isChallenger ? g.opponent_score : g.challenger_score;
+        const won = g.winner_id === user.id;
+        const gs = g.game_state || {};
+        const isChallenger = g.from_user_id === user.id;
+        const myScore = isChallenger ? (gs.challenger_score || 0) : (gs.opponent_score || 0);
+        const oppScore = isChallenger ? (gs.opponent_score || 0) : (gs.challenger_score || 0);
         return {
           game: gameNames[g.game_type] || g.game_type,
-          result: myScore > oppScore ? 'Victoire' : myScore < oppScore ? 'Défaite' : 'Égalité',
+          result: g.winner_id ? (won ? 'Victoire' : 'Défaite') : 'Égalité',
           score: `${myScore}-${oppScore}`,
           gameId: g.game_type,
         };

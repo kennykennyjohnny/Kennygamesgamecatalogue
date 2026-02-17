@@ -23,37 +23,42 @@ export function GameRoomWrapper({ gameId, gameType, playerId, opponentId, onBack
   async function loadGameData() {
     const { data: challengeData } = await supabase
       .from('challenges')
-      .select(`
-        *,
-        challenger:users!challenges_challenger_id_fkey(username),
-        opponent:users!challenges_opponent_id_fkey(username)
-      `)
+      .select('*')
       .eq('id', gameId)
       .single();
 
     if (challengeData) {
-      // Convert challenge to PartyGame format
       const partyGame = {
         id: challengeData.id,
         game_type: challengeData.game_type,
         short_code: challengeData.id.substring(0, 6).toUpperCase(),
-        current_player_id: challengeData.current_turn,
+        current_player_id: challengeData.current_turn_user_id,
         status: challengeData.status,
       };
 
       setGame(partyGame);
     }
 
-    const { data: userData } = await supabase
-      .from('users')
+    // Try user_profiles first, then users
+    let username = '';
+    const { data: profileData } = await supabase
+      .from('user_profiles')
       .select('username')
       .eq('id', playerId)
       .single();
 
-    if (userData) {
-      setUserName(userData.username);
+    if (profileData) {
+      username = profileData.username;
+    } else {
+      const { data: userData } = await supabase
+        .from('users')
+        .select('username')
+        .eq('id', playerId)
+        .single();
+      if (userData) username = userData.username;
     }
 
+    setUserName(username);
     setLoading(false);
   }
 

@@ -45,7 +45,7 @@ function App() {
         table: 'challenges',
       }, (payload: any) => {
         const challenge = payload.new;
-        if (challenge.current_turn === user.id && challenge.status === 'active') {
+        if (challenge.current_turn_user_id === user.id && challenge.status === 'playing') {
           const gameNames: Record<string, string> = {
             sandy: 'SandyPong 🍷', lea: 'LéaNaval 🚢', liliano: 'LilianoThunder ⚡', nour: 'NourArchery 🏹'
           };

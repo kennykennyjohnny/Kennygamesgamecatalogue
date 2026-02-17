@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
-import { ChevronRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { ChevronRight, X, Loader2, Swords } from 'lucide-react';
 import { GameIcon } from './GameIcon';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../utils/client';
@@ -17,6 +17,12 @@ interface Match {
   opponentScore: number;
 }
 
+interface FriendOption {
+  id: string;
+  username: string;
+  avatar: string;
+}
+
 interface HomeScreenProps {
   onPlayMatch?: (match: Match) => void;
 }
@@ -27,6 +33,10 @@ export function HomeScreen({ onPlayMatch }: HomeScreenProps) {
   const [globalStats, setGlobalStats] = useState({ wins: 0, losses: 0, currentStreak: 0, bestStreak: 0 });
   const [gameStats, setGameStats] = useState<any[]>([]);
   const [userId, setUserId] = useState('');
+  const [selectedGame, setSelectedGame] = useState<{ id: string; name: string } | null>(null);
+  const [friends, setFriends] = useState<FriendOption[]>([]);
+  const [loadingFriends, setLoadingFriends] = useState(false);
+  const [creatingGame, setCreatingGame] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -44,17 +54,15 @@ export function HomeScreen({ onPlayMatch }: HomeScreenProps) {
   async function loadActiveMatches(currentUserId: string) {
     const { data } = await supabase
       .from('challenges')
-      .select('id, game_type, challenger_id, opponent_id, challenger_score, opponent_score, current_turn, status')
-      .eq('status', 'active')
-      .or(`challenger_id.eq.${currentUserId},opponent_id.eq.${currentUserId}`);
+      .select('id, game_type, from_user_id, to_user_id, current_turn_user_id, status, game_state')
+      .in('status', ['playing', 'accepted'])
+      .or(`from_user_id.eq.${currentUserId},to_user_id.eq.${currentUserId}`);
 
     if (data && data.length > 0) {
-      // Get all opponent IDs
       const opponentIds = data.map((c: any) => 
-        c.challenger_id === currentUserId ? c.opponent_id : c.challenger_id
+        c.from_user_id === currentUserId ? c.to_user_id : c.from_user_id
       );
 
-      // Fetch opponent profiles from user_profiles
       const { data: profiles } = await supabase
         .from('user_profiles')
         .select('id, username')
@@ -63,9 +71,10 @@ export function HomeScreen({ onPlayMatch }: HomeScreenProps) {
       const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
 
       const matches = data.map((c: any) => {
-        const isChallenger = c.challenger_id === currentUserId;
-        const opponentId = isChallenger ? c.opponent_id : c.challenger_id;
+        const isChallenger = c.from_user_id === currentUserId;
+        const opponentId = isChallenger ? c.to_user_id : c.from_user_id;
         const opponentProfile = profileMap.get(opponentId);
+        const gs = c.game_state || {};
         
         return {
           id: c.id,
@@ -74,9 +83,9 @@ export function HomeScreen({ onPlayMatch }: HomeScreenProps) {
           opponent: opponentProfile?.username || 'Joueur',
           opponentAvatar: '🎮',
           opponentId,
-          isMyTurn: c.current_turn === currentUserId,
-          myScore: isChallenger ? c.challenger_score : c.opponent_score,
-          opponentScore: isChallenger ? c.opponent_score : c.challenger_score,
+          isMyTurn: c.current_turn_user_id === currentUserId,
+          myScore: isChallenger ? (gs.challenger_score || 0) : (gs.opponent_score || 0),
+          opponentScore: isChallenger ? (gs.opponent_score || 0) : (gs.challenger_score || 0),
         };
       });
       setActiveMatches(matches);
@@ -115,6 +124,89 @@ export function HomeScreen({ onPlayMatch }: HomeScreenProps) {
       nour: 'NourArchery',
     };
     return names[gameType] || gameType;
+  }
+
+  async function openGamePicker(gameId: string, gameName: string) {
+    setSelectedGame({ id: gameId, name: gameName });
+    setLoadingFriends(true);
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Get accepted friendships (both directions)
+    const { data: sent } = await supabase
+      .from('friendships')
+      .select('friend_id')
+      .eq('user_id', user.id)
+      .eq('status', 'accepted');
+
+    const { data: received } = await supabase
+      .from('friendships')
+      .select('user_id')
+      .eq('friend_id', user.id)
+      .eq('status', 'accepted');
+
+    const friendIds = [
+      ...(sent || []).map((f: any) => f.friend_id),
+      ...(received || []).map((f: any) => f.user_id),
+    ];
+
+    if (friendIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('user_profiles')
+        .select('id, username')
+        .in('id', friendIds);
+
+      setFriends((profiles || []).map((p: any) => ({
+        id: p.id,
+        username: p.username,
+        avatar: '🎮',
+      })));
+    } else {
+      setFriends([]);
+    }
+    setLoadingFriends(false);
+  }
+
+  async function startGameWithFriend(friendId: string) {
+    if (!selectedGame || creatingGame) return;
+    setCreatingGame(true);
+
+    try {
+      const { data: challenge, error } = await supabase
+        .from('challenges')
+        .insert({
+          game_type: selectedGame.id,
+          from_user_id: userId,
+          to_user_id: friendId,
+          current_turn_user_id: userId,
+          status: 'playing',
+          game_state: {},
+        })
+        .select('id')
+        .single();
+
+      if (error) throw error;
+
+      setSelectedGame(null);
+      setCreatingGame(false);
+
+      // Launch the game
+      onPlayMatch?.({
+        id: challenge.id,
+        gameId: selectedGame.id as any,
+        gameName: selectedGame.name,
+        opponent: '',
+        opponentAvatar: '🎮',
+        opponentId: friendId,
+        isMyTurn: true,
+        myScore: 0,
+        opponentScore: 0,
+      });
+    } catch (err) {
+      console.error('Error creating challenge:', err);
+      setCreatingGame(false);
+    }
   }
 
   return (
@@ -246,6 +338,7 @@ export function HomeScreen({ onPlayMatch }: HomeScreenProps) {
                 transition={{ delay: 0.25 + index * 0.05 }}
                 whileHover={{ scale: 1.03, y: -2 }}
                 whileTap={{ scale: 0.98 }}
+                onClick={() => openGamePicker(game.id, game.name)}
                 className="p-4 rounded-2xl text-center border border-white/10 relative overflow-hidden group"
                 style={{
                   background: 'rgba(255, 255, 255, 0.03)',
@@ -386,6 +479,108 @@ export function HomeScreen({ onPlayMatch }: HomeScreenProps) {
         </motion.div>
         )}
       </div>
+
+      {/* FRIEND PICKER MODAL */}
+      <AnimatePresence>
+        {selectedGame && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(0, 0, 0, 0.7)', backdropFilter: 'blur(8px)' }}
+            onClick={() => !creatingGame && setSelectedGame(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm rounded-2xl border border-white/10 overflow-hidden"
+              style={{
+                background: 'rgba(15, 23, 42, 0.95)',
+                backdropFilter: 'blur(20px)',
+              }}
+            >
+              {/* Header */}
+              <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10">
+                    <GameIcon type={selectedGame.id} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                      {selectedGame.name}
+                    </h3>
+                    <p className="text-xs text-white/50" style={{ fontFamily: 'Inter, sans-serif' }}>
+                      Choisis un ami à défier
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedGame(null)}
+                  className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+                >
+                  <X size={20} className="text-white/50" />
+                </button>
+              </div>
+
+              {/* Friend List */}
+              <div className="p-3 max-h-[50vh] overflow-y-auto space-y-2">
+                {loadingFriends && (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="animate-spin text-emerald-400" size={24} />
+                    <span className="ml-2 text-sm text-white/50" style={{ fontFamily: 'Inter, sans-serif' }}>
+                      Chargement...
+                    </span>
+                  </div>
+                )}
+
+                {!loadingFriends && friends.length === 0 && (
+                  <div className="text-center py-8">
+                    <p className="text-4xl mb-3">👥</p>
+                    <p className="text-sm text-white/50" style={{ fontFamily: 'Inter, sans-serif' }}>
+                      Ajoute des amis pour pouvoir les défier !
+                    </p>
+                  </div>
+                )}
+
+                {!loadingFriends && friends.map((friend) => (
+                  <motion.button
+                    key={friend.id}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => startGameWithFriend(friend.id)}
+                    disabled={creatingGame}
+                    className="w-full p-3 rounded-xl flex items-center gap-3 transition-colors"
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                    }}
+                  >
+                    <div
+                      className="w-11 h-11 rounded-full flex items-center justify-center text-xl flex-shrink-0"
+                      style={{ background: `${colors.primary}20` }}
+                    >
+                      {friend.avatar}
+                    </div>
+                    <span className="font-semibold text-white flex-1 text-left" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                      {friend.username}
+                    </span>
+                    <div
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white"
+                      style={{ background: colors.gradient }}
+                    >
+                      <Swords size={14} />
+                      Défier
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
