@@ -71,10 +71,10 @@ export function GameLobby({ game, currentUserId, currentUserName, onStart, onBac
   };
 
   const gameMeta = {
-    sandy: { name: 'SANDYPONG', emoji: '🏖️', subtitle: 'Beer Pong Plage' },
-    liliano: { name: 'LILIANOTHUNDER', emoji: '⚡', subtitle: 'Tanks Tonnerre' },
-    lea: { name: 'LÉANAVAL', emoji: '⚓', subtitle: 'Bataille Navale' },
-    nour: { name: 'NOURARCHERY', emoji: '🏹', subtitle: 'Tir à l\'arc' },
+    sandy: { name: 'SANDYPONG', emoji: '🥂', subtitle: 'Rosé Pong' },
+    liliano: { name: 'LILIANOTHUNDER', emoji: '⚡', subtitle: 'Punk Rock Artillery' },
+    lea: { name: 'LÉANAVAL', emoji: '🍷', subtitle: 'Vin & Peinture' },
+    nour: { name: 'NOURARCHERY', emoji: '💊', subtitle: 'Matrix Protocol' },
   }[game.game_type];
 
   return (

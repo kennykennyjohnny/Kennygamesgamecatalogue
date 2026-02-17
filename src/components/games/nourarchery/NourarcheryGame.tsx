@@ -1,485 +1,487 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 
-// ── NOUR ARCHERY — Immersive POV Archery ─────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// NOUR ARCHERY — Tir à l'arc thème MATRIX / NÉO
+// Code vert qui tombe, style digital hacker, flèches = projectiles de données
+// POV avec arc cybernétique, cible holographique
+// ═══════════════════════════════════════════════════════════════════════════
 
-const TOTAL_ROUNDS = 3;
+const ROUNDS = 5;
 const ARROWS_PER_ROUND = 3;
-const W = 400;
-const H = 550;
-const TARGET_CX = W / 2;
-const TARGET_CY = 200;
-const TARGET_R = 100;
 
-const RINGS = [
-  { r: 1.0, score: 1,  fill: '#e2e8f0', stroke: '#cbd5e1' },
-  { r: 0.82, score: 2, fill: '#dbeafe', stroke: '#93c5fd' },
-  { r: 0.64, score: 3, fill: '#93c5fd', stroke: '#60a5fa' },
-  { r: 0.46, score: 5, fill: '#ef4444', stroke: '#dc2626' },
-  { r: 0.28, score: 8, fill: '#dc2626', stroke: '#b91c1c' },
-  { r: 0.12, score: 10, fill: '#fbbf24', stroke: '#f59e0b' },
-];
-
-const C = {
-  bg: '#0f1b12',
-  sky: 'linear-gradient(180deg, #1a2e1c 0%, #243524 40%, #1a2e1c 100%)',
-  accent: '#4ade80',
-  gold: '#fbbf24',
-  text: '#d1fae5',
-  dim: 'rgba(74,222,128,0.5)',
-  glass: 'rgba(15,27,18,0.85)',
-  border: 'rgba(74,222,128,0.2)',
+const P = {
+  bg: '#0a0a0a',
+  matrix: '#00ff41',
+  matrixDim: 'rgba(0,255,65,0.15)',
+  matrixDark: 'rgba(0,255,65,0.06)',
+  cyan: '#00e5ff',
+  text: '#c0ffc0',
+  dim: 'rgba(0,255,65,0.35)',
+  accent: '#00ff41',
+  red: '#ff2244',
 };
 
-// Deterministic wind
-function getWind(gameId: string, round: number): { x: number; y: number; speed: number; dir: string } {
-  let h = 0;
-  const s = `${gameId}-r${round}`;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
-  const wx = ((h & 0xff) / 255 - 0.5) * 2;
-  const wy = (((h >> 8) & 0xff) / 255 - 0.5) * 2;
-  const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
-  const a = Math.atan2(-wy, wx);
-  const idx = Math.round(((a + Math.PI) / (Math.PI * 2)) * 8) % 8;
-  const speed = Math.sqrt(wx * wx + wy * wy);
-  return { x: wx * 18, y: wy * 18, speed, dir: dirs[idx] };
+// Matrix rain characters
+const CHARS = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789ABCDEF';
+
+function MatrixRain({ width, height }: { width: number; height: number }) {
+  const cols = Math.floor(width / 14);
+  return (
+    <g opacity={0.3}>
+      {Array.from({ length: cols }, (_, i) => {
+        const x = i * 14 + 7;
+        const len = 4 + Math.floor(Math.random() * 8);
+        const startY = Math.random() * height;
+        const speed = 2 + Math.random() * 4;
+        return (
+          <g key={i}>
+            {Array.from({ length: len }, (_, j) => (
+              <text key={j} x={x} y={(startY + j * 14) % height}
+                fill={j === 0 ? '#ffffff' : P.matrix}
+                fontSize={10} fontFamily="monospace"
+                opacity={1 - j / len}>
+                {CHARS[Math.floor(Math.random() * CHARS.length)]}
+              </text>
+            ))}
+          </g>
+        );
+      })}
+    </g>
+  );
 }
 
-interface Props {
-  gameId: string; playerId: string; opponentId: string;
-  isPlayerTurn: boolean; gameState: any;
-  onMove: (data: any) => void; onGameOver: (data: any) => void;
+// ── Holographic Target ───────────────────────────────────────────────────────
+
+function HoloTarget({ cx, cy, size, wind }: { cx: number; cy: number; size: number; wind: number }) {
+  const rings = [
+    { r: size, color: 'rgba(0,255,65,0.05)', stroke: 'rgba(0,255,65,0.2)', label: '1' },
+    { r: size * 0.78, color: 'rgba(0,255,65,0.08)', stroke: 'rgba(0,255,65,0.3)', label: '3' },
+    { r: size * 0.56, color: 'rgba(0,229,255,0.06)', stroke: 'rgba(0,229,255,0.3)', label: '5' },
+    { r: size * 0.36, color: 'rgba(0,229,255,0.1)', stroke: 'rgba(0,229,255,0.4)', label: '7' },
+    { r: size * 0.18, color: 'rgba(255,0,100,0.08)', stroke: '#ff0064', label: '10' },
+  ];
+
+  return (
+    <g>
+      {/* Scan lines */}
+      {Array.from({ length: 5 }, (_, i) => (
+        <line key={i} x1={cx - size - 5} y1={cy - size + i * size * 0.5}
+          x2={cx + size + 5} y2={cy - size + i * size * 0.5}
+          stroke={P.matrixDark} strokeWidth={0.3} />
+      ))}
+
+      {/* Target rings */}
+      {rings.map(({ r, color, stroke }, i) => (
+        <g key={i}>
+          <circle cx={cx} cy={cy} r={r} fill={color} stroke={stroke} strokeWidth={0.5}
+            strokeDasharray={i < 2 ? '2,2' : 'none'} />
+        </g>
+      ))}
+
+      {/* Cross hairs */}
+      <line x1={cx - size - 3} y1={cy} x2={cx + size + 3} y2={cy} stroke={P.matrixDim} strokeWidth={0.3} />
+      <line x1={cx} y1={cy - size - 3} x2={cx} y2={cy + size + 3} stroke={P.matrixDim} strokeWidth={0.3} />
+
+      {/* Center bullseye glow */}
+      <circle cx={cx} cy={cy} r={size * 0.06} fill={P.red} opacity={0.8}>
+        <animate attributeName="opacity" values="0.5;1;0.5" dur="1.5s" repeatCount="indefinite" />
+      </circle>
+
+      {/* Wind indicator */}
+      <g transform={`translate(${cx}, ${cy + size + 12})`}>
+        <text x={0} y={0} textAnchor="middle" fill={P.dim} fontSize={6} fontFamily="monospace">
+          WIND {wind > 0 ? '→' : '←'} {Math.abs(wind).toFixed(1)}
+        </text>
+      </g>
+
+      {/* Digital frame */}
+      <rect x={cx - size - 3} y={cy - size - 3} width={(size + 3) * 2} height={(size + 3) * 2}
+        fill="none" stroke={P.matrixDim} strokeWidth={0.3} rx={2} />
+
+      {/* Corner brackets */}
+      {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([dx, dy], i) => (
+        <g key={i}>
+          <line x1={cx + dx * (size + 3)} y1={cy + dy * (size + 3)}
+            x2={cx + dx * (size + 3)} y2={cy + dy * (size - 2)}
+            stroke={P.matrix} strokeWidth={0.5} />
+          <line x1={cx + dx * (size + 3)} y1={cy + dy * (size + 3)}
+            x2={cx + dx * (size - 2)} y2={cy + dy * (size + 3)}
+            stroke={P.matrix} strokeWidth={0.5} />
+        </g>
+      ))}
+    </g>
+  );
 }
 
-export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayerTurn, gameState, onMove, onGameOver }: Props) {
-  const [round, setRound] = useState(0);
-  const [arrowInRound, setArrowInRound] = useState(0);
-  const [myScores, setMyScores] = useState<number[]>([]);
-  const [opScores, setOpScores] = useState<number[]>([]);
-  const [myArrows, setMyArrows] = useState<{ x: number; y: number; score: number }[]>([]);
-  const [aiming, setAiming] = useState(false);
-  const [aimPos, setAimPos] = useState({ x: 0, y: 0 });
-  const [drawStrength, setDrawStrength] = useState(0); // 0-1 how far pulled back
-  const [arrowFlight, setArrowFlight] = useState<{ t: number; targetX: number; targetY: number; score: number } | null>(null);
-  const [flying, setFlying] = useState(false);
-  const [showScore, setShowScore] = useState<{ x: number; y: number; score: number } | null>(null);
-  const [gameOver, setGameOverState] = useState(false);
-  const [winner, setWinner] = useState<string | null>(null);
+// ── Cyber Bow ────────────────────────────────────────────────────────────────
+
+function CyberBow({ drawPct }: { drawPct: number }) {
+  const bowH = 60;
+  const bowX = 50;
+  const bowY = 85;
+  const curveBack = 8 + drawPct * 4;
+  const stringBack = drawPct * 12;
+
+  return (
+    <g>
+      {/* Bow limbs — neon wireframe */}
+      <path d={`M ${bowX} ${bowY - bowH / 2} Q ${bowX + curveBack} ${bowY} ${bowX} ${bowY + bowH / 2}`}
+        fill="none" stroke={P.matrix} strokeWidth={1.2} opacity={0.8} />
+      <path d={`M ${bowX} ${bowY - bowH / 2} Q ${bowX + curveBack + 1} ${bowY} ${bowX} ${bowY + bowH / 2}`}
+        fill="none" stroke={P.cyan} strokeWidth={0.3} opacity={0.4} />
+
+      {/* Bow tips - data nodes */}
+      <circle cx={bowX} cy={bowY - bowH / 2} r={1.5} fill={P.matrix} opacity={0.9} />
+      <circle cx={bowX} cy={bowY + bowH / 2} r={1.5} fill={P.matrix} opacity={0.9} />
+
+      {/* String */}
+      <line x1={bowX} y1={bowY - bowH / 2} x2={bowX - stringBack} y2={bowY}
+        stroke={P.cyan} strokeWidth={0.5} opacity={0.7} />
+      <line x1={bowX - stringBack} y1={bowY} x2={bowX} y2={bowY + bowH / 2}
+        stroke={P.cyan} strokeWidth={0.5} opacity={0.7} />
+
+      {/* Nock point (where arrow meets string) */}
+      {drawPct > 0 && (
+        <circle cx={bowX - stringBack} cy={bowY} r={1} fill={P.cyan} opacity={0.9}>
+          <animate attributeName="opacity" values="0.5;1;0.5" dur="0.5s" repeatCount="indefinite" />
+        </circle>
+      )}
+
+      {/* Arrow — data projectile */}
+      {drawPct > 0 && (
+        <g>
+          <line x1={bowX - stringBack} y1={bowY} x2={bowX - stringBack - 15} y2={bowY}
+            stroke={P.cyan} strokeWidth={0.6} />
+          {/* Arrow head — digital */}
+          <polygon points={`${bowX - stringBack - 15},${bowY - 1.5} ${bowX - stringBack - 18},${bowY} ${bowX - stringBack - 15},${bowY + 1.5}`}
+            fill={P.cyan} />
+        </g>
+      )}
+
+      {/* HUD around bow */}
+      {drawPct > 0 && (
+        <text x={bowX + 8} y={bowY} fill={P.dim} fontSize={4} fontFamily="monospace">
+          PWR {Math.round(drawPct * 100)}%
+        </text>
+      )}
+    </g>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+
+export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayerTurn, gameState, onMove, onGameOver }: any) {
+  const [round, setRound] = useState(1);
+  const [arrow, setArrow] = useState(1);
+  const [myScore, setMyScore] = useState(0);
+  const [opScore, setOpScore] = useState(0);
+  const [drawing, setDrawing] = useState(false);
+  const [drawPct, setDrawPct] = useState(0);
+  const [aimAngle, setAimAngle] = useState({ x: 0, y: 0 });
+  const [firing, setFiring] = useState(false);
+  const [arrowFly, setArrowFly] = useState<{ t: number; sx: number; sy: number; ex: number; ey: number } | null>(null);
+  const [hitPos, setHitPos] = useState<{ x: number; y: number; score: number } | null>(null);
+  const [arrows, setArrows] = useState<{ x: number; y: number; score: number }[]>([]);
+  const [wind, setWind] = useState(0);
+  const [over, setOver] = useState(false);
+  const [win, setWin] = useState<string | null>(null);
+  const [opInfo, setOpInfo] = useState<string | null>(null);
 
   const svgRef = useRef<SVGSVGElement>(null);
-  const animRef = useRef<number>(0);
-  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const drawTimer = useRef<ReturnType<typeof setInterval>>();
+  const raf = useRef<number>(0);
+  const infoT = useRef<ReturnType<typeof setTimeout>>();
 
-  const totalMyScore = myScores.reduce((a, b) => a + b, 0);
-  const totalOpScore = opScores.reduce((a, b) => a + b, 0);
-  const totalArrows = TOTAL_ROUNDS * ARROWS_PER_ROUND;
-  const allDone = myScores.length >= totalArrows;
-  const wind = useMemo(() => getWind(gameId, round), [gameId, round]);
+  // Deterministic wind from gameId + round
+  useEffect(() => {
+    let h = 0;
+    const seed = `${gameId}-${round}`;
+    for (let i = 0; i < seed.length; i++) h = ((h << 5) - h + seed.charCodeAt(i)) | 0;
+    setWind(((h % 100) / 100) * 6 - 3);
+  }, [gameId, round]);
 
-  // ── Opponent sync ──────────────────────────────────────────────────────────
+  // ── Sync ───────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!gameState?.lastMove) return;
     const m = gameState.lastMove;
-    if (m.playerId === playerId || m.type !== 'arrow') return;
-    setOpScores(prev => [...prev, m.score]);
+    if (m.playerId === playerId) return;
+
+    if (m.type === 'shoot') {
+      setOpScore(prev => prev + m.score);
+      setOpInfo(`⚡ ${m.score} pts`);
+      if (infoT.current) clearTimeout(infoT.current);
+      infoT.current = setTimeout(() => setOpInfo(null), 1500);
+
+      // Check game end
+      if (m.round === ROUNDS && m.arrow === ARROWS_PER_ROUND) {
+        setTimeout(() => {
+          const finalOp = opScore + m.score;
+          if (myScore > finalOp) {
+            setOver(true); setWin(playerId);
+            onGameOver({ winner_id: playerId });
+          } else if (finalOp > myScore) {
+            setOver(true); setWin(opponentId);
+          } else {
+            // Tie — sudden death would go here
+            setOver(true); setWin(myScore >= finalOp ? playerId : opponentId);
+            if (myScore >= finalOp) onGameOver({ winner_id: playerId });
+          }
+        }, 1000);
+      }
+    }
   }, [gameState?.lastMove]);
 
-  useEffect(() => {
-    if (!allDone || opScores.length < totalArrows) return;
-    setGameOverState(true);
-    const w = totalMyScore > totalOpScore ? playerId : totalMyScore < totalOpScore ? opponentId : null;
-    setWinner(w);
-    if (w === playerId) onGameOver({ winner_id: playerId });
-  }, [myScores, opScores, allDone, totalArrows]);
+  useEffect(() => () => {
+    if (drawTimer.current) clearInterval(drawTimer.current);
+    cancelAnimationFrame(raf.current);
+    if (infoT.current) clearTimeout(infoT.current);
+  }, []);
 
-  // ── Drag-to-aim (pull back from target area) ──────────────────────────────
+  // ── Aim & Shoot ────────────────────────────────────────────────────────────
 
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    if (!isPlayerTurn || flying || allDone || gameOver) return;
-    const rect = svgRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const x = (e.clientX - rect.left) / rect.width * W;
-    const y = (e.clientY - rect.top) / rect.height * H;
-    dragStartRef.current = { x, y };
-    setAiming(true);
-    setAimPos({ x: x - TARGET_CX, y: y - TARGET_CY });
-    setDrawStrength(0);
-  }, [isPlayerTurn, flying, allDone, gameOver]);
+  const targetCX = 50;
+  const targetCY = 32;
+  const targetR = 18;
 
-  const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!aiming || !dragStartRef.current) return;
-    const rect = svgRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const x = (e.clientX - rect.left) / rect.width * W;
-    const y = (e.clientY - rect.top) / rect.height * H;
-    // Aim is where the arrow goes (opposite of pull)
-    const dx = dragStartRef.current.x - x;
-    const dy = dragStartRef.current.y - y;
-    setAimPos({ x: dx * 0.6, y: dy * 0.6 });
-    setDrawStrength(Math.min(Math.sqrt(dx * dx + dy * dy) / 200, 1));
-  }, [aiming]);
+  const getPos = (e: React.MouseEvent | React.TouchEvent) => {
+    const svg = svgRef.current;
+    if (!svg) return { x: 50, y: 50 };
+    const rect = svg.getBoundingClientRect();
+    const cx = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const cy = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    return { x: (cx - rect.left) / rect.width * 100, y: (cy - rect.top) / rect.height * 100 };
+  };
 
-  const handlePointerUp = useCallback(() => {
-    if (!aiming) return;
-    setAiming(false);
-    dragStartRef.current = null;
+  const startDraw = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!isPlayerTurn || firing || over) return;
+    const p = getPos(e);
+    if (p.y < 55) return; // only from bottom half
+    setDrawing(true);
+    setDrawPct(0);
+    drawTimer.current = setInterval(() => {
+      setDrawPct(prev => Math.min(prev + 0.025, 1));
+    }, 30);
+  };
 
-    if (drawStrength < 0.1) { setDrawStrength(0); return; } // too weak
+  const moveAim = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!drawing) return;
+    e.preventDefault();
+    const p = getPos(e);
+    // Aim: how much offset from center (subtle aiming)
+    setAimAngle({ x: (p.x - 50) / 50, y: (p.y - 50) / 50 });
+  };
 
-    // Apply wind
-    const fx = aimPos.x + wind.x * drawStrength;
-    const fy = aimPos.y + wind.y * drawStrength;
+  const release = () => {
+    if (!drawing) return;
+    setDrawing(false);
+    if (drawTimer.current) clearInterval(drawTimer.current);
+    fire();
+  };
 
-    // Score
-    const dist = Math.sqrt(fx * fx + fy * fy);
-    const ratio = dist / TARGET_R;
+  const fire = useCallback(() => {
+    if (firing) return;
+    setFiring(true);
+
+    const power = drawPct;
+    const aimX = aimAngle.x;
+    const aimY = aimAngle.y;
+
+    // Calculate hit position (arrow aim + wind + power influence)
+    const hitX = targetCX + aimX * targetR * 0.6 + wind * (1 - power) * 3 + (Math.random() - 0.5) * (1 - power) * targetR * 0.8;
+    const hitY = targetCY + aimY * targetR * 0.3 + (Math.random() - 0.5) * (1 - power) * targetR * 0.6;
+
+    // Score based on distance from center
+    const dist = Math.sqrt((hitX - targetCX) ** 2 + (hitY - targetCY) ** 2);
     let score = 0;
-    for (const ring of RINGS) {
-      if (ratio <= ring.r) score = ring.score;
-    }
+    if (dist < targetR * 0.18) score = 10;
+    else if (dist < targetR * 0.36) score = 7;
+    else if (dist < targetR * 0.56) score = 5;
+    else if (dist < targetR * 0.78) score = 3;
+    else if (dist < targetR) score = 1;
 
     // Animate arrow flight
-    setFlying(true);
-    const targetX = TARGET_CX + fx;
-    const targetY = TARGET_CY + fy;
-    let t = 0;
-    const step = () => {
-      t += 0.04;
-      setArrowFlight({ t: Math.min(t, 1), targetX, targetY, score });
-      if (t >= 1) {
-        setFlying(false);
-        setArrowFlight(null);
-        // Land
-        setMyArrows(prev => [...prev, { x: fx, y: fy, score }]);
-        setMyScores(prev => [...prev, score]);
-        setShowScore({ x: targetX, y: targetY, score });
-        setTimeout(() => setShowScore(null), 1200);
+    const sx = 38; // bow position
+    const sy = 85;
+    setArrowFly({ t: 0, sx, sy, ex: hitX, ey: hitY });
 
-        const nextArr = arrowInRound + 1;
-        if (nextArr >= ARROWS_PER_ROUND) {
-          setArrowInRound(0);
-          setRound(prev => prev + 1);
-          setTimeout(() => setMyArrows([]), 1500);
-        } else {
-          setArrowInRound(nextArr);
-        }
+    const start = performance.now();
+    const dur = 400 + (1 - power) * 200;
 
-        onMove({ type: 'arrow', score, x: fx, y: fy, round, arrowInRound: nextArr });
-        return;
+    const animate = (now: number) => {
+      const t = Math.min(1, (now - start) / dur);
+      setArrowFly(prev => prev ? { ...prev, t } : null);
+
+      if (t < 1) {
+        raf.current = requestAnimationFrame(animate);
+      } else {
+        setArrowFly(null);
+        setHitPos({ x: hitX, y: hitY, score });
+        setArrows(prev => [...prev, { x: hitX, y: hitY, score }]);
+        setMyScore(prev => prev + score);
+
+        onMove({
+          type: 'shoot',
+          round, arrow, score,
+          hitX, hitY,
+          _keepTurn: arrow < ARROWS_PER_ROUND,
+        });
+
+        setTimeout(() => {
+          setHitPos(null);
+          setFiring(false);
+          setDrawPct(0);
+          setAimAngle({ x: 0, y: 0 });
+
+          if (arrow < ARROWS_PER_ROUND) {
+            setArrow(a => a + 1);
+          } else if (round < ROUNDS) {
+            setRound(r => r + 1);
+            setArrow(1);
+            setArrows([]);
+          }
+          // else: wait for opponent's last arrows, then check end
+        }, 600);
       }
-      animRef.current = requestAnimationFrame(step);
     };
-    animRef.current = requestAnimationFrame(step);
-    setDrawStrength(0);
-  }, [aiming, drawStrength, aimPos, wind, round, arrowInRound, onMove]);
 
-  useEffect(() => () => { if (animRef.current) cancelAnimationFrame(animRef.current); }, []);
+    raf.current = requestAnimationFrame(animate);
+  }, [firing, drawPct, aimAngle, wind, round, arrow, onMove]);
 
-  // ── Arrow flight position ──────────────────────────────────────────────────
-
-  let flightSvg = null;
-  if (arrowFlight) {
-    const { t, targetX, targetY } = arrowFlight;
-    // Arrow starts from bottom center, flies to target with scaling
-    const sx = W / 2, sy = H - 40;
-    const cx = sx + (targetX - sx) * t;
-    const cy = sy + (targetY - sy) * t;
-    const scale = 1 - t * 0.6; // gets smaller as it goes away
-    const arrowLen = 20 * scale;
-    const angle = Math.atan2(targetY - sy, targetX - sx);
-
-    flightSvg = (
-      <g>
-        {/* Arrow shaft */}
-        <line
-          x1={cx - Math.cos(angle) * arrowLen} y1={cy - Math.sin(angle) * arrowLen}
-          x2={cx} y2={cy}
-          stroke="#854d0e" strokeWidth={2.5 * scale} strokeLinecap="round"
-        />
-        {/* Arrowhead */}
-        <polygon
-          points={`${cx},${cy} ${cx - Math.cos(angle - 0.4) * 8 * scale},${cy - Math.sin(angle - 0.4) * 8 * scale} ${cx - Math.cos(angle + 0.4) * 8 * scale},${cy - Math.sin(angle + 0.4) * 8 * scale}`}
-          fill={C.accent}
-        />
-        {/* Fletching */}
-        <line
-          x1={cx - Math.cos(angle) * arrowLen} y1={cy - Math.sin(angle) * arrowLen}
-          x2={cx - Math.cos(angle) * arrowLen - Math.cos(angle + 0.5) * 6 * scale}
-          y2={cy - Math.sin(angle) * arrowLen - Math.sin(angle + 0.5) * 6 * scale}
-          stroke={C.accent} strokeWidth={1.5 * scale}
-        />
-        <line
-          x1={cx - Math.cos(angle) * arrowLen} y1={cy - Math.sin(angle) * arrowLen}
-          x2={cx - Math.cos(angle) * arrowLen - Math.cos(angle - 0.5) * 6 * scale}
-          y2={cy - Math.sin(angle) * arrowLen - Math.sin(angle - 0.5) * 6 * scale}
-          stroke={C.accent} strokeWidth={1.5 * scale}
-        />
-      </g>
-    );
-  }
+  const font = "'Courier New', monospace";
 
   return (
-    <div style={{
-      minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
-      justifyContent: 'center', background: C.bg, fontFamily: '-apple-system, sans-serif',
-      padding: 12, userSelect: 'none',
-    }}>
-      {/* Header */}
-      <motion.h1
-        initial={{ y: -12, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-        style={{
-          fontSize: 22, fontWeight: 900, marginBottom: 2,
-          background: 'linear-gradient(135deg, #4ade80, #fbbf24)',
-          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-        }}
-      >🏹 NOUR ARCHERY</motion.h1>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
+      background: P.bg, fontFamily: font, overflow: 'hidden', touchAction: 'none' }}>
 
-      {/* Scores */}
-      <div style={{ display: 'flex', gap: 16, marginBottom: 4, alignItems: 'center' }}>
+      {/* HUD Header */}
+      <div style={{ padding: '8px 12px 4px', width: '100%', maxWidth: 500,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h1 style={{ fontSize: 18, fontWeight: 900, color: P.matrix, margin: 0, letterSpacing: 2 }}>
+            {'>'} NOUR_ARCHERY
+          </h1>
+          <div style={{ fontSize: 9, color: P.dim, letterSpacing: 1 }}>MATRIX PROTOCOL v2.1</div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: 11, color: P.matrix }}>R{round}/{ROUNDS} • A{arrow}/{ARROWS_PER_ROUND}</div>
+          <div style={{ fontSize: 10, color: P.dim }}>WIND: {wind.toFixed(1)}</div>
+        </div>
+      </div>
+
+      {/* Score bar */}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 20, padding: '2px 0 6px', width: '100%' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: C.dim, textTransform: 'uppercase' }}>Toi</div>
-          <div style={{ fontSize: 26, fontWeight: 900, color: C.accent }}>{totalMyScore}</div>
+          <div style={{ fontSize: 9, color: P.dim, letterSpacing: 2 }}>YOU</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: P.matrix }}>{myScore}</div>
         </div>
-        <div style={{
-          fontSize: 11, fontWeight: 700, color: C.dim, padding: '3px 10px', borderRadius: 8,
-          background: C.glass, border: `1px solid ${C.border}`,
-        }}>
-          R{Math.min(round + 1, TOTAL_ROUNDS)} • {Math.min(arrowInRound + 1, ARROWS_PER_ROUND)}/{ARROWS_PER_ROUND}
-        </div>
+        <div style={{ fontSize: 12, color: P.dim, alignSelf: 'center' }}>VS</div>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: C.dim, textTransform: 'uppercase' }}>Adversaire</div>
-          <div style={{ fontSize: 26, fontWeight: 900, color: '#ef4444' }}>{totalOpScore}</div>
+          <div style={{ fontSize: 9, color: P.dim, letterSpacing: 2 }}>OPP</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: P.red }}>{opScore}</div>
         </div>
       </div>
 
-      {/* Wind + Turn */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 6, alignItems: 'center' }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: C.dim }}>
-          🌬️ {wind.dir} {(wind.speed * 10).toFixed(0)} km/h
-        </span>
-        <span style={{
-          fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
-          background: gameOver ? 'rgba(52,199,89,0.12)' : isPlayerTurn ? 'rgba(74,222,128,0.1)' : 'rgba(80,80,80,0.08)',
-          color: gameOver ? '#34C759' : isPlayerTurn ? C.accent : '#6b7280',
-          border: `1px solid ${gameOver ? 'rgba(52,199,89,0.2)' : C.border}`,
-        }}>
-          {gameOver
-            ? (winner === playerId ? '🏆 Victoire' : winner === null ? '🤝 Égalité' : '😔 Défaite')
-            : allDone ? '⏳ Adversaire...'
-              : isPlayerTurn ? '🎯 Tire !' : '⏳ Attends'}
-        </span>
-      </div>
+      {/* Status */}
+      <AnimatePresence mode="wait">
+        <motion.div key={over ? 'over' : isPlayerTurn ? 't' : 'w'} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+          style={{ padding: '2px 12px', borderRadius: 4, fontSize: 10, fontWeight: 700, marginBottom: 2,
+            background: 'rgba(0,255,65,0.05)', border: `1px solid ${P.matrixDim}`,
+            color: over ? (win === playerId ? P.matrix : P.red) : isPlayerTurn ? P.cyan : '#555',
+          }}>
+          {over ? (win === playerId ? '> ACCESS GRANTED - VICTORY' : '> CONNECTION LOST - DEFEAT')
+            : isPlayerTurn ? '> READY TO FIRE' : '> AWAITING OPPONENT...'}
+        </motion.div>
+      </AnimatePresence>
 
-      {/* Game area */}
-      <div style={{
-        borderRadius: 18, overflow: 'hidden', border: `1px solid ${C.border}`,
-        boxShadow: '0 0 30px rgba(74,222,128,0.06)',
-      }}>
-        <svg
-          ref={svgRef}
-          width={W} height={H} viewBox={`0 0 ${W} ${H}`}
-          onPointerDown={handlePointerDown as any}
-          onPointerMove={handlePointerMove as any}
-          onPointerUp={handlePointerUp}
-          style={{ display: 'block', touchAction: 'none', background: '#162215' }}
-        >
-          {/* Sky/forest bg */}
-          <rect width={W} height={H} fill="#0f1b12" />
-          {/* Trees silhouettes */}
-          <polygon points="0,120 20,40 40,120" fill="#0d1a0f" opacity={0.6} />
-          <polygon points="30,120 55,20 80,120" fill="#0d1a0f" opacity={0.5} />
-          <polygon points={`${W - 80},120 ${W - 55},25 ${W - 30},120`} fill="#0d1a0f" opacity={0.5} />
-          <polygon points={`${W - 40},120 ${W - 20},50 ${W},120`} fill="#0d1a0f" opacity={0.6} />
-          {/* Ground */}
-          <rect x={0} y={350} width={W} height={H - 350} fill="#14280f" opacity={0.5} />
-          <path d={`M0,355 Q${W * 0.25},348 ${W * 0.5},355 T${W},355`}
-            fill="none" stroke="#1a3315" strokeWidth={2} opacity={0.4} />
-
-          {/* Target stand */}
-          <rect x={TARGET_CX - 4} y={TARGET_CY + TARGET_R + 5} width={8} height={60}
-            fill="#5c3c1e" rx={2} />
-          <rect x={TARGET_CX - 3} y={TARGET_CY + TARGET_R + 5} width={3} height={60}
-            fill="#7c5a36" rx={1} opacity={0.5} />
-          <rect x={TARGET_CX - 20} y={TARGET_CY + TARGET_R + 60} width={40} height={8}
-            fill="#4a2d14" rx={3} />
-
-          {/* Target */}
-          {RINGS.map((ring, i) => (
-            <circle key={i} cx={TARGET_CX} cy={TARGET_CY} r={TARGET_R * ring.r}
-              fill={ring.fill} stroke={ring.stroke} strokeWidth={1.5} />
-          ))}
-          {/* Bullseye center */}
-          <circle cx={TARGET_CX} cy={TARGET_CY} r={TARGET_R * 0.04} fill="#fef3c7" />
-          {/* Target shadow */}
-          <ellipse cx={TARGET_CX} cy={TARGET_CY + TARGET_R + 8} rx={TARGET_R * 0.8} ry={4}
-            fill="rgba(0,0,0,0.2)" />
-
-          {/* Ring score labels */}
-          {RINGS.slice(0, 5).map((ring, i) => (
-            <text key={i} x={TARGET_CX + TARGET_R * ring.r + 4} y={TARGET_CY + 3}
-              fontSize={8} fontWeight={700} fill="rgba(0,0,0,0.3)">{ring.score}</text>
-          ))}
-
-          {/* Crosshair on target */}
-          <line x1={TARGET_CX} y1={TARGET_CY - TARGET_R - 8} x2={TARGET_CX} y2={TARGET_CY + TARGET_R + 8}
-            stroke="rgba(0,0,0,0.08)" strokeWidth={0.5} />
-          <line x1={TARGET_CX - TARGET_R - 8} y1={TARGET_CY} x2={TARGET_CX + TARGET_R + 8} y2={TARGET_CY}
-            stroke="rgba(0,0,0,0.08)" strokeWidth={0.5} />
-
-          {/* Landed arrows */}
-          {myArrows.map((arrow, i) => {
-            const ax = TARGET_CX + arrow.x;
-            const ay = TARGET_CY + arrow.y;
-            return (
-              <g key={i}>
-                {/* Arrow shaft sticking out */}
-                <line x1={ax} y1={ay} x2={ax + 4} y2={ay - 14}
-                  stroke="#854d0e" strokeWidth={2} strokeLinecap="round" />
-                {/* Fletching */}
-                <line x1={ax + 3} y1={ay - 11} x2={ax + 7} y2={ay - 16}
-                  stroke={C.accent} strokeWidth={1.5} />
-                <line x1={ax + 5} y1={ay - 13} x2={ax + 1} y2={ay - 18}
-                  stroke={C.accent} strokeWidth={1.5} />
-                {/* Entry point */}
-                <circle cx={ax} cy={ay} r={2.5} fill="rgba(0,0,0,0.5)" />
-              </g>
-            );
-          })}
-
-          {/* Aim crosshair when dragging */}
-          {aiming && (
-            <g>
-              <circle cx={TARGET_CX + aimPos.x} cy={TARGET_CY + aimPos.y} r={8}
-                fill="none" stroke={C.gold} strokeWidth={1.5} opacity={0.7} />
-              <line x1={TARGET_CX + aimPos.x} y1={TARGET_CY + aimPos.y - 12}
-                x2={TARGET_CX + aimPos.x} y2={TARGET_CY + aimPos.y + 12}
-                stroke={C.gold} strokeWidth={0.8} opacity={0.5} />
-              <line x1={TARGET_CX + aimPos.x - 12} y1={TARGET_CY + aimPos.y}
-                x2={TARGET_CX + aimPos.x + 12} y2={TARGET_CY + aimPos.y}
-                stroke={C.gold} strokeWidth={0.8} opacity={0.5} />
-              {/* Draw strength arc */}
-              <circle cx={W / 2} cy={H - 40} r={20 + drawStrength * 20}
-                fill="none" stroke={C.accent} strokeWidth={2} opacity={drawStrength * 0.6}
-                strokeDasharray={`${drawStrength * 130} 200`}
-              />
-            </g>
-          )}
-
-          {/* Arrow in flight */}
-          {flightSvg}
-
-          {/* Score popup */}
-          {showScore && (
-            <g>
-              <text x={showScore.x} y={showScore.y - 15}
-                textAnchor="middle" fontSize={22} fontWeight={900}
-                fill={showScore.score >= 8 ? C.gold : showScore.score >= 5 ? '#f59e0b' : C.accent}
-              >
-                +{showScore.score}
-                <animate attributeName="y" from={`${showScore.y - 10}`} to={`${showScore.y - 40}`} dur="0.8s" fill="freeze" />
-                <animate attributeName="opacity" from="1" to="0" dur="1s" fill="freeze" />
-              </text>
-            </g>
-          )}
-
-          {/* Bow at bottom (first person) */}
-          {!flying && isPlayerTurn && !gameOver && !allDone && (
-            <g opacity={0.6}>
-              {/* Bow arc */}
-              <path d={`M${W / 2 - 25},${H - 20} Q${W / 2},${H - 80 - drawStrength * 30} ${W / 2 + 25},${H - 20}`}
-                fill="none" stroke="#854d0e" strokeWidth={4} strokeLinecap="round" />
-              {/* String */}
-              <line x1={W / 2 - 25} y1={H - 20} x2={W / 2} y2={H - 40 + drawStrength * 30}
-                stroke="#d4d4d8" strokeWidth={1} />
-              <line x1={W / 2 + 25} y1={H - 20} x2={W / 2} y2={H - 40 + drawStrength * 30}
-                stroke="#d4d4d8" strokeWidth={1} />
-              {/* Nocking point / arrow on string */}
-              {aiming && (
-                <circle cx={W / 2} cy={H - 40 + drawStrength * 30} r={3} fill={C.accent} />
-              )}
-            </g>
-          )}
-
-          {/* Wind indicator arrow on field */}
-          <g transform={`translate(${W - 45}, 30)`} opacity={0.5}>
-            <text x={0} y={0} fontSize={9} fontWeight={700} fill={C.dim} textAnchor="middle">🌬️</text>
-            <line x1={0} y1={6} x2={wind.x * 1.5} y2={6 + wind.y * 1.5}
-              stroke={C.accent} strokeWidth={1.5} markerEnd="none" />
-            <circle cx={wind.x * 1.5} cy={6 + wind.y * 1.5} r={2} fill={C.accent} />
-          </g>
-        </svg>
-      </div>
-
-      {/* Arrow scores */}
-      <div style={{
-        display: 'flex', gap: 3, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 340,
-      }}>
-        {myScores.map((s, i) => (
-          <span key={i} style={{
-            width: 22, height: 22, borderRadius: 5, display: 'flex',
-            alignItems: 'center', justifyContent: 'center',
-            fontSize: 10, fontWeight: 800,
-            background: s >= 8 ? 'rgba(251,191,36,0.2)' : s >= 5 ? 'rgba(245,158,11,0.15)' : 'rgba(74,222,128,0.1)',
-            color: s >= 8 ? C.gold : s >= 5 ? '#f59e0b' : C.accent,
-            border: `1px solid ${s >= 8 ? 'rgba(251,191,36,0.3)' : C.border}`,
-          }}>{s}</span>
-        ))}
-        {Array.from({ length: totalArrows - myScores.length }, (_, i) => (
-          <span key={`e${i}`} style={{
-            width: 22, height: 22, borderRadius: 5, display: 'flex',
-            alignItems: 'center', justifyContent: 'center',
-            fontSize: 10, color: C.dim,
-            background: 'rgba(15,27,18,0.4)', border: `1px solid ${C.border}`,
-          }}>·</span>
-        ))}
-      </div>
-
-      {/* Instructions */}
-      {isPlayerTurn && !flying && !gameOver && !allDone && (
-        <p style={{ marginTop: 6, fontSize: 11, color: C.dim, fontWeight: 600 }}>
-          ☝️ Tire la corde vers l'arrière puis relâche
-        </p>
-      )}
-
-      {/* Game Over */}
+      {/* Opponent info */}
       <AnimatePresence>
-        {gameOver && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            style={{
-              position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'rgba(0,0,0,0.75)', zIndex: 100,
-            }}
-          >
-            <motion.div
-              initial={{ scale: 0.5 }} animate={{ scale: 1 }}
-              style={{
-                padding: '28px 44px', borderRadius: 24, textAlign: 'center',
-                background: C.glass, border: `1px solid ${C.border}`,
-              }}
-            >
-              <p style={{ fontSize: 48, marginBottom: 8 }}>
-                {winner === playerId ? '🏆' : winner === null ? '🤝' : '😔'}
-              </p>
-              <h2 style={{ fontSize: 22, fontWeight: 900, color: C.text, marginBottom: 6 }}>
-                {winner === playerId ? 'Victoire !' : winner === null ? 'Égalité !' : 'Défaite...'}
-              </h2>
-              <div style={{ display: 'flex', gap: 20, justifyContent: 'center' }}>
-                <div>
-                  <div style={{ fontSize: 10, color: C.dim }}>Toi</div>
-                  <div style={{ fontSize: 26, fontWeight: 900, color: C.accent }}>{totalMyScore}</div>
-                </div>
-                <div style={{ fontSize: 18, color: C.dim, alignSelf: 'center' }}>vs</div>
-                <div>
-                  <div style={{ fontSize: 10, color: C.dim }}>Adversaire</div>
-                  <div style={{ fontSize: 26, fontWeight: 900, color: '#ef4444' }}>{totalOpScore}</div>
-                </div>
-              </div>
-            </motion.div>
+        {opInfo && (
+          <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            style={{ padding: '2px 10px', borderRadius: 4, fontSize: 10, color: P.red,
+              background: 'rgba(255,0,0,0.05)', border: '1px solid rgba(255,0,0,0.15)' }}>
+            {opInfo}
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Game area */}
+      <div style={{ flex: 1, width: '100%', maxWidth: 500, position: 'relative' }}>
+        <svg ref={svgRef} viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"
+          style={{ width: '100%', height: '100%' }}
+          onMouseDown={startDraw} onMouseMove={moveAim} onMouseUp={release}
+          onTouchStart={startDraw} onTouchMove={moveAim} onTouchEnd={release}>
+
+          {/* Background — matrix code rain */}
+          <rect width="100" height="100" fill={P.bg} />
+          <MatrixRain width={100} height={100} />
+
+          {/* Grid lines */}
+          {Array.from({ length: 11 }, (_, i) => (
+            <g key={i}>
+              <line x1={0} y1={i * 10} x2={100} y2={i * 10} stroke={P.matrixDark} strokeWidth={0.2} />
+              <line x1={i * 10} y1={0} x2={i * 10} y2={100} stroke={P.matrixDark} strokeWidth={0.2} />
+            </g>
+          ))}
+
+          {/* Holographic target */}
+          <HoloTarget cx={targetCX} cy={targetCY} size={targetR} wind={wind} />
+
+          {/* Stuck arrows */}
+          {arrows.map((a, i) => (
+            <g key={i}>
+              <circle cx={a.x} cy={a.y} r={0.8} fill={P.cyan} opacity={0.7} />
+              <text x={a.x + 1.5} y={a.y - 1} fill={P.matrix} fontSize={3} fontFamily="monospace"
+                opacity={0.5}>{a.score}</text>
+            </g>
+          ))}
+
+          {/* Arrow in flight */}
+          {arrowFly && (() => {
+            const t = arrowFly.t;
+            const x = arrowFly.sx + (arrowFly.ex - arrowFly.sx) * t;
+            const y = arrowFly.sy + (arrowFly.ey - arrowFly.sy) * t - Math.sin(t * Math.PI) * 15;
+            return (
+              <g>
+                {/* Trail */}
+                <line x1={x + 3} y1={y + 2} x2={x + 8} y2={y + 6}
+                  stroke={P.cyan} strokeWidth={0.4} opacity={0.3} />
+                {/* Arrow */}
+                <circle cx={x} cy={y} r={1} fill={P.cyan} />
+                <circle cx={x} cy={y} r={2} fill="none" stroke={P.cyan} strokeWidth={0.2} opacity={0.3}>
+                  <animate attributeName="r" from="2" to="5" dur="0.3s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" from="0.3" to="0" dur="0.3s" repeatCount="indefinite" />
+                </circle>
+              </g>
+            );
+          })()}
+
+          {/* Hit impact */}
+          {hitPos && (
+            <g>
+              <motion.circle initial={{ r: 1, opacity: 1 }} animate={{ r: 6, opacity: 0 }}
+                transition={{ duration: 0.5 }}
+                cx={hitPos.x} cy={hitPos.y} fill="none" stroke={hitPos.score >= 7 ? P.red : P.matrix} strokeWidth={0.5} />
+              <motion.text initial={{ opacity: 0, y: hitPos.y }} animate={{ opacity: 1, y: hitPos.y - 4 }}
+                x={hitPos.x} textAnchor="middle" fill={hitPos.score >= 7 ? P.red : P.matrix}
+                fontSize={hitPos.score === 10 ? 6 : 5} fontFamily="monospace" fontWeight={900}>
+                +{hitPos.score}
+              </motion.text>
+            </g>
+          )}
+
+          {/* Cyber Bow */}
+          <CyberBow drawPct={drawPct} />
+
+          {/* Instruction */}
+          {isPlayerTurn && !drawing && !firing && !over && (
+            <text x="50" y="96" textAnchor="middle" fill={P.dim} fontSize="3" fontFamily="monospace">
+              {'>'} HOLD + AIM + RELEASE
+            </text>
+          )}
+        </svg>
+      </div>
     </div>
   );
 }

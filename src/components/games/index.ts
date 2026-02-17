@@ -2,10 +2,10 @@
  * KennyGames - Game Components Index
  * 
  * Exports all 4 adapted games:
- * - LéaNaval (Battleship - naval warfare)
- * - NourArchery (Forest archery with wind)
- * - SandyPong (Beach ball pong)
- * - LilianoThunder (Thunder tanks)
+ * - LéaNaval (Battleship — thème vin rouge & peinture)
+ * - NourArchery (Tir à l'arc — thème Matrix/Néo)
+ * - SandyPong (Beer pong — thème rosé & plage chic)
+ * - LilianoThunder (Artillerie — thème punk rock)
  */
 
 export { default as LeanavGame } from './leanav/LeanavGame';
@@ -18,24 +18,24 @@ export const GAMES = {
   leanav: {
     id: 'leanav',
     name: 'LéaNaval',
-    emoji: '⚓',
-    description: 'Bataille Navale - place tes navires et coule la flotte ennemie',
+    emoji: '🍷',
+    description: 'Bataille Navale — vin rouge & peinture',
     players: 2,
     component: 'LeanavGame'
   },
   nourarchery: {
     id: 'nourarchery',
     name: 'NourArchery',
-    emoji: '🏹',
-    description: 'Tir à l\'arc en forêt avec vent',
+    emoji: '💊',
+    description: 'Tir à l\'arc — Matrix Protocol',
     players: 2,
     component: 'NourarcheryGame'
   },
   sandy: {
     id: 'sandy',
     name: 'SandyPong',
-    emoji: '🏖️',
-    description: 'Beer pong sur la plage',
+    emoji: '🥂',
+    description: 'Beer pong — verres de rosé',
     players: 2,
     component: 'SandyGame'
   },
@@ -43,7 +43,7 @@ export const GAMES = {
     id: 'liliano',
     name: 'LilianoThunder',
     emoji: '⚡',
-    description: 'Tanks tonnerre - artillerie avec éclairs',
+    description: 'Artillerie punk rock — Scorched Earth',
     players: 2,
     component: 'LilianoGame'
   }
