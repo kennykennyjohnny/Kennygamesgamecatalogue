@@ -1,273 +1,255 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // ═══════════════════════════════════════════════════════════════════════════
-// NOUR ARCHERY — Tir à l'arc  ×  MATRIX / NÉO
+// NOUR PIGEON — Tir aux Pigeons d'Argile
 //
-// Le monde digital de Nour : pluie de code vert animée,
-// cible holographique flottante, arc cybernétique,
-// flèches = projectiles de données
+// Stand de tir en pleine campagne, ciel bleu, herbe verte
+// Pigeons d'argile lancés en arc — tape pour tirer au bon moment !
+// Scoring : touché = points selon distance du centre du pigeon
 // ═══════════════════════════════════════════════════════════════════════════
 
 const ROUNDS = 5;
-const ARROWS_PER_ROUND = 3;
-const CHARS = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789';
+const SHOTS_PER_ROUND = 3;
 
 const P = {
-  bg: '#050505',
-  matrix: '#00ff41',
-  matrixMid: 'rgba(0,255,65,0.4)',
-  matrixDim: 'rgba(0,255,65,0.12)',
-  matrixDark: 'rgba(0,255,65,0.04)',
-  cyan: '#00e5ff',
-  cyanDim: 'rgba(0,229,255,0.2)',
-  red: '#ff0044',
-  redGlow: 'rgba(255,0,68,0.15)',
-  text: '#c0ffc0',
-  dim: 'rgba(0,255,65,0.25)',
+  sky1: '#4a90d9',
+  sky2: '#87ceeb',
+  sky3: '#b8dff0',
+  grass1: '#2d5a1e',
+  grass2: '#3a7a28',
+  grass3: '#4a8a34',
+  wood: '#6b4226',
+  woodLight: '#8b5e3c',
+  orange: '#e8762a',
+  orangeGlow: 'rgba(232,118,42,0.3)',
+  clay: '#c45a20',
+  clayDark: '#8b3a10',
+  hit: '#ff4444',
+  miss: '#888888',
+  gold: '#d4a853',
+  white: '#f0f0f0',
+  text: '#2a1a0a',
+  dim: 'rgba(42,26,10,0.4)',
 };
 
-// ── Animated Matrix Rain (canvas-based for performance) ──────────────────
+// ── Clay Pigeon SVG ─────────────────────────────────────────────────────────
 
-function useMatrixRain(canvasRef: React.RefObject<HTMLCanvasElement | null>, w: number, h: number) {
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    canvas.width = w;
-    canvas.height = h;
-
-    const fontSize = 11;
-    const cols = Math.floor(w / fontSize);
-    const drops: number[] = Array(cols).fill(0).map(() => Math.random() * -50);
-
-    let animId = 0;
-    const draw = () => {
-      ctx.fillStyle = 'rgba(5,5,5,0.08)';
-      ctx.fillRect(0, 0, w, h);
-
-      for (let i = 0; i < cols; i++) {
-        const ch = CHARS[Math.floor(Math.random() * CHARS.length)];
-        const y = drops[i] * fontSize;
-
-        // Lead character is bright white-green
-        if (y > 0 && y < h) {
-          ctx.fillStyle = drops[i] % 3 === 0 ? '#ffffff' : P.matrix;
-          ctx.font = `${fontSize}px monospace`;
-          ctx.globalAlpha = 0.7 + Math.random() * 0.3;
-          ctx.fillText(ch, i * fontSize, y);
-          ctx.globalAlpha = 1;
-        }
-
-        drops[i] += 0.4 + Math.random() * 0.3;
-        if (drops[i] * fontSize > h && Math.random() > 0.98) {
-          drops[i] = Math.random() * -20;
-        }
-      }
-
-      animId = requestAnimationFrame(draw);
-    };
-
-    animId = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(animId);
-  }, [canvasRef, w, h]);
-}
-
-// ── Holographic Target ───────────────────────────────────────────────────────
-
-function HoloTarget({ cx, cy, size, wind, pulse }: {
-  cx: number; cy: number; size: number; wind: number; pulse: boolean;
+function ClayPigeon({ cx, cy, r, breaking }: {
+  cx: number; cy: number; r: number; breaking: boolean;
 }) {
-  const rings = [
-    { r: size, fill: P.matrixDark, stroke: P.matrixDim, pts: 1 },
-    { r: size * 0.78, fill: 'rgba(0,255,65,0.05)', stroke: P.matrixMid, pts: 3 },
-    { r: size * 0.56, fill: 'rgba(0,229,255,0.03)', stroke: P.cyanDim, pts: 5 },
-    { r: size * 0.36, fill: 'rgba(0,229,255,0.06)', stroke: 'rgba(0,229,255,0.35)', pts: 7 },
-    { r: size * 0.18, fill: P.redGlow, stroke: P.red, pts: 10 },
-  ];
+  if (breaking) {
+    // Shatter into fragments
+    return (
+      <g>
+        {Array.from({ length: 8 }, (_, i) => {
+          const angle = (i / 8) * Math.PI * 2 + Math.random() * 0.3;
+          const dist = r * 0.5 + Math.random() * r;
+          return (
+            <motion.g key={i}
+              initial={{ x: 0, y: 0, opacity: 1 }}
+              animate={{
+                x: Math.cos(angle) * dist * 2,
+                y: Math.sin(angle) * dist * 2 + dist,
+                opacity: 0,
+              }}
+              transition={{ duration: 0.6, ease: 'easeOut' }}>
+              <ellipse
+                cx={cx} cy={cy}
+                rx={r * 0.25 + Math.random() * r * 0.15}
+                ry={r * 0.12 + Math.random() * r * 0.08}
+                fill={P.clay}
+                transform={`rotate(${Math.random() * 360}, ${cx}, ${cy})`}
+              />
+            </motion.g>
+          );
+        })}
+        {/* Puff cloud */}
+        <motion.circle initial={{ r: r * 0.5, opacity: 0.6 }} animate={{ r: r * 3, opacity: 0 }}
+          transition={{ duration: 0.5 }}
+          cx={cx} cy={cy} fill="rgba(200,160,120,0.3)" />
+      </g>
+    );
+  }
 
   return (
     <g>
-      {/* Outer scan frame */}
-      <rect x={cx - size - 5} y={cy - size - 5} width={(size + 5) * 2} height={(size + 5) * 2}
-        fill="none" stroke={P.matrixDim} strokeWidth={0.2} rx={1} strokeDasharray="3,3" />
-
-      {/* Scan lines */}
-      {[-1, -0.5, 0, 0.5, 1].map((off, i) => (
-        <line key={i} x1={cx - size - 4} y1={cy + off * size * 0.5}
-          x2={cx + size + 4} y2={cy + off * size * 0.5}
-          stroke={P.matrixDark} strokeWidth={0.15} />
-      ))}
-
-      {/* Rings */}
-      {rings.map(({ r, fill, stroke, pts }, i) => (
-        <g key={i}>
-          <circle cx={cx} cy={cy} r={r} fill={fill} stroke={stroke} strokeWidth={0.4}
-            strokeDasharray={i < 2 ? '1.5,1.5' : 'none'} />
-          {/* Score labels on right side */}
-          <text x={cx + r + 2} y={cy + 1.5}
-            fill={stroke} fontSize={3} fontFamily="monospace" opacity={0.5}>{pts}</text>
-        </g>
-      ))}
-
-      {/* Crosshairs */}
-      <line x1={cx - size - 3} y1={cy} x2={cx + size + 3} y2={cy} stroke={P.matrixDim} strokeWidth={0.2} />
-      <line x1={cx} y1={cy - size - 3} x2={cx} y2={cy + size + 3} stroke={P.matrixDim} strokeWidth={0.2} />
-
-      {/* Bullseye */}
-      <circle cx={cx} cy={cy} r={size * 0.05} fill={P.red} opacity={0.9}>
-        <animate attributeName="opacity" values="0.6;1;0.6" dur="1.2s" repeatCount="indefinite" />
-      </circle>
-      {pulse && (
-        <circle cx={cx} cy={cy} r={size * 0.12} fill="none" stroke={P.red} strokeWidth={0.3} opacity={0.4}>
-          <animate attributeName="r" values={`${size * 0.08};${size * 0.2};${size * 0.08}`} dur="1.5s" repeatCount="indefinite" />
-          <animate attributeName="opacity" values="0.4;0.1;0.4" dur="1.5s" repeatCount="indefinite" />
-        </circle>
-      )}
-
-      {/* Corner brackets */}
-      {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([dx, dy], i) => {
-        const bx = cx + dx * (size + 4);
-        const by = cy + dy * (size + 4);
-        const bLen = 3;
-        return (
-          <g key={i}>
-            <line x1={bx} y1={by} x2={bx} y2={by - dy * bLen} stroke={P.matrix} strokeWidth={0.6} />
-            <line x1={bx} y1={by} x2={bx - dx * bLen} y2={by} stroke={P.matrix} strokeWidth={0.6} />
-          </g>
-        );
-      })}
-
-      {/* Wind HUD */}
-      <g transform={`translate(${cx}, ${cy + size + 10})`}>
-        <rect x={-18} y={-4} width={36} height={8} rx={1}
-          fill="rgba(0,255,65,0.03)" stroke={P.matrixDim} strokeWidth={0.2} />
-        <text x={0} y={1.5} textAnchor="middle" fill={P.matrixMid} fontSize={4} fontFamily="monospace" fontWeight={700}>
-          WIND {wind > 0 ? '→' : wind < 0 ? '←' : '○'} {Math.abs(wind).toFixed(1)}
-        </text>
-      </g>
+      {/* Shadow */}
+      <ellipse cx={cx + 0.3} cy={cy + 0.3} rx={r} ry={r * 0.4} fill="rgba(0,0,0,0.15)" />
+      {/* Main disc */}
+      <ellipse cx={cx} cy={cy} rx={r} ry={r * 0.4} fill={P.clay} stroke={P.clayDark} strokeWidth={0.3} />
+      {/* Top highlight */}
+      <ellipse cx={cx - r * 0.2} cy={cy - r * 0.1} rx={r * 0.5} ry={r * 0.15}
+        fill="rgba(255,200,150,0.3)" />
+      {/* Center ring */}
+      <ellipse cx={cx} cy={cy} rx={r * 0.4} ry={r * 0.15}
+        fill="none" stroke={P.clayDark} strokeWidth={0.2} opacity={0.5} />
     </g>
   );
 }
 
-// ── Cyber Bow ────────────────────────────────────────────────────────────────
+// ── Shotgun ──────────────────────────────────────────────────────────────────
 
-function CyberBow({ drawPct, aimX }: { drawPct: number; aimX: number }) {
-  const bowX = 50 + aimX * 3;
-  const bowY = 82;
-  const bowH = 50;
-  const curve = 7 + drawPct * 5;
-  const stringPull = drawPct * 10;
-  const topY = bowY - bowH / 2;
-  const botY = bowY + bowH / 2;
-
+function Shotgun({ recoil }: { recoil: boolean }) {
   return (
-    <g>
-      {/* Bow shadow / glow */}
-      {drawPct > 0 && (
-        <circle cx={bowX} cy={bowY} r={20} fill="none"
-          stroke={P.matrixDim} strokeWidth={0.2} opacity={drawPct * 0.3}>
-          <animate attributeName="r" values="18;22;18" dur="1s" repeatCount="indefinite" />
-        </circle>
-      )}
-
-      {/* Bow limbs */}
-      <path d={`M ${bowX} ${topY} Q ${bowX + curve} ${bowY} ${bowX} ${botY}`}
-        fill="none" stroke={P.matrix} strokeWidth={1.5} opacity={0.8} />
-      {/* Inner glow */}
-      <path d={`M ${bowX} ${topY} Q ${bowX + curve + 0.8} ${bowY} ${bowX} ${botY}`}
-        fill="none" stroke={P.cyan} strokeWidth={0.4} opacity={0.3} />
-
-      {/* Limb tips — glowing nodes */}
-      <circle cx={bowX} cy={topY} r={1.8} fill={P.matrix} opacity={0.9} />
-      <circle cx={bowX} cy={topY} r={3} fill="none" stroke={P.matrix} strokeWidth={0.2} opacity={0.3} />
-      <circle cx={bowX} cy={botY} r={1.8} fill={P.matrix} opacity={0.9} />
-      <circle cx={bowX} cy={botY} r={3} fill="none" stroke={P.matrix} strokeWidth={0.2} opacity={0.3} />
-
-      {/* String */}
-      <line x1={bowX} y1={topY} x2={bowX - stringPull} y2={bowY}
-        stroke={P.cyan} strokeWidth={0.5} opacity={0.7} />
-      <line x1={bowX - stringPull} y1={bowY} x2={bowX} y2={botY}
-        stroke={P.cyan} strokeWidth={0.5} opacity={0.7} />
-
-      {/* Nock point */}
-      {drawPct > 0 && (
+    <motion.g animate={recoil ? { y: [0, -2, 0.5, 0] } : {}} transition={{ duration: 0.15 }}>
+      {/* Barrels */}
+      <rect x={44} y={86} width={12} height={3} rx={0.5}
+        fill="#444" stroke="#333" strokeWidth={0.3} />
+      <rect x={44} y={89.5} width={12} height={3} rx={0.5}
+        fill="#555" stroke="#333" strokeWidth={0.3} />
+      {/* Barrel openings */}
+      <ellipse cx={44} cy={87.5} rx={0.6} ry={1.2} fill="#222" />
+      <ellipse cx={44} cy={91} rx={0.6} ry={1.2} fill="#222" />
+      {/* Stock */}
+      <path d={`M 56 86 Q 62 86, 66 88 Q 70 90, 72 93 L 68 94 Q 65 91, 60 90 Q 57 89.5, 56 92.5 Z`}
+        fill={P.wood} stroke={P.woodLight} strokeWidth={0.3} />
+      {/* Stock grain */}
+      <path d={`M 58 87.5 Q 63 88, 67 90`}
+        fill="none" stroke="rgba(139,94,60,0.3)" strokeWidth={0.3} />
+      {/* Trigger guard */}
+      <path d={`M 57 89 Q 57 91, 58 92 L 59 91 Q 58 90, 58 89 Z`}
+        fill="#333" />
+      {/* Muzzle flash on recoil */}
+      {recoil && (
         <g>
-          <circle cx={bowX - stringPull} cy={bowY} r={1.2} fill={P.cyan}>
-            <animate attributeName="opacity" values="0.6;1;0.6" dur="0.4s" repeatCount="indefinite" />
-          </circle>
-
-          {/* Arrow on string */}
-          <line x1={bowX - stringPull} y1={bowY} x2={bowX - stringPull - 12} y2={bowY}
-            stroke={P.cyan} strokeWidth={0.7} />
-          {/* Arrowhead */}
-          <polygon points={`
-            ${bowX - stringPull - 12},${bowY - 2}
-            ${bowX - stringPull - 16},${bowY}
-            ${bowX - stringPull - 12},${bowY + 2}
-          `} fill={P.cyan} />
-          {/* Data trail on arrow */}
-          <text x={bowX - stringPull - 5} y={bowY - 2}
-            fill={P.matrixDim} fontSize={2.5} fontFamily="monospace">
-            {'>'}{'>'}{'>'}
-          </text>
+          <circle cx={43} cy={87.5} r={2} fill="rgba(255,200,50,0.6)" />
+          <circle cx={43} cy={91} r={2} fill="rgba(255,200,50,0.6)" />
+          <circle cx={42} cy={89} r={3.5} fill="rgba(255,150,30,0.3)" />
         </g>
       )}
-
-      {/* Power HUD */}
-      {drawPct > 0 && (
-        <g>
-          <rect x={bowX + 6} y={bowY - 8} width={2} height={16} rx={1}
-            fill="rgba(0,0,0,0.5)" stroke={P.matrixDim} strokeWidth={0.2} />
-          <rect x={bowX + 6} y={bowY + 8 - drawPct * 16} width={2} height={drawPct * 16} rx={1}
-            fill={drawPct > 0.7 ? P.red : P.matrix} />
-          <text x={bowX + 12} y={bowY + 1}
-            fill={P.matrixMid} fontSize={3} fontFamily="monospace" fontWeight={700}>
-            {Math.round(drawPct * 100)}%
-          </text>
-        </g>
-      )}
-    </g>
+    </motion.g>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 
+interface Pigeon {
+  id: number;
+  startX: number;
+  startY: number;
+  targetX: number;
+  peakY: number;
+  speed: number;
+  launched: boolean;
+  hit: boolean;
+  missed: boolean;
+  t: number;
+}
+
+function makePigeon(id: number, wind: number): Pigeon {
+  const fromLeft = Math.random() > 0.5;
+  const startX = fromLeft ? -5 : 105;
+  const targetX = fromLeft ? 80 + Math.random() * 25 : -5 - Math.random() * 25;
+  return {
+    id,
+    startX,
+    startY: 70 + Math.random() * 10,
+    targetX,
+    peakY: 15 + Math.random() * 25,
+    speed: 0.006 + Math.random() * 0.004,
+    launched: false,
+    hit: false,
+    missed: false,
+    t: 0,
+  };
+}
+
+function pigeonPos(p: Pigeon): { x: number; y: number } {
+  const t = p.t;
+  const x = p.startX + (p.targetX - p.startX) * t;
+  const y = p.startY + (p.peakY - p.startY) * Math.sin(t * Math.PI);
+  return { x, y };
+}
+
 export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayerTurn, gameState, onMove, onGameOver }: any) {
   const [round, setRound] = useState(1);
-  const [arrow, setArrow] = useState(1);
+  const [shot, setShot] = useState(1);
   const [myScore, setMyScore] = useState(0);
   const [opScore, setOpScore] = useState(0);
-  const [drawing, setDrawing] = useState(false);
-  const [drawPct, setDrawPct] = useState(0);
-  const [aimAngle, setAimAngle] = useState({ x: 0, y: 0 });
+  const [pigeon, setPigeon] = useState<Pigeon | null>(null);
   const [firing, setFiring] = useState(false);
-  const [arrowFly, setArrowFly] = useState<{t: number; sx: number; sy: number; ex: number; ey: number} | null>(null);
-  const [hitPos, setHitPos] = useState<{x: number; y: number; score: number} | null>(null);
-  const [arrows, setArrows] = useState<{x: number; y: number; score: number}[]>([]);
+  const [recoil, setRecoil] = useState(false);
+  const [hitEffect, setHitEffect] = useState<{x: number; y: number; score: number} | null>(null);
+  const [missEffect, setMissEffect] = useState(false);
   const [wind, setWind] = useState(0);
   const [over, setOver] = useState(false);
   const [win, setWin] = useState<string | null>(null);
   const [opInfo, setOpInfo] = useState<string | null>(null);
+  const [crosshair, setCrosshair] = useState({ x: 50, y: 50 });
+  const [showCrosshair, setShowCrosshair] = useState(false);
+  const [roundScores, setRoundScores] = useState<number[]>([]);
+  const [launching, setLaunching] = useState(false);
 
   const svgRef = useRef<SVGSVGElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const drawTimer = useRef<ReturnType<typeof setInterval>>();
   const raf = useRef<number>(0);
   const infoT = useRef<ReturnType<typeof setTimeout>>();
+  const launchT = useRef<ReturnType<typeof setTimeout>>();
 
-  // Matrix rain animation
-  useMatrixRain(canvasRef, 400, 600);
-
-  // Deterministic wind
+  // Deterministic wind per round
   useEffect(() => {
     let h = 0;
     const seed = `${gameId}-${round}`;
     for (let i = 0; i < seed.length; i++) h = ((h << 5) - h + seed.charCodeAt(i)) | 0;
     setWind(((h % 100) / 100) * 6 - 3);
   }, [gameId, round]);
+
+  // Launch pigeon when it's player turn
+  useEffect(() => {
+    if (!isPlayerTurn || over || firing || pigeon?.launched) return;
+    const delay = 500 + Math.random() * 1000;
+    setLaunching(true);
+    launchT.current = setTimeout(() => {
+      const p = makePigeon(round * 10 + shot, wind);
+      p.launched = true;
+      setPigeon(p);
+      setLaunching(false);
+    }, delay);
+    return () => { if (launchT.current) clearTimeout(launchT.current); };
+  }, [isPlayerTurn, over, firing, round, shot, pigeon?.launched, wind]);
+
+  // Animate pigeon flight
+  useEffect(() => {
+    if (!pigeon || !pigeon.launched || pigeon.hit || pigeon.missed) return;
+
+    const animate = () => {
+      setPigeon(prev => {
+        if (!prev || prev.hit || prev.missed) return prev;
+        const nextT = prev.t + prev.speed;
+        if (nextT >= 1) {
+          // Pigeon escaped
+          return { ...prev, t: 1, missed: true };
+        }
+        return { ...prev, t: nextT };
+      });
+      raf.current = requestAnimationFrame(animate);
+    };
+    raf.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(raf.current);
+  }, [pigeon?.launched, pigeon?.hit, pigeon?.missed]);
+
+  // Handle pigeon miss (escaped)
+  useEffect(() => {
+    if (!pigeon?.missed || firing) return;
+    setMissEffect(true);
+    setRoundScores(prev => [...prev, 0]);
+
+    onMove({
+      type: 'shoot', round, arrow: shot, score: 0,
+      _keepTurn: shot < SHOTS_PER_ROUND,
+    });
+
+    setTimeout(() => {
+      setMissEffect(false);
+      setPigeon(null);
+      setFiring(false);
+      if (shot < SHOTS_PER_ROUND) {
+        setShot(s => s + 1);
+      } else if (round < ROUNDS) {
+        setRound(r => r + 1); setShot(1); setRoundScores([]);
+      }
+    }, 800);
+  }, [pigeon?.missed, firing, round, shot, onMove]);
 
   // ── Sync ───────────────────────────────────────────────────────────────────
 
@@ -278,11 +260,11 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
 
     if (m.type === 'shoot') {
       setOpScore(prev => prev + m.score);
-      setOpInfo(`⚡ ${m.score} pts`);
+      setOpInfo(m.score > 0 ? `🎯 ${m.score} pts` : '💨 Raté !');
       if (infoT.current) clearTimeout(infoT.current);
       infoT.current = setTimeout(() => setOpInfo(null), 1500);
 
-      if (m.round === ROUNDS && m.arrow === ARROWS_PER_ROUND) {
+      if (m.round === ROUNDS && m.arrow === SHOTS_PER_ROUND) {
         setTimeout(() => {
           const finalOp = opScore + m.score;
           if (myScore > finalOp) {
@@ -290,25 +272,21 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
           } else if (finalOp > myScore) {
             setOver(true); setWin(opponentId);
           } else {
-            setOver(true); setWin(myScore >= finalOp ? playerId : opponentId);
-            if (myScore >= finalOp) onGameOver({ winner_id: playerId });
+            // Tie - give win to current player as tiebreaker
+            setOver(true); setWin(playerId); onGameOver({ winner_id: playerId });
           }
         }, 1000);
       }
     }
-  }, [gameState?.lastMove]);
+  }, [gameState?.lastMove, opScore, myScore, playerId, opponentId, onGameOver]);
 
   useEffect(() => () => {
-    if (drawTimer.current) clearInterval(drawTimer.current);
     cancelAnimationFrame(raf.current);
     if (infoT.current) clearTimeout(infoT.current);
+    if (launchT.current) clearTimeout(launchT.current);
   }, []);
 
-  // ── Aim & Shoot ────────────────────────────────────────────────────────────
-
-  const targetCX = 50;
-  const targetCY = 30;
-  const targetR = 18;
+  // ── Controls ──────────────────────────────────────────────────────────────
 
   const getPos = (e: React.MouseEvent | React.TouchEvent) => {
     const svg = svgRef.current;
@@ -319,257 +297,290 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
     return { x: (cx - rect.left) / rect.width * 100, y: (cy - rect.top) / rect.height * 100 };
   };
 
-  const startDraw = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isPlayerTurn || firing || over) return;
-    const p = getPos(e);
-    if (p.y < 50) return;
-    setDrawing(true);
-    setDrawPct(0);
-    drawTimer.current = setInterval(() => {
-      setDrawPct(prev => Math.min(prev + 0.02, 1));
-    }, 25);
-  };
-
-  const moveAim = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!drawing) return;
+  const onPointerMove = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!isPlayerTurn || over) return;
     e.preventDefault();
     const p = getPos(e);
-    setAimAngle({ x: (p.x - 50) / 50, y: (p.y - 50) / 50 });
+    setCrosshair(p);
+    setShowCrosshair(true);
   };
 
-  const release = () => {
-    if (!drawing) return;
-    setDrawing(false);
-    if (drawTimer.current) clearInterval(drawTimer.current);
-    fire();
-  };
-
-  const fire = useCallback(() => {
-    if (firing) return;
+  const onShoot = useCallback(() => {
+    if (!isPlayerTurn || !pigeon || pigeon.hit || pigeon.missed || firing || over) return;
     setFiring(true);
+    setRecoil(true);
+    setTimeout(() => setRecoil(false), 150);
 
-    const power = drawPct;
-    const hitX = targetCX + aimAngle.x * targetR * 0.5 + wind * (1 - power) * 3
-      + (Math.random() - 0.5) * (1 - power) * targetR * 0.7;
-    const hitY = targetCY + aimAngle.y * targetR * 0.25
-      + (Math.random() - 0.5) * (1 - power) * targetR * 0.5;
+    const pos = pigeonPos(pigeon);
+    const dist = Math.sqrt((crosshair.x - pos.x) ** 2 + (crosshair.y - pos.y) ** 2);
 
-    const dist = Math.sqrt((hitX - targetCX) ** 2 + (hitY - targetCY) ** 2);
+    // Spread radius — shotgun has a wide spread
+    const spreadR = 8;
     let score = 0;
-    if (dist < targetR * 0.18) score = 10;
-    else if (dist < targetR * 0.36) score = 7;
-    else if (dist < targetR * 0.56) score = 5;
-    else if (dist < targetR * 0.78) score = 3;
-    else if (dist < targetR) score = 1;
+    if (dist < spreadR * 0.3) score = 10;
+    else if (dist < spreadR * 0.5) score = 7;
+    else if (dist < spreadR * 0.75) score = 5;
+    else if (dist < spreadR) score = 3;
 
-    const sx = 40, sy = 82;
-    setArrowFly({ t: 0, sx, sy, ex: hitX, ey: hitY });
-    const start = performance.now();
-    const dur = 350 + (1 - power) * 150;
+    if (score > 0) {
+      setPigeon(prev => prev ? { ...prev, hit: true } : null);
+      setHitEffect({ x: pos.x, y: pos.y, score });
+      setMyScore(prev => prev + score);
+      setRoundScores(prev => [...prev, score]);
+    } else {
+      // Missed — pigeon continues flying
+      setRoundScores(prev => [...prev, 0]);
+    }
 
-    const animate = (now: number) => {
-      const t = Math.min(1, (now - start) / dur);
-      setArrowFly(prev => prev ? { ...prev, t } : null);
+    onMove({
+      type: 'shoot', round, arrow: shot, score,
+      _keepTurn: shot < SHOTS_PER_ROUND,
+    });
 
-      if (t < 1) {
-        raf.current = requestAnimationFrame(animate);
-      } else {
-        setArrowFly(null);
-        setHitPos({ x: hitX, y: hitY, score });
-        setArrows(prev => [...prev, { x: hitX, y: hitY, score }]);
-        setMyScore(prev => prev + score);
-
-        onMove({
-          type: 'shoot', round, arrow, score, hitX, hitY,
-          _keepTurn: arrow < ARROWS_PER_ROUND,
-        });
-
-        setTimeout(() => {
-          setHitPos(null); setFiring(false);
-          setDrawPct(0); setAimAngle({ x: 0, y: 0 });
-          if (arrow < ARROWS_PER_ROUND) {
-            setArrow(a => a + 1);
-          } else if (round < ROUNDS) {
-            setRound(r => r + 1); setArrow(1); setArrows([]);
-          }
-        }, 600);
+    setTimeout(() => {
+      setHitEffect(null);
+      setPigeon(null);
+      setFiring(false);
+      if (shot < SHOTS_PER_ROUND) {
+        setShot(s => s + 1);
+      } else if (round < ROUNDS) {
+        setRound(r => r + 1); setShot(1); setRoundScores([]);
       }
-    };
+    }, score > 0 ? 800 : 500);
+  }, [isPlayerTurn, pigeon, firing, over, crosshair, round, shot, onMove]);
 
-    raf.current = requestAnimationFrame(animate);
-  }, [firing, drawPct, aimAngle, wind, round, arrow, onMove]);
+  const pigeonVisible = pigeon && pigeon.launched && !pigeon.hit && !pigeon.missed;
+  const pPos = pigeon && pigeon.launched ? pigeonPos(pigeon) : null;
 
   return (
     <div style={{
       minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
-      background: P.bg, overflow: 'hidden', touchAction: 'none',
-      fontFamily: "'Courier New', 'Fira Code', monospace", position: 'relative',
+      background: '#1a3a1a', overflow: 'hidden', touchAction: 'none',
+      fontFamily: "'Georgia', 'Times New Roman', serif", position: 'relative',
     }}>
 
-      {/* Matrix rain canvas — behind everything */}
-      <canvas ref={canvasRef} style={{
-        position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
-        width: '100%', maxWidth: 500, height: '100%', opacity: 0.45, pointerEvents: 'none',
-      }} />
-
       {/* HUD Header */}
-      <div style={{ padding: '6px 12px 2px', width: '100%', maxWidth: 500, zIndex: 2,
+      <div style={{ padding: '8px 14px 2px', width: '100%', maxWidth: 500, zIndex: 2,
         display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1 style={{ fontSize: 16, fontWeight: 900, color: P.matrix, margin: 0, letterSpacing: 3,
-            textShadow: `0 0 15px ${P.matrix}, 0 0 30px rgba(0,255,65,0.2)` }}>
-            {'>'} NOUR.ARCHERY
+          <h1 style={{ fontSize: 18, fontWeight: 900, margin: 0, fontStyle: 'italic',
+            color: P.gold, textShadow: '0 1px 3px rgba(0,0,0,0.4)' }}>
+            🪶 Nour Pigeon
           </h1>
-          <div style={{ fontSize: 8, color: P.dim, letterSpacing: 2 }}>MATRIX PROTOCOL v3.0</div>
+          <div style={{ fontSize: 9, color: P.dim, fontStyle: 'italic' }}>Tir aux Pigeons d'Argile</div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 10, color: P.matrix, letterSpacing: 1 }}>
-            R{round}/{ROUNDS} • A{arrow}/{ARROWS_PER_ROUND}
+          <div style={{ fontSize: 11, color: P.orange, fontWeight: 700 }}>
+            Manche {round}/{ROUNDS} • Tir {shot}/{SHOTS_PER_ROUND}
           </div>
-          <div style={{ fontSize: 9, color: P.dim }}>
-            WIND: {wind > 0 ? '→' : wind < 0 ? '←' : '○'} {Math.abs(wind).toFixed(1)}
+          <div style={{ fontSize: 9, color: P.dim, fontStyle: 'italic' }}>
+            Vent : {wind > 0 ? '→' : wind < 0 ? '←' : '○'} {Math.abs(wind).toFixed(1)} km/h
           </div>
         </div>
       </div>
 
       {/* Score bar */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: 24, padding: '0 0 4px', width: '100%', zIndex: 2 }}>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 30, padding: '2px 0 4px', width: '100%', zIndex: 2 }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 8, color: P.dim, letterSpacing: 3 }}>NEO</div>
-          <div style={{ fontSize: 24, fontWeight: 900, color: P.matrix,
-            textShadow: `0 0 12px ${P.matrix}` }}>{myScore}</div>
+          <div style={{ fontSize: 9, color: P.dim, letterSpacing: 2, fontWeight: 700 }}>TOI</div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: P.orange,
+            textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>{myScore}</div>
         </div>
-        <div style={{ fontSize: 11, color: P.dim, alignSelf: 'center' }}>VS</div>
+        <div style={{ fontSize: 12, color: P.dim, alignSelf: 'center', fontStyle: 'italic' }}>vs</div>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 8, color: P.dim, letterSpacing: 3 }}>AGENT</div>
-          <div style={{ fontSize: 24, fontWeight: 900, color: P.red,
-            textShadow: `0 0 12px ${P.red}` }}>{opScore}</div>
+          <div style={{ fontSize: 9, color: P.dim, letterSpacing: 2, fontWeight: 700 }}>ADV</div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: '#c44',
+            textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>{opScore}</div>
         </div>
       </div>
 
+      {/* Round scores */}
+      {roundScores.length > 0 && (
+        <div style={{ display: 'flex', gap: 4, marginBottom: 2, zIndex: 2 }}>
+          {roundScores.map((s, i) => (
+            <span key={i} style={{ padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700,
+              background: s > 0 ? 'rgba(232,118,42,0.15)' : 'rgba(0,0,0,0.1)',
+              color: s > 0 ? P.orange : '#666',
+              border: `1px solid ${s > 0 ? 'rgba(232,118,42,0.2)' : 'rgba(0,0,0,0.05)'}`,
+            }}>{s > 0 ? `+${s}` : '✗'}</span>
+          ))}
+        </div>
+      )}
+
       {/* Status */}
-      <motion.div key={over ? 'o' : isPlayerTurn ? 't' : 'w'} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
-        style={{ padding: '2px 10px', borderRadius: 2, fontSize: 9, fontWeight: 700, marginBottom: 2, zIndex: 2,
-          background: 'rgba(0,255,65,0.03)', border: `1px solid ${P.matrixDim}`,
-          color: over ? (win === playerId ? P.matrix : P.red) : isPlayerTurn ? P.cyan : '#333',
-          letterSpacing: 1,
+      <motion.div key={over ? 'o' : isPlayerTurn ? 't' : 'w'} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+        style={{ padding: '2px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700, fontStyle: 'italic', marginBottom: 2, zIndex: 2,
+          background: over ? 'rgba(52,199,89,0.1)' : isPlayerTurn ? 'rgba(232,118,42,0.08)' : 'rgba(80,80,80,0.06)',
+          color: over ? (win === playerId ? '#4ade80' : '#c44') : isPlayerTurn ? P.orange : '#555',
+          border: `1px solid ${over ? 'rgba(52,199,89,0.15)' : isPlayerTurn ? 'rgba(232,118,42,0.12)' : 'rgba(80,80,80,0.06)'}`,
         }}>
-        {over ? (win === playerId ? '> ACCESS_GRANTED // VICTORY' : '> CONNECTION_LOST // DEFEAT')
-          : isPlayerTurn ? '> READY_TO_FIRE' : '> AWAITING_OPPONENT...'}
+        {over ? (win === playerId ? '🏆 Victoire !' : '💔 Défaite…')
+          : isPlayerTurn
+            ? (launching ? '🪶 Pigeon en approche…' : pigeon?.launched ? '🎯 Tire !' : '⏳ Prépare-toi…')
+            : '⏳ Tour adverse…'}
       </motion.div>
 
       {/* Opponent info */}
       <AnimatePresence>
         {opInfo && (
           <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            style={{ padding: '1px 8px', borderRadius: 2, fontSize: 9, color: P.red, zIndex: 2,
-              background: 'rgba(255,0,0,0.03)', border: '1px solid rgba(255,0,0,0.1)',
-              letterSpacing: 1 }}>
+            style={{ padding: '2px 10px', borderRadius: 6, fontSize: 10, zIndex: 2, fontWeight: 700,
+              color: opInfo.includes('Raté') ? '#888' : '#c44',
+              background: opInfo.includes('Raté') ? 'rgba(0,0,0,0.05)' : 'rgba(200,50,50,0.06)',
+              border: `1px solid ${opInfo.includes('Raté') ? 'rgba(0,0,0,0.05)' : 'rgba(200,50,50,0.1)'}`,
+            }}>
             {opInfo}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Game area */}
+      {/* Game SVG */}
       <div style={{ flex: 1, width: '100%', maxWidth: 500, position: 'relative', zIndex: 1 }}>
         <svg ref={svgRef} viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"
-          style={{ width: '100%', height: '100%' }}
-          onMouseDown={startDraw} onMouseMove={moveAim} onMouseUp={release}
-          onTouchStart={startDraw} onTouchMove={moveAim} onTouchEnd={release}>
+          style={{ width: '100%', height: '100%', cursor: isPlayerTurn && pigeon?.launched ? 'crosshair' : 'default' }}
+          onMouseMove={onPointerMove} onTouchMove={onPointerMove}
+          onClick={onShoot} onTouchEnd={(e) => { e.preventDefault(); onShoot(); }}>
 
-          {/* Transparent bg (canvas shows through) */}
-          <rect width="100" height="100" fill="transparent" />
+          <defs>
+            {/* Sky gradient */}
+            <linearGradient id="pigeonSky" x1="50%" y1="0%" x2="50%" y2="100%">
+              <stop offset="0%" stopColor={P.sky1} />
+              <stop offset="50%" stopColor={P.sky2} />
+              <stop offset="80%" stopColor={P.sky3} />
+              <stop offset="100%" stopColor="#c8e8c0" />
+            </linearGradient>
+            {/* Ground */}
+            <linearGradient id="pigeonGround" x1="50%" y1="0%" x2="50%" y2="100%">
+              <stop offset="0%" stopColor={P.grass2} />
+              <stop offset="40%" stopColor={P.grass1} />
+              <stop offset="100%" stopColor="#1a3a12" />
+            </linearGradient>
+          </defs>
 
-          {/* Subtle grid overlay */}
-          {Array.from({ length: 11 }, (_, i) => (
+          {/* Sky */}
+          <rect width="100" height="100" fill="url(#pigeonSky)" />
+
+          {/* Clouds */}
+          {[
+            { cx: 15, cy: 12, rx: 12, ry: 4 },
+            { cx: 70, cy: 8, rx: 15, ry: 5 },
+            { cx: 45, cy: 18, rx: 8, ry: 3 },
+            { cx: 88, cy: 22, rx: 10, ry: 3.5 },
+          ].map((c, i) => (
             <g key={i}>
-              <line x1={0} y1={i * 10} x2={100} y2={i * 10} stroke={P.matrixDark} strokeWidth={0.15} />
-              <line x1={i * 10} y1={0} x2={i * 10} y2={100} stroke={P.matrixDark} strokeWidth={0.15} />
+              <ellipse cx={c.cx} cy={c.cy} rx={c.rx} ry={c.ry} fill="rgba(255,255,255,0.6)" />
+              <ellipse cx={c.cx - c.rx * 0.3} cy={c.cy - c.ry * 0.3} rx={c.rx * 0.6} ry={c.ry * 0.7}
+                fill="rgba(255,255,255,0.4)" />
             </g>
           ))}
 
-          {/* Perspective floor lines */}
-          {[55, 62, 70, 80, 92].map((y, i) => (
-            <line key={i} x1={50 - (100 - y) * 0.8} y1={y} x2={50 + (100 - y) * 0.8} y2={y}
-              stroke={P.matrixDark} strokeWidth={0.15} />
-          ))}
-
-          {/* Target */}
-          <HoloTarget cx={targetCX} cy={targetCY} size={targetR} wind={wind} pulse={isPlayerTurn && !firing} />
-
-          {/* Stuck arrows */}
-          {arrows.map((a, i) => (
+          {/* Distant trees on horizon */}
+          {[8, 18, 25, 35, 42, 55, 62, 72, 80, 90].map((tx, i) => (
             <g key={i}>
-              {/* Arrow embedded */}
-              <line x1={a.x + 2} y1={a.y + 2} x2={a.x - 1} y2={a.y - 1}
-                stroke={P.cyan} strokeWidth={0.5} opacity={0.5} />
-              <circle cx={a.x} cy={a.y} r={0.7} fill={a.score >= 7 ? P.red : P.cyan} opacity={0.8} />
-              <text x={a.x + 2} y={a.y - 1.5} fill={a.score >= 7 ? P.red : P.matrix}
-                fontSize={2.5} fontFamily="monospace" fontWeight={700} opacity={0.6}>
-                {a.score}
-              </text>
+              <ellipse cx={tx} cy={72} rx={3 + (i % 3)} ry={5 + (i % 4)} fill={`rgba(30,${70 + i * 5},20,0.6)`} />
             </g>
           ))}
 
-          {/* Arrow in flight */}
-          {arrowFly && (() => {
-            const t = arrowFly.t;
-            const x = arrowFly.sx + (arrowFly.ex - arrowFly.sx) * t;
-            const y = arrowFly.sy + (arrowFly.ey - arrowFly.sy) * t - Math.sin(t * Math.PI) * 12;
-            return (
-              <g>
-                {/* Data trail */}
-                {Array.from({ length: 6 }, (_, i) => {
-                  const tt = Math.max(0, t - i * 0.04);
-                  const tx = arrowFly.sx + (arrowFly.ex - arrowFly.sx) * tt;
-                  const ty = arrowFly.sy + (arrowFly.ey - arrowFly.sy) * tt - Math.sin(tt * Math.PI) * 12;
-                  return <circle key={i} cx={tx} cy={ty} r={0.3} fill={P.cyan} opacity={0.5 - i * 0.08} />;
-                })}
-                {/* Arrow head */}
-                <circle cx={x} cy={y} r={1.2} fill={P.cyan} />
-                <circle cx={x} cy={y} r={2.5} fill="none" stroke={P.cyan} strokeWidth={0.2} opacity={0.3}>
-                  <animate attributeName="r" from="2" to="5" dur="0.2s" repeatCount="indefinite" />
-                  <animate attributeName="opacity" from="0.3" to="0" dur="0.2s" repeatCount="indefinite" />
-                </circle>
-              </g>
-            );
-          })()}
+          {/* Ground */}
+          <rect x={0} y={72} width={100} height={28} fill="url(#pigeonGround)" />
 
-          {/* Hit impact */}
+          {/* Ground texture — grass tufts */}
+          {[5, 12, 22, 30, 38, 48, 58, 65, 75, 85, 95].map((gx, i) => (
+            <g key={i}>
+              <line x1={gx} y1={74 + (i % 3)} x2={gx - 1} y2={72 + (i % 3)}
+                stroke="rgba(70,140,50,0.4)" strokeWidth={0.4} />
+              <line x1={gx + 0.5} y1={74 + (i % 3)} x2={gx + 1.5} y2={71.5 + (i % 3)}
+                stroke="rgba(60,130,40,0.3)" strokeWidth={0.3} />
+            </g>
+          ))}
+
+          {/* Trap machine */}
+          <g>
+            <rect x={46} y={73} width={8} height={4} rx={0.5} fill="#555" stroke="#444" strokeWidth={0.3} />
+            <rect x={48} y={71.5} width={4} height={2} rx={0.3} fill="#666" />
+            <ellipse cx={50} cy={73} rx={3} ry={0.8} fill="#444" />
+          </g>
+
+          {/* Wind indicator */}
+          <g transform="translate(50, 68)">
+            <rect x={-14} y={-3} width={28} height={6} rx={3} fill="rgba(0,0,0,0.15)" />
+            <text x={0} y={1.5} textAnchor="middle" fill="rgba(255,255,255,0.7)" fontSize={3}
+              fontFamily="Georgia, serif" fontWeight={700}>
+              {wind > 0 ? '→' : wind < 0 ? '←' : '○'} Vent {Math.abs(wind).toFixed(1)}
+            </text>
+          </g>
+
+          {/* ── Flying pigeon ── */}
+          {pigeonVisible && pPos && (
+            <ClayPigeon cx={pPos.x} cy={pPos.y} r={3.5} breaking={false} />
+          )}
+
+          {/* ── Hit effect ── */}
           <AnimatePresence>
-            {hitPos && (
+            {hitEffect && (
               <g>
-                <motion.circle initial={{ r: 1, opacity: 0.8 }} animate={{ r: 8, opacity: 0 }}
-                  transition={{ duration: 0.6 }}
-                  cx={hitPos.x} cy={hitPos.y} fill="none"
-                  stroke={hitPos.score >= 7 ? P.red : P.matrix} strokeWidth={0.4} />
-                {/* Digital glitch effect */}
-                {Array.from({ length: 4 }, (_, i) => (
-                  <motion.rect key={i}
-                    initial={{ opacity: 0.6, x: hitPos.x - 3, width: 6, height: 0.5 }}
-                    animate={{ opacity: 0, x: hitPos.x - 5 + Math.random() * 10, width: Math.random() * 8 }}
-                    transition={{ duration: 0.4, delay: i * 0.05 }}
-                    y={hitPos.y - 2 + i * 1.5}
-                    fill={hitPos.score >= 7 ? P.red : P.matrix} />
-                ))}
-                <motion.text initial={{ opacity: 0, y: hitPos.y }} animate={{ opacity: 1, y: hitPos.y - 5 }}
-                  transition={{ duration: 0.3 }}
-                  x={hitPos.x} textAnchor="middle" fill={hitPos.score >= 7 ? P.red : P.matrix}
-                  fontSize={hitPos.score === 10 ? 7 : 5} fontFamily="monospace" fontWeight={900}>
-                  +{hitPos.score}
+                <ClayPigeon cx={hitEffect.x} cy={hitEffect.y} r={3.5} breaking={true} />
+                <motion.text initial={{ opacity: 0, y: hitEffect.y }} animate={{ opacity: 1, y: hitEffect.y - 8 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.5 }}
+                  x={hitEffect.x} textAnchor="middle"
+                  fill={hitEffect.score >= 7 ? '#ff4444' : P.orange}
+                  fontSize={hitEffect.score === 10 ? 7 : 5} fontFamily="Georgia, serif" fontWeight={900}
+                  stroke="rgba(255,255,255,0.3)" strokeWidth={0.2}>
+                  +{hitEffect.score}
                 </motion.text>
               </g>
             )}
           </AnimatePresence>
 
-          {/* Cyber Bow */}
-          <CyberBow drawPct={drawPct} aimX={aimAngle.x} />
+          {/* ── Miss text ── */}
+          <AnimatePresence>
+            {missEffect && (
+              <motion.text initial={{ opacity: 0, y: 40 }} animate={{ opacity: 0.8, y: 35 }}
+                exit={{ opacity: 0, y: 30 }}
+                transition={{ duration: 0.4 }}
+                x={50} textAnchor="middle" fill="rgba(255,255,255,0.5)"
+                fontSize={4} fontFamily="Georgia, serif" fontWeight={700} fontStyle="italic">
+                Envolé !
+              </motion.text>
+            )}
+          </AnimatePresence>
+
+          {/* Shotgun */}
+          <Shotgun recoil={recoil} />
+
+          {/* Crosshair */}
+          {showCrosshair && isPlayerTurn && pigeon?.launched && (
+            <g>
+              <circle cx={crosshair.x} cy={crosshair.y} r={4} fill="none"
+                stroke="rgba(255,255,255,0.5)" strokeWidth={0.3} />
+              <circle cx={crosshair.x} cy={crosshair.y} r={1.5} fill="none"
+                stroke="rgba(255,255,255,0.6)" strokeWidth={0.2} />
+              <line x1={crosshair.x - 6} y1={crosshair.y} x2={crosshair.x - 2} y2={crosshair.y}
+                stroke="rgba(255,255,255,0.5)" strokeWidth={0.3} />
+              <line x1={crosshair.x + 2} y1={crosshair.y} x2={crosshair.x + 6} y2={crosshair.y}
+                stroke="rgba(255,255,255,0.5)" strokeWidth={0.3} />
+              <line x1={crosshair.x} y1={crosshair.y - 6} x2={crosshair.x} y2={crosshair.y - 2}
+                stroke="rgba(255,255,255,0.5)" strokeWidth={0.3} />
+              <line x1={crosshair.x} y1={crosshair.y + 2} x2={crosshair.x} y2={crosshair.y + 6}
+                stroke="rgba(255,255,255,0.5)" strokeWidth={0.3} />
+              <circle cx={crosshair.x} cy={crosshair.y} r={0.5} fill="rgba(255,50,50,0.7)" />
+            </g>
+          )}
 
           {/* Instruction */}
-          {isPlayerTurn && !drawing && !firing && !over && (
-            <motion.text animate={{ opacity: [0.15, 0.35, 0.15] }} transition={{ duration: 2.5, repeat: Infinity }}
-              x="50" y="97" textAnchor="middle" fill={P.dim} fontSize="2.5" fontFamily="monospace" letterSpacing="1">
-              {'>'} HOLD + AIM + RELEASE
+          {isPlayerTurn && !pigeon?.launched && !firing && !over && !launching && (
+            <motion.text animate={{ opacity: [0.3, 0.6, 0.3] }} transition={{ duration: 2, repeat: Infinity }}
+              x="50" y="55" textAnchor="middle" fill="rgba(255,255,255,0.5)" fontSize="3"
+              fontFamily="Georgia, serif" fontStyle="italic">
+              Le pigeon arrive… prépare-toi !
+            </motion.text>
+          )}
+          {isPlayerTurn && pigeon?.launched && !pigeon.hit && !pigeon.missed && !firing && (
+            <motion.text animate={{ opacity: [0.4, 0.7, 0.4] }} transition={{ duration: 1, repeat: Infinity }}
+              x="50" y="96" textAnchor="middle" fill="rgba(255,255,255,0.6)" fontSize="2.8"
+              fontFamily="Georgia, serif" fontWeight={700}>
+              🎯 Clique pour tirer !
             </motion.text>
           )}
         </svg>

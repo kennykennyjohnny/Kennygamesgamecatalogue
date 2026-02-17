@@ -281,7 +281,21 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
           }}>
             {/* Canvas surface */}
             <svg width={gp + pad} height={gp + pad} viewBox={`-${pad} -${pad} ${gp + pad} ${gp + pad}`}
-              style={{ display: 'block', borderRadius: small ? 3 : 5 }}>
+              style={{ display: 'block', borderRadius: small ? 3 : 5, touchAction: 'none' }}
+              onTouchMove={(e) => {
+                if (small || !hov) return;
+                e.preventDefault();
+                const svg = e.currentTarget;
+                const rect = svg.getBoundingClientRect();
+                const touch = e.touches[0];
+                const svgX = (touch.clientX - rect.left) / rect.width * (gp + pad) - pad;
+                const svgY = (touch.clientY - rect.top) / rect.height * (gp + pad) - pad;
+                const tr = Math.floor(svgY / cs);
+                const tc = Math.floor(svgX / cs);
+                if (tr >= 0 && tr < GRID && tc >= 0 && tc < GRID) {
+                  hov(tr, tc);
+                }
+              }}>
 
               {/* Canvas background — warm linen texture */}
               <defs>
@@ -353,7 +367,8 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
                       {/* Clickable area */}
                       <rect x={c * cs} y={r * cs} width={cs} height={cs}
                         fill="transparent" style={{ cursor: canClick ? 'crosshair' : 'default' }}
-                        onClick={() => click?.(r, c)}
+                        onClick={() => { hov?.(r, c); click?.(r, c); }}
+                        onTouchEnd={(e) => { e.preventDefault(); hov?.(r, c); click?.(r, c); }}
                         onMouseEnter={() => { hov?.(r, c); if (canClick) setHoverTgt({ r, c }); }}
                         onMouseLeave={() => { if (!small) setHover([]); setHoverTgt(null); }}
                       />

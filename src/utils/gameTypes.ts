@@ -80,12 +80,12 @@ export const GAMES_META = {
   nour: {
     id: 'nour' as GameType,
     name: 'NOURGAMES',
-    subtitle: 'Archery Labo IT',
-    emoji: '💻',
-    color: '#00ff41',
-    gradient: 'linear-gradient(135deg, #00ff41 0%, #00d9ff 100%)',
+    subtitle: 'Tir aux Pigeons',
+    emoji: '🪶',
+    color: '#e8762a',
+    gradient: 'linear-gradient(135deg, #e8762a 0%, #4a90d9 100%)',
     minPlayers: 2,
     maxPlayers: 2,
-    description: 'Vise le bullseye Matrix !',
+    description: 'Tire sur les pigeons d\'argile !',
   },
 } as const;

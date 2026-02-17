@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   NourarcheryGame — Forest / Nature Archery Theme
+   NourarcheryGame — Pigeon d'Argile / Clay Pigeon Shooting
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── Container ─── */
@@ -9,357 +9,39 @@
   max-width: 480px;
   height: 700px;
   margin: 0 auto;
-  background: linear-gradient(180deg, #1a2f1a 0%, #0d1f0d 50%, #0a1a0a 100%);
+  background: linear-gradient(180deg, #4a90d9 0%, #87ceeb 40%, #3a7a28 70%, #2d5a1e 100%);
   border-radius: 16px;
   overflow: hidden;
-  font-family: 'Courier New', 'Lucida Console', monospace;
-  color: #8FBC8F;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  color: #2a1a0a;
   user-select: none;
   touch-action: none;
-  border: 1px solid rgba(143, 188, 143, 0.3);
-  box-shadow: 0 0 30px rgba(143, 188, 143, 0.15), inset 0 0 60px rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(107, 66, 38, 0.3);
+  box-shadow: 0 0 30px rgba(107, 66, 38, 0.15), inset 0 0 60px rgba(0, 0, 0, 0.3);
 }
 
-/* ─── Matrix Rain ─── */
-.na-matrix-rain {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.na-matrix-col {
-  position: absolute;
-  top: -100%;
-  white-space: pre;
-  color: #8FBC8F;
-  font-family: 'Courier New', monospace;
-  line-height: 1.1;
-  animation: na-rain-fall linear infinite;
-  text-shadow: 0 0 4px #6B8E23;
-}
-
-@keyframes na-rain-fall {
-  0% { transform: translateY(0); }
-  100% { transform: translateY(200%); }
-}
-
-/* ─── Floating Particles ─── */
-.na-particles {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 1;
-}
-
-.na-particle {
-  position: absolute;
-  width: 3px;
-  height: 3px;
-  background: #8FBC8F;
-  border-radius: 50%;
-  animation: na-float ease-in-out infinite;
-  box-shadow: 0 0 6px #8FBC8F, 0 0 12px rgba(143, 188, 143, 0.4);
-}
-
-@keyframes na-float {
-  0%, 100% { transform: translateY(0) scale(1); opacity: 0.3; }
-  50% { transform: translateY(-30px) scale(1.5); opacity: 0.8; }
-}
-
-/* ─── Circuit Overlay ─── */
-.na-circuit-overlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 1;
-  opacity: 0.04;
-  background-image:
-    linear-gradient(rgba(143, 188, 143, 0.3) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(143, 188, 143, 0.3) 1px, transparent 1px);
-  background-size: 40px 40px;
-}
-
-/* ─── Panels (glassmorphism) ─── */
+/* ─── Panels ─── */
 .na-panel {
-  background: rgba(15, 30, 15, 0.7);
-  border: 1px solid rgba(143, 188, 143, 0.2);
+  background: rgba(255, 248, 235, 0.7);
+  border: 1px solid rgba(107, 66, 38, 0.2);
   border-radius: 8px;
   padding: 6px 14px;
   backdrop-filter: blur(6px);
-  box-shadow: 0 0 10px rgba(143, 188, 143, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .na-label {
   font-size: 10px;
-  color: rgba(143, 188, 143, 0.55);
+  color: rgba(42, 26, 10, 0.5);
   letter-spacing: 1.5px;
   text-transform: uppercase;
 }
 
 .na-value {
   font-size: 18px;
-  color: #8FBC8F;
+  color: #e8762a;
   font-weight: bold;
-  text-shadow: 0 0 8px rgba(0, 255, 65, 0.6);
-}
-
-/* ─── Top HUD ─── */
-.na-hud-top {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  right: 12px;
-  display: flex;
-  justify-content: space-between;
-  z-index: 10;
-  gap: 8px;
-}
-
-.na-round-panel,
-.na-arrow-panel {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-
-/* ─── Wind Panel ─── */
-.na-wind-panel {
-  position: absolute;
-  top: 70px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  min-width: 120px;
-}
-
-.na-wind-readout {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.na-wind-arrow {
-  color: #8FBC8F;
-  font-size: 16px;
-  text-shadow: 0 0 8px #00ff41;
-  animation: na-pulse 1.5s ease-in-out infinite;
-}
-
-.na-wind-val {
-  font-size: 16px;
-  color: #8FBC8F;
-  font-weight: bold;
-  text-shadow: 0 0 6px rgba(0, 255, 65, 0.5);
-}
-
-@keyframes na-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-/* ─── Target Area ─── */
-.na-target-area {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 300px;
-  height: 300px;
-  z-index: 5;
-  cursor: crosshair;
-}
-
-/* ─── Target ─── */
-.na-target {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 260px;
-  height: 260px;
-  border-radius: 50%;
-  animation: na-target-pulse 3s ease-in-out infinite;
-}
-
-.na-target.na-hit-flash {
-  animation: na-hit-glow 0.3s ease-out;
-}
-
-@keyframes na-target-pulse {
-  0%, 100% { filter: brightness(1); }
-  50% { filter: brightness(1.15); }
-}
-
-@keyframes na-hit-glow {
-  0% { filter: brightness(2) drop-shadow(0 0 20px #FFD700); }
-  100% { filter: brightness(1); }
-}
-
-.na-ring {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  border: 2px solid rgba(143, 188, 143, 0.3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-}
-
-.na-ring-score {
-  position: absolute;
-  top: 4px;
-  font-size: 9px;
-  color: rgba(143, 188, 143, 0.35);
-  font-weight: bold;
-  pointer-events: none;
-}
-
-/* Target crosshair lines */
-.na-target-cross-h,
-.na-target-cross-v {
-  position: absolute;
-  background: rgba(143, 188, 143, 0.12);
-  pointer-events: none;
-}
-
-.na-target-cross-h {
-  top: 50%;
-  left: 0;
-  right: 0;
-  height: 1px;
-  transform: translateY(-0.5px);
-}
-
-.na-target-cross-v {
-  left: 50%;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  transform: translateX(-0.5px);
-}
-
-/* ─── Crosshair ─── */
-.na-crosshair {
-  position: absolute;
-  width: 48px;
-  height: 48px;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  z-index: 8;
-}
-
-.na-crosshair-ring {
-  position: absolute;
-  inset: 0;
-  border: 2px solid #DAA520;
-  border-radius: 50%;
-  box-shadow: 0 0 12px rgba(218, 165, 32, 0.5), inset 0 0 8px rgba(218, 165, 32, 0.2);
-  border-top-color: transparent;
-}
-
-.na-crosshair-dot {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 6px;
-  height: 6px;
-  transform: translate(-50%, -50%);
-  background: #8FBC8F;
-  border-radius: 50%;
-  box-shadow: 0 0 8px #00ff41, 0 0 16px rgba(0, 255, 65, 0.4);
-  animation: na-dot-pulse 1s ease-in-out infinite;
-}
-
-@keyframes na-dot-pulse {
-  0%, 100% { transform: translate(-50%, -50%) scale(1); }
-  50% { transform: translate(-50%, -50%) scale(1.5); }
-}
-
-.na-crosshair-line {
-  position: absolute;
-  background: #8FBC8F;
-  box-shadow: 0 0 4px #00ff41;
-}
-
-.na-ch-top {
-  top: 0;
-  left: 50%;
-  width: 1px;
-  height: 10px;
-  transform: translateX(-0.5px);
-}
-
-.na-ch-bottom {
-  bottom: 0;
-  left: 50%;
-  width: 1px;
-  height: 10px;
-  transform: translateX(-0.5px);
-}
-
-.na-ch-left {
-  left: 0;
-  top: 50%;
-  height: 1px;
-  width: 10px;
-  transform: translateY(-0.5px);
-}
-
-.na-ch-right {
-  right: 0;
-  top: 50%;
-  height: 1px;
-  width: 10px;
-  transform: translateY(-0.5px);
-}
-
-/* ─── Stuck Arrows ─── */
-.na-stuck-arrow {
-  position: absolute;
-  width: 12px;
-  height: 12px;
-  transform: translate(-50%, -50%);
-  z-index: 7;
-}
-
-.na-arrow-head {
-  width: 100%;
-  height: 100%;
-  background: #8FBC8F;
-  clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
-  box-shadow: 0 0 6px #DAA520;
-  filter: drop-shadow(0 0 4px #DAA520);
-}
-
-/* ─── Flying Arrow ─── */
-.na-flying-arrow {
-  position: absolute;
-  width: 12px;
-  height: 12px;
-  transform: translateX(-50%);
-  z-index: 8;
-}
-
-.na-arrow-glow-trail {
-  position: absolute;
-  bottom: 100%;
-  left: 50%;
-  width: 2px;
-  height: 60px;
-  transform: translateX(-50%);
-  background: linear-gradient(to top, #DAA520, transparent);
-  box-shadow: 0 0 8px #DAA520;
-  opacity: 0.8;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
 /* ─── Score Popup ─── */
@@ -368,83 +50,11 @@
   transform: translate(-50%, -50%);
   font-size: 28px;
   font-weight: bold;
-  color: #8FBC8F;
-  text-shadow: 0 0 16px #00ff41, 0 0 32px rgba(0, 255, 65, 0.5);
+  color: #e8762a;
+  text-shadow: 0 2px 8px rgba(232, 118, 42, 0.5);
   pointer-events: none;
   z-index: 20;
-  font-family: 'Courier New', monospace;
-}
-
-/* ─── Bottom HUD ─── */
-.na-hud-bottom {
-  position: absolute;
-  bottom: 60px;
-  left: 12px;
-  right: 12px;
-  display: flex;
-  justify-content: space-between;
-  z-index: 10;
-  gap: 8px;
-}
-
-.na-score-panel {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  flex: 1;
-}
-
-.na-score-value {
-  font-size: 28px;
-  color: #8FBC8F;
-  font-weight: bold;
-  text-shadow: 0 0 12px rgba(0, 255, 65, 0.7);
-}
-
-.na-score-value.na-opp {
-  color: #FF6347;
-  text-shadow: 0 0 12px rgba(255, 99, 71, 0.5);
-}
-
-/* ─── Shots Panel ─── */
-.na-shots-panel {
-  position: absolute;
-  bottom: 30px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.na-shot-score {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border: 1px solid rgba(143, 188, 143, 0.3);
-  border-radius: 4px;
-  font-size: 12px;
-  color: #8FBC8F;
-  font-weight: bold;
-  text-shadow: 0 0 4px #6B8E23;
-}
-
-/* ─── Nudge ─── */
-.na-nudge {
-  position: absolute;
-  bottom: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-  font-size: 11px;
-  color: rgba(143, 188, 143, 0.6);
-  letter-spacing: 1px;
-  white-space: nowrap;
-  text-shadow: 0 0 4px rgba(143, 188, 143, 0.3);
+  font-family: 'Georgia', serif;
 }
 
 /* ─── Overlays ─── */
@@ -456,7 +66,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: rgba(10, 26, 10, 0.85);
+  background: rgba(42, 26, 10, 0.75);
   backdrop-filter: blur(4px);
   border-radius: 16px;
   gap: 12px;
@@ -464,77 +74,30 @@
 
 .na-overlay-text {
   font-size: 18px;
-  color: #8FBC8F;
-  text-shadow: 0 0 12px #00ff41;
+  color: #d4a853;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
   letter-spacing: 2px;
 }
 
-.na-overlay-sub {
-  font-size: 12px;
-  color: rgba(143, 188, 143, 0.4);
-  letter-spacing: 1px;
-}
-
-.na-blink {
-  animation: na-blink-anim 1s step-end infinite;
-}
-
-@keyframes na-blink-anim {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
-
-/* ─── Game Over Box ─── */
+/* ─── Game Over ─── */
 .na-gameover-box {
-  background: rgba(10, 26, 10, 0.9);
-  border: 1px solid rgba(143, 188, 143, 0.3);
+  background: rgba(255, 248, 235, 0.9);
+  border: 2px solid rgba(212, 168, 83, 0.4);
   border-radius: 12px;
   padding: 30px 36px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 16px;
-  box-shadow: 0 0 40px rgba(143, 188, 143, 0.15);
-  max-width: 320px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
 }
 
 .na-gameover-title {
   font-size: 22px;
-  color: #8FBC8F;
-  text-shadow: 0 0 16px #00ff41;
-  letter-spacing: 3px;
+  color: #e8762a;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  letter-spacing: 2px;
   font-weight: bold;
-}
-
-.na-gameover-scores {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: 100%;
-}
-
-.na-go-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 20px;
-}
-
-.na-gameover-result {
-  font-size: 14px;
-  color: #8FBC8F;
-  text-shadow: 0 0 10px #00ff41;
-  letter-spacing: 1.5px;
-  margin-top: 8px;
-  text-align: center;
-}
-
-.na-all-shots {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  justify-content: center;
-  margin-top: 4px;
 }
 
 /* ─── Mobile Responsive ─── */
@@ -543,14 +106,5 @@
     border-radius: 0;
     height: 100vh;
     max-width: 100%;
-  }
-
-  .na-target-area {
-    width: 260px;
-    height: 260px;
-  }
-
-  .na-gameover-box {
-    padding: 20px 24px;
   }
 }

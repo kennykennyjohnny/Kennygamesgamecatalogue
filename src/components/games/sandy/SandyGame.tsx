@@ -120,6 +120,7 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
   const [splash, setSplash] = useState<{x: number; y: number} | null>(null);
   const [dragStart, setDragStart] = useState<{x: number; y: number} | null>(null);
   const [dragCur, setDragCur] = useState<{x: number; y: number} | null>(null);
+  const [ballTrail, setBallTrail] = useState<{x: number; y: number}[]>([]);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const raf = useRef<number>(0);
@@ -158,23 +159,25 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
     if (throwing || !isPlayerTurn || over) return;
     setThrowing(true);
 
-    const aimX = 50 + dx * 35;
-    const power = Math.min(1, Math.sqrt(dx * dx + dy * dy) * 1.5);
-    const noise = Math.max(0, 0.7 - power) * 10;
-    const finalX = aimX + (Math.random() - 0.5) * noise;
-    const finalY = 22 + Math.abs(dy) * 12 + (Math.random() - 0.5) * noise;
+    // Better aiming: dx controls left/right, dy controls depth
+    const aimX = 50 + dx * 50;
+    const power = Math.min(1, Math.sqrt(dx * dx + dy * dy) * 2);
+    const noise = Math.max(0, 0.5 - power * 0.6) * 8;
+    const finalX = Math.max(25, Math.min(75, aimX + (Math.random() - 0.5) * noise));
+    const finalY = 18 + Math.abs(dy) * 15 + (Math.random() - 0.5) * noise * 0.5;
 
     const sx = 50, sy = 85;
     const start = performance.now();
-    const dur = 550;
+    const dur = 500;
 
     const animate = (now: number) => {
       const t = Math.min(1, (now - start) / dur);
       const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
       const x = sx + (finalX - sx) * ease;
-      const y = sy + (finalY - sy) * ease - Math.sin(t * Math.PI) * 22;
-      const s = 1 - t * 0.55; // shrinks as flies away
+      const y = sy + (finalY - sy) * ease - Math.sin(t * Math.PI) * 25;
+      const s = 1 - t * 0.55;
       setBallPos({ x, y, s });
+      setBallTrail(prev => [...prev.slice(-8), { x, y }]);
 
       if (t < 1) {
         raf.current = requestAnimationFrame(animate);
@@ -184,7 +187,7 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
         let bestDist = 999;
         for (const cup of alive) {
           const d = Math.sqrt((cup.x - finalX) ** 2 + (cup.y - finalY) ** 2);
-          if (d < 6.5 && d < bestDist) { hitCup = cup; bestDist = d; }
+          if (d < 8 && d < bestDist) { hitCup = cup; bestDist = d; }
         }
 
         if (hitCup) {
@@ -205,7 +208,7 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
         if (resultT.current) clearTimeout(resultT.current);
         resultT.current = setTimeout(() => setLastResult(null), 1800);
 
-        setTimeout(() => { setBallPos(null); setThrowing(false); }, 400);
+        setTimeout(() => { setBallPos(null); setThrowing(false); setBallTrail([]); }, 400);
       }
     };
 
@@ -226,7 +229,7 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
   const onStart = (e: React.MouseEvent | React.TouchEvent) => {
     if (!isPlayerTurn || throwing || over) return;
     const p = getPos(e);
-    if (p.y < 55) return;
+    if (p.y < 50) return;
     setDragStart(p); setDragCur(p);
   };
   const onDrag = (e: React.MouseEvent | React.TouchEvent) => {
@@ -238,9 +241,9 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
     if (!dragStart || !dragCur) { setDragStart(null); setDragCur(null); return; }
     const dx = (dragCur.x - dragStart.x) / 100;
     const dy = (dragStart.y - dragCur.y) / 100;
-    if (Math.abs(dy) < 0.04) { setDragStart(null); setDragCur(null); return; }
+    if (Math.abs(dy) < 0.02) { setDragStart(null); setDragCur(null); return; }
     setDragStart(null); setDragCur(null);
-    doThrow(dx * 2, dy * 2);
+    doThrow(dx * 1.5, dy * 1.5);
   };
 
   const myAlive = myCups.filter(c => c.alive).length;
@@ -387,6 +390,13 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
           {/* Ball in flight */}
           {ballPos && (
             <g>
+              {/* Ball trail */}
+              {ballTrail.length > 1 && (
+                <polyline
+                  points={ballTrail.map(p => `${p.x},${p.y}`).join(' ')}
+                  fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth={1.2 * ballPos.s}
+                  strokeLinecap="round" />
+              )}
               {/* Ball shadow on table */}
               <ellipse cx={ballPos.x} cy={Math.max(ballPos.y + 3, 58)} rx={1.5 * ballPos.s} ry={0.5 * ballPos.s}
                 fill="rgba(0,0,0,0.1)" />
@@ -408,9 +418,34 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
             );
           })}
 
-          {/* Drag aim indicator */}
+          {/* Drag aim indicator with trajectory preview */}
           {dragStart && dragCur && (
             <g>
+              {/* Trajectory preview arc */}
+              {(() => {
+                const dx = (dragCur.x - dragStart.x) / 100;
+                const dy = (dragStart.y - dragCur.y) / 100;
+                const power = Math.min(1, Math.sqrt(dx * dx + dy * dy) * 2);
+                const aimX = 50 + dx * 50 * 1.5;
+                const targetX = Math.max(25, Math.min(75, aimX));
+                const targetY = 18 + Math.abs(dy) * 15 * 1.5;
+                const pts: string[] = [];
+                for (let t = 0; t <= 1; t += 0.05) {
+                  const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+                  const px = 50 + (targetX - 50) * ease;
+                  const py = 85 + (targetY - 85) * ease - Math.sin(t * Math.PI) * 25;
+                  pts.push(`${px},${py}`);
+                }
+                return (
+                  <g>
+                    <polyline points={pts.join(' ')}
+                      fill="none" stroke="rgba(244,176,195,0.3)" strokeWidth={0.5} strokeDasharray="1.5,1" />
+                    <circle cx={targetX} cy={targetY} r={2}
+                      fill="none" stroke="rgba(244,176,195,0.3)" strokeWidth={0.3} />
+                  </g>
+                );
+              })()}
+              {/* Drag line */}
               <line x1={dragStart.x} y1={dragStart.y} x2={dragCur.x} y2={dragCur.y}
                 stroke="rgba(244,176,195,0.25)" strokeWidth={0.4} strokeDasharray="1.5,1" />
               <circle cx={dragStart.x} cy={dragStart.y} r={1.5}
@@ -418,12 +453,21 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
               {/* Power indicator */}
               {(() => {
                 const dy = dragStart.y - dragCur.y;
-                const pwr = Math.min(100, Math.max(0, dy * 3));
+                const dx = dragCur.x - dragStart.x;
+                const pwr = Math.min(100, Math.max(0, Math.sqrt(dx * dx + dy * dy) * 2));
                 return (
-                  <text x={dragStart.x + 4} y={dragStart.y - 2}
-                    fill="rgba(244,176,195,0.3)" fontSize="2.5" fontFamily="Georgia, serif" fontStyle="italic">
-                    {Math.round(pwr)}%
-                  </text>
+                  <g>
+                    <text x={dragStart.x + 4} y={dragStart.y - 2}
+                      fill="rgba(244,176,195,0.4)" fontSize="3" fontFamily="Georgia, serif" fontStyle="italic"
+                      fontWeight={700}>
+                      {Math.round(pwr)}%
+                    </text>
+                    {/* Power bar */}
+                    <rect x={dragStart.x + 4} y={dragStart.y} width={1.5} height={10} rx={0.5}
+                      fill="rgba(0,0,0,0.15)" />
+                    <rect x={dragStart.x + 4} y={dragStart.y + 10 - pwr / 10} width={1.5} height={pwr / 10} rx={0.5}
+                      fill={pwr > 70 ? 'rgba(232,82,122,0.5)' : 'rgba(244,176,195,0.4)'} />
+                  </g>
                 );
               })()}
             </g>
