@@ -138,6 +138,7 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
   const [opHP, setOpHP] = useState(MAX_HP);
   const [angle, setAngle] = useState(45);
   const [power, setPower] = useState(50);
+  const [opAngle, setOpAngle] = useState(45);
   const [wind, setWind] = useState(0);
   const [turn, setTurn] = useState(0);
   const [firing, setFiring] = useState(false);
@@ -183,18 +184,18 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
     let hp2 = MAX_HP; // guest HP
     let turnCount = 0;
 
+    let lastOpAngle = 45;
     for (const m of moves) {
       if (m.type === 'fire' && m.dmg !== undefined) {
-        // Determine who was shooting: the move sender
         const shooterIsHost = m.playerId < opponentId && m.playerId === playerId
           ? true : m.playerId > opponentId ? false
           : m.playerId === playerId ? isHost : !isHost;
 
-        // dmg > 0 means the shooter hit the opponent
         if (m.dmg > 0) {
           if (shooterIsHost) { hp2 = Math.max(0, hp2 - m.dmg); }
           else { hp1 = Math.max(0, hp1 - m.dmg); }
         }
+        if (m.playerId !== playerId && m.angle !== undefined) lastOpAngle = m.angle;
         turnCount++;
       }
     }
@@ -203,6 +204,7 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
     const opHPVal = isHost ? hp2 : hp1;
     setMyHP(myHPVal);
     setOpHP(opHPVal);
+    setOpAngle(lastOpAngle);
     setTurn(turnCount);
     setWind(getWind(gameId, turnCount));
 
@@ -220,6 +222,9 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
     if (m.playerId === playerId) return;
 
     if (m.type === 'fire') {
+      // Update opponent's visible turret angle
+      if (m.angle !== undefined) setOpAngle(m.angle);
+
       // Apply opponent's damage result directly from the move data
       if (m.dmg !== undefined && m.dmg > 0) {
         setMyHP(prev => {
@@ -276,8 +281,11 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
           // Send miss move
           onMove({ type: 'fire', angle: ang, power: pow, dmg: 0, _keepTurn: false });
         }
-        setTurn(t => t + 1);
-        setWind(getWind(gameId, turn + 1));
+        setTurn(t => {
+          const next = t + 1;
+          setWind(getWind(gameId, next));
+          return next;
+        });
         return;
       }
 
@@ -327,8 +335,11 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
         setTimeout(() => {
           setExplosion(null);
           setFiring(false);
-          setTurn(t => t + 1);
-          setWind(getWind(gameId, turn + 1));
+          setTurn(t => {
+            const next = t + 1;
+            setWind(getWind(gameId, next));
+            return next;
+          });
         }, 600);
         return;
       }
@@ -521,7 +532,7 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
           {/* Tanks */}
           <TankSVG x={myPos.x} y={myPos.y} color={P.neonCyan} angle={isHost ? angle : 180 - angle}
             hp={myHP} isMe={true} flash={flash} />
-          <TankSVG x={opPos.x} y={opPos.y} color={P.neonOrange} angle={isHost ? 180 - 45 : 45}
+          <TankSVG x={opPos.x} y={opPos.y} color={P.neonOrange} angle={isHost ? 180 - opAngle : opAngle}
             hp={opHP} isMe={false} flash={false} />
 
           {/* Projectile trail */}

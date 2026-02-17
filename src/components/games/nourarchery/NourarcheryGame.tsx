@@ -155,9 +155,9 @@ function makePigeon(id: number, wind: number): Pigeon {
   };
 }
 
-function pigeonPos(p: Pigeon): { x: number; y: number } {
+function pigeonPos(p: Pigeon, wind: number): { x: number; y: number } {
   const t = p.t;
-  const x = p.startX + (p.targetX - p.startX) * t;
+  const x = p.startX + (p.targetX - p.startX) * t + wind * t * t * 8;
   const y = p.startY + (p.peakY - p.startY) * Math.sin(t * Math.PI);
   return { x, y };
 }
@@ -281,7 +281,7 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
 
   // Handle pigeon miss (escaped)
   useEffect(() => {
-    if (!pigeon?.missed || firing) return;
+    if (!pigeon?.missed) return;
     setMissEffect(true);
     setRoundScores(prev => [...prev, 0]);
 
@@ -290,17 +290,24 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
       _keepTurn: shot < SHOTS_PER_ROUND,
     });
 
+    const isLastShot = round === ROUNDS && shot === SHOTS_PER_ROUND;
+
     setTimeout(() => {
       setMissEffect(false);
       setPigeon(null);
       setFiring(false);
-      if (shot < SHOTS_PER_ROUND) {
+      if (isLastShot) {
+        setOver(true);
+        setWin(myScore > opScore ? playerId : opScore > myScore ? opponentId : playerId);
+        onGameOver({ winner_id: myScore >= opScore ? playerId : opponentId });
+      } else if (shot < SHOTS_PER_ROUND) {
         setShot(s => s + 1);
       } else if (round < ROUNDS) {
         setRound(r => r + 1); setShot(1); setRoundScores([]);
       }
     }, 800);
-  }, [pigeon?.missed, firing, round, shot, onMove]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pigeon?.missed, round, shot, myScore, opScore, playerId, opponentId, onMove, onGameOver]);
 
   // ── Sync ───────────────────────────────────────────────────────────────────
 
@@ -362,10 +369,9 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
     setRecoil(true);
     setTimeout(() => setRecoil(false), 150);
 
-    const pos = pigeonPos(pigeon);
+    const pos = pigeonPos(pigeon, wind);
     const dist = Math.sqrt((crosshair.x - pos.x) ** 2 + (crosshair.y - pos.y) ** 2);
 
-    // Spread radius — shotgun has a wide spread
     const spreadR = 8;
     let score = 0;
     if (dist < spreadR * 0.3) score = 10;
@@ -378,30 +384,38 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
       setHitEffect({ x: pos.x, y: pos.y, score });
       setMyScore(prev => prev + score);
       setRoundScores(prev => [...prev, score]);
-    } else {
-      // Missed — pigeon continues flying
-      setRoundScores(prev => [...prev, 0]);
-    }
 
-    onMove({
-      type: 'shoot', round, arrow: shot, score,
-      _keepTurn: shot < SHOTS_PER_ROUND,
-    });
+      onMove({
+        type: 'shoot', round, arrow: shot, score,
+        _keepTurn: shot < SHOTS_PER_ROUND,
+      });
 
-    setTimeout(() => {
-      setHitEffect(null);
-      setPigeon(null);
-      setFiring(false);
-      if (shot < SHOTS_PER_ROUND) {
-        setShot(s => s + 1);
-      } else if (round < ROUNDS) {
-        setRound(r => r + 1); setShot(1); setRoundScores([]);
+      const isLastShot = round === ROUNDS && shot === SHOTS_PER_ROUND;
+      if (isLastShot) {
+        setTimeout(() => {
+          setOver(true); setWin(myScore + score > opScore ? playerId : opScore > myScore + score ? opponentId : playerId);
+          onGameOver({ winner_id: myScore + score >= opScore ? playerId : opponentId });
+        }, 1000);
       }
-    }, score > 0 ? 800 : 500);
-  }, [isPlayerTurn, pigeon, firing, over, crosshair, round, shot, onMove]);
+
+      setTimeout(() => {
+        setHitEffect(null);
+        setPigeon(null);
+        setFiring(false);
+        if (shot < SHOTS_PER_ROUND) {
+          setShot(s => s + 1);
+        } else if (round < ROUNDS) {
+          setRound(r => r + 1); setShot(1); setRoundScores([]);
+        }
+      }, 800);
+    } else {
+      // Missed shot — pigeon continues flying, let it escape naturally
+      // Keep firing=true to prevent double-shooting; the pigeon.missed effect resets it
+    }
+  }, [isPlayerTurn, pigeon, firing, over, crosshair, round, shot, wind, myScore, opScore, playerId, opponentId, onMove, onGameOver]);
 
   const pigeonVisible = pigeon && pigeon.launched && !pigeon.hit && !pigeon.missed;
-  const pPos = pigeon && pigeon.launched ? pigeonPos(pigeon) : null;
+  const pPos = pigeon && pigeon.launched ? pigeonPos(pigeon, wind) : null;
 
   return (
     <div style={{
@@ -515,7 +529,9 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
         <svg ref={svgRef} viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"
           style={{ width: '100%', height: '100%', cursor: isPlayerTurn && pigeon?.launched ? 'crosshair' : 'default' }}
           onMouseMove={onPointerMove} onTouchMove={onPointerMove}
-          onClick={onShoot} onTouchEnd={(e) => { e.preventDefault(); onShoot(); }}>
+          onClick={onShoot}
+          onTouchStart={(e) => { e.preventDefault(); const p = getPos(e); setCrosshair(p); setShowCrosshair(true); }}
+          onTouchEnd={(e) => { e.preventDefault(); onShoot(); }}>
 
           <defs>
             {/* Sky gradient */}

@@ -435,7 +435,10 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
                       {/* Clickable area */}
                       <rect x={c * cs} y={r * cs} width={cs} height={cs}
                         fill="transparent" style={{ cursor: canClick ? 'crosshair' : 'default' }}
-                        onClick={() => { hov?.(r, c); click?.(r, c); }}
+                        onClick={(e) => {
+                          if ((e as any).nativeEvent?.sourceCapabilities?.firesTouchEvents) return;
+                          hov?.(r, c); click?.(r, c);
+                        }}
                         onTouchEnd={(e) => { e.preventDefault(); hov?.(r, c); click?.(r, c); }}
                         onMouseEnter={() => { hov?.(r, c); if (canClick) setHoverTgt({ r, c }); }}
                         onMouseLeave={() => { if (!small) setHover([]); setHoverTgt(null); }}

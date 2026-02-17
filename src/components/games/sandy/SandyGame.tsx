@@ -231,6 +231,14 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
         setMyCups(prev => {
           const updated = prev.map(c => c.id === hitId ? { ...c, alive: false } : c);
           if (updated.filter(c => c.alive).length === 0) { setOver(true); setWin(opponentId); }
+          // Show splash at the hit cup position (projected to near-view)
+          const hitCup = prev.find(c => c.id === hitId);
+          if (hitCup) {
+            const py = 60 + (hitCup.y - 15) * 0.8;
+            const px = 50 + (hitCup.x - 50) * 1.3;
+            setSplash({ x: px, y: py });
+            setTimeout(() => setSplash(null), 900);
+          }
           return updated;
         });
         setLastResult('💔 Touché !');
@@ -470,7 +478,7 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
           textShadow: over || isPlayerTurn ? '0 1px 6px rgba(0,0,0,0.3)' : 'none',
           letterSpacing: 0.5,
         }}>
-        {over ? (win === playerId ? '🏆 Victoire !' : '💔 Défaite…') : isPlayerTurn ? (shotsLeft > 0 ? `🎯 Tir ${3 - shotsLeft}/2 — Glisse !` : '⏳ Fin du tour…') : '⏳ Tour adverse…'}
+        {over ? (win === playerId ? '🏆 Victoire !' : '💔 Défaite…') : isPlayerTurn ? (shotsLeft > 0 ? `🎯 Tir ${3 - shotsLeft}/2 — Glisse !` : '⏳ Changement…') : '⏳ Tour adverse…'}
       </motion.div>
 
       {/* Result popup */}
