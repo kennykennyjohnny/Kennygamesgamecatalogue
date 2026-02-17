@@ -7,39 +7,25 @@ type Phase = 'PLACEMENT' | 'WAITING' | 'BATTLE';
 type Orientation = 'H' | 'V';
 type CellState = 'empty' | 'miss' | 'hit';
 
-interface ShipDef { name: string; size: number; emoji: string; color: string; colorDark: string }
-interface PlacedShip {
-  name: string; size: number; emoji: string; color: string; colorDark: string;
+interface ShipDef { id: string; name: string; size: number; color: string; colorLight: string }
+interface PlacedShip extends ShipDef {
   cells: [number, number][]; orientation: Orientation; sunk: boolean;
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const GRID = 10;
-const ROW_LABELS = 'ABCDEFGHIJ'.split('');
-const COL_LABELS = Array.from({ length: 10 }, (_, i) => `${i + 1}`);
 
 const SHIP_DEFS: ShipDef[] = [
-  { name: 'Porte-avions', size: 5, emoji: '🚢', color: '#3478F6', colorDark: '#1a4da8' },
-  { name: 'Croiseur',     size: 4, emoji: '⛴️', color: '#30B0C7', colorDark: '#1a7a8c' },
-  { name: 'Sous-marin',   size: 3, emoji: '🛥️', color: '#5856D6', colorDark: '#3634a3' },
-  { name: 'Torpilleur',   size: 3, emoji: '⛵', color: '#007AFF', colorDark: '#0055b3' },
-  { name: 'Patrouilleur', size: 2, emoji: '🚤', color: '#64D2FF', colorDark: '#2ba8d4' },
+  { id: 'carrier',    name: 'Porte-avions', size: 5, color: '#3b82f6', colorLight: '#60a5fa' },
+  { id: 'cruiser',    name: 'Croiseur',     size: 4, color: '#8b5cf6', colorLight: '#a78bfa' },
+  { id: 'submarine',  name: 'Sous-marin',   size: 3, color: '#06b6d4', colorLight: '#22d3ee' },
+  { id: 'destroyer',  name: 'Torpilleur',   size: 3, color: '#10b981', colorLight: '#34d399' },
+  { id: 'patrol',     name: 'Patrouilleur', size: 2, color: '#f59e0b', colorLight: '#fbbf24' },
 ];
 
-// Navy palette
-const C = {
-  bg: 'linear-gradient(180deg, #0a1628 0%, #0d2137 40%, #0a1a2e 100%)',
-  glass: 'rgba(13, 33, 55, 0.7)',
-  border: 'rgba(52, 120, 246, 0.2)',
-  accent: '#3478F6',
-  text: '#c8e0f5',
-  textDim: 'rgba(100, 210, 255, 0.6)',
-  cellBg: 'rgba(10, 22, 40, 0.6)',
-  cellBorder: 'rgba(52, 120, 246, 0.15)',
-};
-
-const font = '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+const CELL = 36;
+const GAP = 1;
 
 const makeGrid = (): CellState[][] =>
   Array.from({ length: GRID }, () => Array(GRID).fill('empty') as CellState[]);
@@ -57,16 +43,13 @@ function getCells(r: number, c: number, size: number, dir: Orientation): [number
   return cells;
 }
 
-// Check adjacency – ships cannot touch each other (not even diagonally)
 function hasAdjacentShip(cells: [number, number][], existing: PlacedShip[]): boolean {
   const occupied = new Set<string>();
   for (const ship of existing) {
     for (const [sr, sc] of ship.cells) {
-      for (let dr = -1; dr <= 1; dr++) {
-        for (let dc = -1; dc <= 1; dc++) {
+      for (let dr = -1; dr <= 1; dr++)
+        for (let dc = -1; dc <= 1; dc++)
           occupied.add(`${sr + dr},${sc + dc}`);
-        }
-      }
     }
   }
   return cells.some(([r, c]) => occupied.has(`${r},${c}`));
@@ -77,10 +60,102 @@ function overlaps(cells: [number, number][], existing: PlacedShip[]): boolean {
   return cells.some(([r, c]) => set.has(`${r},${c}`));
 }
 
-// ── Component ────────────────────────────────────────────────────────────────
+// ── Ship SVG renderer ────────────────────────────────────────────────────────
+// Renders a single ship spanning its cells as one continuous shape
+
+function ShipSVG({ ship, cellSize, isHit }: { ship: PlacedShip; cellSize: number; isHit?: Set<string> }) {
+  const isH = ship.orientation === 'H';
+  const len = ship.size;
+  const w = isH ? len * cellSize : cellSize;
+  const h = isH ? cellSize : len * cellSize;
+  const minR = Math.min(...ship.cells.map(c => c[0]));
+  const minC = Math.min(...ship.cells.map(c => c[1]));
+
+  // Ship body with rounded ends
+  const pad = 3;
+  const bodyW = w - pad * 2;
+  const bodyH = h - pad * 2;
+  const r = Math.min(bodyW, bodyH) / 2 - 1;
+
+  return (
+    <g transform={`translate(${minC * cellSize}, ${minR * cellSize})`}>
+      {/* Hull shadow */}
+      <rect x={pad + 1} y={pad + 2} width={bodyW} height={bodyH} rx={r} fill="rgba(0,0,0,0.3)" />
+      {/* Hull */}
+      <rect x={pad} y={pad} width={bodyW} height={bodyH} rx={r}
+        fill={ship.color} stroke={ship.colorLight} strokeWidth={1.5} />
+      {/* Hull shine */}
+      <rect x={pad + 2} y={pad + 1} width={bodyW - 4} height={bodyH * 0.4} rx={r - 2}
+        fill="rgba(255,255,255,0.15)" />
+
+      {/* Deck details based on ship type */}
+      {ship.id === 'carrier' && (
+        <>
+          {/* Flight deck stripe */}
+          <rect x={pad + 4} y={h / 2 - 1} width={bodyW - 8} height={2} rx={1}
+            fill="rgba(255,255,255,0.25)" />
+          {/* Control tower */}
+          {isH ? (
+            <rect x={w * 0.6} y={pad + 3} width={8} height={bodyH - 6} rx={2}
+              fill={ship.colorLight} opacity={0.5} />
+          ) : (
+            <rect x={pad + 3} y={h * 0.6} width={bodyW - 6} height={8} rx={2}
+              fill={ship.colorLight} opacity={0.5} />
+          )}
+        </>
+      )}
+      {ship.id === 'cruiser' && (
+        <>
+          {/* Front turret */}
+          <circle cx={isH ? pad + 10 : w / 2} cy={isH ? h / 2 : pad + 10} r={4}
+            fill={ship.colorLight} opacity={0.4} />
+          {/* Rear turret */}
+          <circle cx={isH ? w - pad - 10 : w / 2} cy={isH ? h / 2 : h - pad - 10} r={4}
+            fill={ship.colorLight} opacity={0.4} />
+        </>
+      )}
+      {ship.id === 'submarine' && (
+        <>
+          {/* Conning tower */}
+          <ellipse cx={w / 2} cy={h / 2}
+            rx={isH ? 8 : bodyW / 2 - 4} ry={isH ? bodyH / 2 - 4 : 8}
+            fill={ship.colorLight} opacity={0.3} />
+          {/* Periscope */}
+          {isH ? (
+            <line x1={w / 2} y1={pad - 1} x2={w / 2} y2={pad + 5} stroke={ship.colorLight} strokeWidth={1.5} opacity={0.5} />
+          ) : (
+            <line x1={pad - 1} y1={h / 2} x2={pad + 5} y2={h / 2} stroke={ship.colorLight} strokeWidth={1.5} opacity={0.5} />
+          )}
+        </>
+      )}
+      {ship.id === 'destroyer' && (
+        <circle cx={isH ? pad + 8 : w / 2} cy={isH ? h / 2 : pad + 8} r={3}
+          fill={ship.colorLight} opacity={0.4} />
+      )}
+      {ship.id === 'patrol' && (
+        <circle cx={w / 2} cy={h / 2} r={3} fill={ship.colorLight} opacity={0.4} />
+      )}
+
+      {/* Hit markers on this ship */}
+      {isHit && ship.cells.map(([cr, cc], idx) => {
+        if (!isHit.has(`${cr},${cc}`)) return null;
+        const cx = (cc - minC) * cellSize + cellSize / 2;
+        const cy = (cr - minR) * cellSize + cellSize / 2;
+        return (
+          <g key={idx}>
+            <circle cx={cx} cy={cy} r={cellSize / 3} fill="rgba(239,68,68,0.7)" />
+            <line x1={cx - 5} y1={cy - 5} x2={cx + 5} y2={cy + 5} stroke="#fff" strokeWidth={2} />
+            <line x1={cx + 5} y1={cy - 5} x2={cx - 5} y2={cy + 5} stroke="#fff" strokeWidth={2} />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+// ── Main Component ───────────────────────────────────────────────────────────
 
 export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn, gameState, onMove, onGameOver }: any) {
-  // Placement state
   const [phase, setPhase] = useState<Phase>('PLACEMENT');
   const [placedShips, setPlacedShips] = useState<PlacedShip[]>([]);
   const [currentShipIdx, setCurrentShipIdx] = useState(0);
@@ -88,514 +163,462 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
   const [hoverCells, setHoverCells] = useState<[number, number][]>([]);
   const [hoverValid, setHoverValid] = useState(true);
 
-  // Battle state
   const [myGrid, setMyGrid] = useState<CellState[][]>(makeGrid);
   const [enemyGrid, setEnemyGrid] = useState<CellState[][]>(makeGrid);
   const [mySunkShips, setMySunkShips] = useState<string[]>([]);
   const [enemySunkShips, setEnemySunkShips] = useState<string[]>([]);
-  const [lastHitAnim, setLastHitAnim] = useState<{ r: number; c: number; hit: boolean } | null>(null);
-  const [sunkAnnouncement, setSunkAnnouncement] = useState<string | null>(null);
+  const [lastHit, setLastHit] = useState<{ r: number; c: number; hit: boolean } | null>(null);
+  const [sunkMsg, setSunkMsg] = useState<string | null>(null);
   const [gameOver, setGameOver] = useState(false);
   const [winner, setWinner] = useState<string | null>(null);
+  const [hoverTarget, setHoverTarget] = useState<{ r: number; c: number } | null>(null);
 
-  const announcementTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sunkTimer = useRef<ReturnType<typeof setTimeout>>();
 
-  // ── Sync with shared game_state from Supabase ─────────────────────────────
+  // ── Sync ───────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!gameState?.lastMove) return;
-    const move = gameState.lastMove;
-    if (move.playerId === playerId) return; // own move, ignore
+    const m = gameState.lastMove;
+    if (m.playerId === playerId) return;
 
-    if (move.type === 'ready') {
-      // Opponent is ready – if we're also ready, start battle
-      if (phase === 'WAITING') {
-        setPhase('BATTLE');
-      }
+    if (m.type === 'ready') {
+      if (phase === 'WAITING') setPhase('BATTLE');
     }
 
-    if (move.type === 'fire') {
-      // Opponent fired at our grid
-      const { r, c } = move;
-      const hitShip = placedShips.find(s =>
-        s.cells.some(([sr, sc]) => sr === r && sc === c)
-      );
+    if (m.type === 'fire') {
+      const { r, c } = m;
+      const hitShip = placedShips.find(s => s.cells.some(([sr, sc]) => sr === r && sc === c));
+      const g = myGrid.map(row => [...row]);
+      g[r][c] = hitShip ? 'hit' : 'miss';
+      setMyGrid(g);
+      setLastHit({ r, c, hit: !!hitShip });
+      setTimeout(() => setLastHit(null), 900);
 
-      const newMyGrid = myGrid.map(row => [...row]);
-      newMyGrid[r][c] = hitShip ? 'hit' : 'miss';
-      setMyGrid(newMyGrid);
-
-      // Show animation
-      setLastHitAnim({ r, c, hit: !!hitShip });
-      setTimeout(() => setLastHitAnim(null), 800);
-
-      // Check if ship sunk
-      if (hitShip) {
-        const allHit = hitShip.cells.every(([sr, sc]) =>
-          (sr === r && sc === c) || newMyGrid[sr][sc] === 'hit'
-        );
-        if (allHit) {
-          setMySunkShips(prev => [...prev, hitShip.name]);
-          // Check if all our ships sunk → we lost
-          const totalSunk = mySunkShips.length + 1;
-          if (totalSunk >= SHIP_DEFS.length) {
+      const sunk = hitShip ? hitShip.cells.every(([sr, sc]) =>
+        (sr === r && sc === c) || g[sr][sc] === 'hit'
+      ) : false;
+      if (sunk && hitShip) {
+        setMySunkShips(prev => {
+          const next = [...prev, hitShip.name];
+          if (next.length >= SHIP_DEFS.length) {
             setGameOver(true);
             setWinner(opponentId);
           }
-        }
+          return next;
+        });
       }
-
-      // Send result back to opponent
-      const sunk = hitShip ? hitShip.cells.every(([sr, sc]) =>
-        (sr === r && sc === c) || newMyGrid[sr][sc] === 'hit'
-      ) : false;
-
-      onMove({
-        type: 'fire_result',
-        r, c,
-        hit: !!hitShip,
-        sunk,
-        sunkShipName: sunk ? hitShip?.name : null,
-        sunkShipEmoji: sunk ? hitShip?.emoji : null,
-        _keepTurn: !!hitShip, // if hit, opponent keeps their turn
-      });
+      onMove({ type: 'fire_result', r, c, hit: !!hitShip, sunk, sunkName: sunk ? hitShip?.name : null, _keepTurn: !!hitShip });
     }
 
-    if (move.type === 'fire_result') {
-      // We got the result of our shot
-      const { r, c, hit, sunk, sunkShipName, sunkShipEmoji } = move;
-      const newEnemyGrid = enemyGrid.map(row => [...row]);
-      newEnemyGrid[r][c] = hit ? 'hit' : 'miss';
-      setEnemyGrid(newEnemyGrid);
-
-      setLastHitAnim({ r, c, hit });
-      setTimeout(() => setLastHitAnim(null), 800);
-
-      if (sunk && sunkShipName) {
-        setEnemySunkShips(prev => [...prev, sunkShipName]);
-        setSunkAnnouncement(`${sunkShipEmoji} ${sunkShipName} coulé !`);
-        if (announcementTimer.current) clearTimeout(announcementTimer.current);
-        announcementTimer.current = setTimeout(() => setSunkAnnouncement(null), 2500);
-
-        // Check win
-        const totalEnemySunk = enemySunkShips.length + 1;
-        if (totalEnemySunk >= SHIP_DEFS.length) {
-          setGameOver(true);
-          setWinner(playerId);
-          onGameOver({ winner_id: playerId });
-        }
+    if (m.type === 'fire_result') {
+      const { r, c, hit, sunk, sunkName } = m;
+      const g = enemyGrid.map(row => [...row]);
+      g[r][c] = hit ? 'hit' : 'miss';
+      setEnemyGrid(g);
+      setLastHit({ r, c, hit });
+      setTimeout(() => setLastHit(null), 900);
+      if (sunk && sunkName) {
+        setEnemySunkShips(prev => {
+          const next = [...prev, sunkName];
+          if (next.length >= SHIP_DEFS.length) {
+            setGameOver(true);
+            setWinner(playerId);
+            onGameOver({ winner_id: playerId });
+          }
+          return next;
+        });
+        setSunkMsg(`💀 ${sunkName} coulé !`);
+        if (sunkTimer.current) clearTimeout(sunkTimer.current);
+        sunkTimer.current = setTimeout(() => setSunkMsg(null), 2500);
       }
     }
   }, [gameState?.lastMove]);
 
-  // Check if opponent already sent 'ready'
   useEffect(() => {
     if (!gameState?.moves) return;
-    const opponentReady = gameState.moves.some(
-      (m: any) => m.playerId === opponentId && m.type === 'ready'
-    );
-    if (opponentReady && phase === 'WAITING') {
+    if (phase === 'WAITING' && gameState.moves.some((m: any) => m.playerId === opponentId && m.type === 'ready')) {
       setPhase('BATTLE');
     }
   }, [gameState, phase, opponentId]);
 
-  useEffect(() => {
-    return () => { if (announcementTimer.current) clearTimeout(announcementTimer.current); };
-  }, []);
+  useEffect(() => () => { if (sunkTimer.current) clearTimeout(sunkTimer.current); }, []);
 
-  // ── Placement Logic ───────────────────────────────────────────────────────
+  // ── Placement ──────────────────────────────────────────────────────────────
 
-  const currentShip = currentShipIdx < SHIP_DEFS.length ? SHIP_DEFS[currentShipIdx] : null;
+  const curShip = currentShipIdx < SHIP_DEFS.length ? SHIP_DEFS[currentShipIdx] : null;
 
-  const handlePlacementHover = useCallback((r: number, c: number) => {
-    if (!currentShip) return;
-    const cells = getCells(r, c, currentShip.size, orientation);
+  const handleHover = useCallback((r: number, c: number) => {
+    if (!curShip) return;
+    const cells = getCells(r, c, curShip.size, orientation);
     if (!cells) { setHoverCells([]); setHoverValid(false); return; }
-    const valid = !overlaps(cells, placedShips) && !hasAdjacentShip(cells, placedShips);
+    const ok = !overlaps(cells, placedShips) && !hasAdjacentShip(cells, placedShips);
     setHoverCells(cells);
-    setHoverValid(valid);
-  }, [currentShip, orientation, placedShips]);
+    setHoverValid(ok);
+  }, [curShip, orientation, placedShips]);
 
-  const handlePlacementClick = useCallback((r: number, c: number) => {
-    if (!currentShip) return;
-    const cells = getCells(r, c, currentShip.size, orientation);
+  const handlePlace = useCallback((r: number, c: number) => {
+    if (!curShip) return;
+    const cells = getCells(r, c, curShip.size, orientation);
     if (!cells || overlaps(cells, placedShips) || hasAdjacentShip(cells, placedShips)) return;
-
-    const ship: PlacedShip = {
-      ...currentShip, cells, orientation, sunk: false,
-    };
-    setPlacedShips(prev => [...prev, ship]);
+    setPlacedShips(prev => [...prev, { ...curShip, cells, orientation, sunk: false }]);
     setCurrentShipIdx(prev => prev + 1);
     setHoverCells([]);
-  }, [currentShip, orientation, placedShips]);
-
-  const handleRotate = () => { setOrientation(o => o === 'H' ? 'V' : 'H'); setHoverCells([]); };
-
-  const handleUndo = () => {
-    if (placedShips.length === 0) return;
-    setPlacedShips(prev => prev.slice(0, -1));
-    setCurrentShipIdx(prev => prev - 1);
-    setHoverCells([]);
-  };
+  }, [curShip, orientation, placedShips]);
 
   const handleReady = () => {
     if (placedShips.length !== SHIP_DEFS.length) return;
     onMove({
       type: 'ready',
-      _playerState: {
-        ships: placedShips.map(s => ({
-          name: s.name, size: s.size, cells: s.cells, orientation: s.orientation,
-        })),
-      },
+      _playerState: { ships: placedShips.map(s => ({ id: s.id, name: s.name, size: s.size, cells: s.cells, orientation: s.orientation })) },
       _keepTurn: false,
     });
-
-    // Check if opponent already ready
-    const opponentReady = gameState?.moves?.some(
-      (m: any) => m.playerId === opponentId && m.type === 'ready'
-    );
-    setPhase(opponentReady ? 'BATTLE' : 'WAITING');
+    const opReady = gameState?.moves?.some((m: any) => m.playerId === opponentId && m.type === 'ready');
+    setPhase(opReady ? 'BATTLE' : 'WAITING');
   };
-
-  // ── Fire Logic ─────────────────────────────────────────────────────────────
 
   const handleFire = useCallback((r: number, c: number) => {
     if (!isPlayerTurn || gameOver || phase !== 'BATTLE') return;
     if (enemyGrid[r][c] !== 'empty') return;
-
-    onMove({ type: 'fire', r, c, _keepTurn: true }); // keep turn until result comes back
+    onMove({ type: 'fire', r, c, _keepTurn: true });
   }, [isPlayerTurn, gameOver, phase, enemyGrid, onMove]);
 
-  // ── Render helpers ─────────────────────────────────────────────────────────
-
-  const shipAt = (r: number, c: number) =>
-    placedShips.find(s => s.cells.some(([sr, sc]) => sr === r && sc === c));
+  // ── SVG Grid Renderer ─────────────────────────────────────────────────────
 
   const hoverSet = new Set(hoverCells.map(([r, c]) => `${r},${c}`));
+  const gridPx = GRID * CELL;
 
-  const renderGrid = (
+  const renderSVGGrid = (
     grid: CellState[][] | null,
     onClick: ((r: number, c: number) => void) | null,
     onHover: ((r: number, c: number) => void) | null,
     showShips: boolean,
-    isEnemy: boolean,
     small: boolean,
   ) => {
-    const cellSize = small ? 28 : 34;
+    const cs = small ? 28 : CELL;
+    const gp = GRID * cs;
+    const hitSet = grid ? new Set<string>() : undefined;
+    if (grid && hitSet) {
+      for (let r = 0; r < GRID; r++)
+        for (let c = 0; c < GRID; c++)
+          if (grid[r][c] === 'hit') hitSet.add(`${r},${c}`);
+    }
 
     return (
-      <div style={{ display: 'inline-block' }}>
-        {/* Column labels */}
-        <div style={{ display: 'flex' }}>
-          <div style={{ width: cellSize, height: cellSize, flexShrink: 0 }} />
-          {COL_LABELS.map(label => (
-            <div key={label} style={{
-              width: cellSize, height: cellSize, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 10, fontWeight: 700, color: C.textDim,
-            }}>{label}</div>
-          ))}
-        </div>
-        {/* Rows */}
-        {Array.from({ length: GRID }, (_, r) => (
-          <div key={r} style={{ display: 'flex' }}>
-            <div style={{
-              width: cellSize, height: cellSize, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 10, fontWeight: 700, color: C.textDim,
-            }}>{ROW_LABELS[r]}</div>
-            {Array.from({ length: GRID }, (_, c) => {
-              const state = grid ? grid[r][c] : 'empty';
-              const ship = showShips ? shipAt(r, c) : undefined;
-              const isHover = hoverSet.has(`${r},${c}`);
-              const isClickable = !!onClick && state === 'empty';
-              const isAnimating = lastHitAnim?.r === r && lastHitAnim?.c === c;
-
-              let bg = C.cellBg;
-              if (ship && showShips) bg = `linear-gradient(135deg, ${ship.color}cc, ${ship.colorDark}cc)`;
-              else if (isHover) bg = hoverValid ? `${currentShip?.color}44` : 'rgba(255,59,48,0.3)';
-
-              return (
-                <div
-                  key={c}
-                  onClick={() => onClick?.(r, c)}
-                  onMouseEnter={() => onHover?.(r, c)}
-                  onMouseLeave={() => onHover && setHoverCells([])}
-                  style={{
-                    width: cellSize, height: cellSize, position: 'relative',
-                    border: `1px solid ${C.cellBorder}`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: bg, cursor: isClickable ? 'crosshair' : 'default',
-                    transition: 'background 0.15s',
-                  }}
-                >
-                  {/* Ship emoji */}
-                  {ship && showShips && !isEnemy && state !== 'hit' && (
-                    <span style={{ fontSize: small ? 12 : 14 }}>{ship.emoji}</span>
-                  )}
-
-                  {/* Hit */}
-                  {state === 'hit' && (
-                    <motion.span
-                      initial={{ scale: 0 }} animate={{ scale: 1 }}
-                      transition={{ type: 'spring', stiffness: 400, damping: 15 }}
-                      style={{ fontSize: small ? 14 : 18, filter: 'drop-shadow(0 0 6px rgba(255,59,48,0.8))' }}
-                    >💥</motion.span>
-                  )}
-
-                  {/* Miss */}
-                  {state === 'miss' && (
-                    <motion.div
-                      initial={{ scale: 0 }} animate={{ scale: 1 }}
-                      style={{
-                        width: 8, height: 8, borderRadius: '50%',
-                        background: 'rgba(100,210,255,0.4)',
-                        boxShadow: '0 0 6px rgba(100,210,255,0.3)',
-                      }}
-                    />
-                  )}
-
-                  {/* Animation ripple */}
-                  <AnimatePresence>
-                    {isAnimating && (
-                      <motion.div
-                        initial={{ scale: 0.2, opacity: 1 }}
-                        animate={{ scale: 3, opacity: 0 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.7 }}
-                        style={{
-                          position: 'absolute', inset: 0,
-                          borderRadius: '50%', pointerEvents: 'none',
-                          background: lastHitAnim?.hit
-                            ? 'radial-gradient(circle, rgba(255,59,48,0.8), transparent)'
-                            : 'radial-gradient(circle, rgba(100,210,255,0.5), transparent)',
-                        }}
-                      />
-                    )}
-                  </AnimatePresence>
-
-                  {/* Hover glow */}
-                  {isClickable && (
-                    <div style={{
-                      position: 'absolute', inset: 0, opacity: 0, transition: 'opacity 0.2s',
-                      background: 'radial-gradient(circle, rgba(52,120,246,0.15), transparent)',
-                    }}
-                    onMouseEnter={e => { (e.target as HTMLElement).style.opacity = '1'; }}
-                    onMouseLeave={e => { (e.target as HTMLElement).style.opacity = '0'; }}
-                    />
-                  )}
-                </div>
-              );
-            })}
-          </div>
+      <svg
+        width={gp + 20} height={gp + 20}
+        viewBox={`-20 -20 ${gp + 20} ${gp + 20}`}
+        style={{ display: 'block' }}
+      >
+        {/* Row labels */}
+        {'ABCDEFGHIJ'.split('').map((l, i) => (
+          <text key={l} x={-12} y={i * cs + cs / 2 + 4} textAnchor="middle"
+            fill="rgba(100,210,255,0.5)" fontSize={9} fontWeight={700}>{l}</text>
         ))}
-      </div>
+        {/* Col labels */}
+        {Array.from({ length: 10 }, (_, i) => (
+          <text key={i} x={i * cs + cs / 2} y={-6} textAnchor="middle"
+            fill="rgba(100,210,255,0.5)" fontSize={9} fontWeight={700}>{i + 1}</text>
+        ))}
+
+        {/* Grid cells */}
+        {Array.from({ length: GRID }, (_, r) =>
+          Array.from({ length: GRID }, (_, c) => {
+            const state = grid ? grid[r][c] : 'empty';
+            const isHov = !small && hoverSet.has(`${r},${c}`);
+            const clickable = !!onClick && state === 'empty';
+            const isTargetHover = hoverTarget?.r === r && hoverTarget?.c === c && clickable;
+
+            let fill = 'rgba(10,22,40,0.5)';
+            if (isHov) fill = hoverValid ? `${curShip?.color || '#3b82f6'}33` : 'rgba(239,68,68,0.25)';
+            if (isTargetHover) fill = 'rgba(52,120,246,0.2)';
+
+            return (
+              <g key={`${r}-${c}`}>
+                <rect
+                  x={c * cs + 0.5} y={r * cs + 0.5} width={cs - 1} height={cs - 1}
+                  fill={fill} stroke="rgba(52,120,246,0.12)" strokeWidth={0.5}
+                  style={{ cursor: clickable ? 'crosshair' : 'default' }}
+                  onClick={() => onClick?.(r, c)}
+                  onMouseEnter={() => {
+                    onHover?.(r, c);
+                    if (clickable) setHoverTarget({ r, c });
+                  }}
+                  onMouseLeave={() => {
+                    if (!small) setHoverCells([]);
+                    setHoverTarget(null);
+                  }}
+                />
+                {/* Miss dot */}
+                {state === 'miss' && (
+                  <circle cx={c * cs + cs / 2} cy={r * cs + cs / 2} r={cs / 8}
+                    fill="rgba(100,210,255,0.35)">
+                    <animate attributeName="r" values={`${cs / 10};${cs / 7};${cs / 8}`} dur="0.4s" fill="freeze" />
+                  </circle>
+                )}
+                {/* Hit X (for enemy grid) */}
+                {state === 'hit' && !showShips && (
+                  <g>
+                    <circle cx={c * cs + cs / 2} cy={r * cs + cs / 2} r={cs / 3}
+                      fill="rgba(239,68,68,0.6)" />
+                    <line x1={c * cs + cs * 0.3} y1={r * cs + cs * 0.3} x2={c * cs + cs * 0.7} y2={r * cs + cs * 0.7}
+                      stroke="#fff" strokeWidth={2} strokeLinecap="round" />
+                    <line x1={c * cs + cs * 0.7} y1={r * cs + cs * 0.3} x2={c * cs + cs * 0.3} y2={r * cs + cs * 0.7}
+                      stroke="#fff" strokeWidth={2} strokeLinecap="round" />
+                  </g>
+                )}
+              </g>
+            );
+          })
+        )}
+
+        {/* Ships as continuous SVG shapes */}
+        {showShips && placedShips.map(ship => (
+          <ShipSVG key={ship.id} ship={ship} cellSize={cs} isHit={hitSet} />
+        ))}
+
+        {/* Hover preview ship */}
+        {!small && hoverCells.length > 0 && curShip && hoverValid && (
+          <g opacity={0.5}>
+            {(() => {
+              const minR = Math.min(...hoverCells.map(c => c[0]));
+              const minC = Math.min(...hoverCells.map(c => c[1]));
+              const isH = orientation === 'H';
+              const w = isH ? curShip.size * cs : cs;
+              const h = isH ? cs : curShip.size * cs;
+              const pad = 3;
+              const rr = Math.min(w - pad * 2, h - pad * 2) / 2 - 1;
+              return (
+                <rect x={minC * cs + pad} y={minR * cs + pad}
+                  width={w - pad * 2} height={h - pad * 2} rx={rr}
+                  fill={curShip.color} stroke={curShip.colorLight} strokeWidth={1.5} />
+              );
+            })()}
+          </g>
+        )}
+
+        {/* Ripple on last hit */}
+        {lastHit && (
+          <circle cx={lastHit.c * cs + cs / 2} cy={lastHit.r * cs + cs / 2} r={2}
+            fill="none" stroke={lastHit.hit ? '#ef4444' : '#60a5fa'} strokeWidth={2} opacity={0.8}>
+            <animate attributeName="r" from="2" to={cs} dur="0.7s" fill="freeze" />
+            <animate attributeName="opacity" from="0.8" to="0" dur="0.7s" fill="freeze" />
+          </circle>
+        )}
+      </svg>
     );
   };
 
-  // ── PLACEMENT PHASE ────────────────────────────────────────────────────────
+  const allPlaced = placedShips.length === SHIP_DEFS.length;
+  const font = '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+  const bg = 'linear-gradient(180deg, #060e1a 0%, #0d1f33 50%, #081420 100%)';
+  const glass = 'rgba(10,25,45,0.75)';
+  const border = 'rgba(52,120,246,0.18)';
+
+  // ── PLACEMENT ──────────────────────────────────────────────────────────────
 
   if (phase === 'PLACEMENT') {
-    const allPlaced = placedShips.length === SHIP_DEFS.length;
-
     return (
       <div style={{
         minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
-        padding: '16px 8px', background: C.bg, fontFamily: font, overflow: 'auto',
+        padding: '12px 8px', background: bg, fontFamily: font, overflow: 'auto',
       }}>
-        <motion.h1
-          initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-          style={{
-            fontSize: 24, fontWeight: 900, marginBottom: 4,
-            background: 'linear-gradient(135deg, #3478F6, #64D2FF)',
+        <motion.div initial={{ y: -15, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+          style={{ textAlign: 'center', marginBottom: 10 }}>
+          <h1 style={{
+            fontSize: 26, fontWeight: 900, letterSpacing: 1,
+            background: 'linear-gradient(135deg, #3478F6, #60a5fa, #22d3ee)',
             WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-          }}
-        >⚓ LÉA NAVAL</motion.h1>
-        <p style={{ fontSize: 13, color: C.textDim, marginBottom: 16 }}>
-          Place tes navires, Amiral — ils ne doivent pas se toucher !
-        </p>
+          }}>⚓ BATAILLE NAVALE</h1>
+          <p style={{ fontSize: 12, color: 'rgba(100,210,255,0.5)', marginTop: 2, fontWeight: 500 }}>
+            Place ta flotte — les bateaux ne peuvent pas se toucher !
+          </p>
+        </motion.div>
 
-        {/* Ship selector */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginBottom: 12, maxWidth: 440 }}>
-          {SHIP_DEFS.map((def, idx) => {
-            const isPlaced = idx < placedShips.length;
-            const isCurrent = idx === currentShipIdx;
+        {/* Ship queue */}
+        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 10, maxWidth: 460 }}>
+          {SHIP_DEFS.map((def, i) => {
+            const placed = i < placedShips.length;
+            const active = i === currentShipIdx;
             return (
-              <div key={def.name} style={{
-                padding: '4px 12px', borderRadius: 10, fontSize: 13, fontWeight: 600,
-                background: isPlaced ? 'rgba(10,22,40,0.5)' : `linear-gradient(135deg, ${def.color}cc, ${def.colorDark}cc)`,
-                color: C.text, opacity: isPlaced ? 0.4 : 1,
-                border: isCurrent ? `2px solid ${C.accent}` : `1px solid ${C.border}`,
-                textDecoration: isPlaced ? 'line-through' : 'none',
-                boxShadow: isCurrent ? `0 0 12px ${def.color}66` : 'none',
-                transition: 'all 0.2s',
+              <div key={def.id} style={{
+                display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 8,
+                background: placed ? 'rgba(10,22,40,0.4)' : active ? `${def.color}22` : 'rgba(10,22,40,0.3)',
+                border: active ? `2px solid ${def.color}` : `1px solid ${border}`,
+                opacity: placed ? 0.35 : 1, transition: 'all 0.2s',
               }}>
-                {def.emoji} {def.name} ({def.size})
+                <div style={{
+                  width: def.size * 10 + 8, height: 10, borderRadius: 5,
+                  background: placed ? '#333' : `linear-gradient(90deg, ${def.color}, ${def.colorLight})`,
+                }} />
+                <span style={{
+                  fontSize: 11, fontWeight: 600, color: '#c8e0f5',
+                  textDecoration: placed ? 'line-through' : 'none',
+                }}>{def.name} ({def.size})</span>
               </div>
             );
           })}
         </div>
 
         {/* Controls */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          <button onClick={handleRotate} style={{
-            padding: '8px 16px', borderRadius: 10, fontSize: 13, fontWeight: 600,
-            background: C.glass, border: `1px solid ${C.border}`, color: C.text,
-            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-          }}>
-            <span style={{ transform: orientation === 'V' ? 'rotate(90deg)' : 'none', display: 'inline-block', transition: 'transform 0.2s' }}>↔</span>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+          <button onClick={() => { setOrientation(o => o === 'H' ? 'V' : 'H'); setHoverCells([]); }}
+            style={{
+              padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+              background: glass, border: `1px solid ${border}`, color: '#c8e0f5',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+            }}>
+            <span style={{
+              display: 'inline-block', transition: 'transform 0.2s',
+              transform: orientation === 'V' ? 'rotate(90deg)' : 'none', fontSize: 14,
+            }}>⇄</span>
             {orientation === 'H' ? 'Horizontal' : 'Vertical'}
           </button>
-          <button onClick={handleUndo} disabled={placedShips.length === 0} style={{
-            padding: '8px 16px', borderRadius: 10, fontSize: 13, fontWeight: 600,
-            background: C.glass, border: `1px solid ${C.border}`, color: C.text,
-            cursor: placedShips.length === 0 ? 'not-allowed' : 'pointer',
-            opacity: placedShips.length === 0 ? 0.3 : 1,
-          }}>↩ Annuler</button>
+          <button onClick={() => { if (placedShips.length === 0) return; setPlacedShips(p => p.slice(0, -1)); setCurrentShipIdx(i => i - 1); setHoverCells([]); }}
+            disabled={placedShips.length === 0}
+            style={{
+              padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+              background: glass, border: `1px solid ${border}`, color: '#c8e0f5',
+              cursor: placedShips.length === 0 ? 'not-allowed' : 'pointer',
+              opacity: placedShips.length === 0 ? 0.3 : 1,
+            }}>↩ Annuler</button>
         </div>
 
         {/* Grid */}
         <div style={{
-          padding: 8, borderRadius: 16,
-          background: C.glass, border: `1px solid ${C.border}`,
-          boxShadow: `0 0 24px rgba(52,120,246,0.15)`,
+          padding: 6, borderRadius: 14, background: glass, border: `1px solid ${border}`,
+          boxShadow: '0 0 30px rgba(52,120,246,0.1)',
         }}>
-          {renderGrid(null, allPlaced ? null : handlePlacementClick, allPlaced ? null : handlePlacementHover, true, false, false)}
+          {renderSVGGrid(null, allPlaced ? null : handlePlace, allPlaced ? null : handleHover, true, false)}
         </div>
 
-        {/* Ready button */}
+        {/* Ready */}
         {allPlaced && (
           <motion.button
             initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
             whileTap={{ scale: 0.95 }}
             onClick={handleReady}
             style={{
-              marginTop: 16, padding: '12px 32px', borderRadius: 14, fontSize: 18, fontWeight: 800,
+              marginTop: 14, padding: '10px 28px', borderRadius: 12, fontSize: 16, fontWeight: 800,
               background: 'linear-gradient(135deg, #3478F6, #1a4da8)',
               color: '#fff', border: 'none', cursor: 'pointer',
               boxShadow: '0 4px 20px rgba(52,120,246,0.4)',
             }}
-          >⚓ Prêt !</motion.button>
+          >⚓ Flotte prête !</motion.button>
         )}
 
-        {!allPlaced && currentShip && (
-          <p style={{ marginTop: 12, fontSize: 13, color: C.textDim }}>
-            Place ton <strong style={{ color: C.text }}>{currentShip.emoji} {currentShip.name}</strong> ({currentShip.size} cases)
+        {!allPlaced && curShip && (
+          <p style={{ marginTop: 10, fontSize: 12, color: 'rgba(100,210,255,0.5)' }}>
+            <span style={{ color: curShip.color, fontWeight: 700 }}>{curShip.name}</span> — {curShip.size} cases
           </p>
         )}
       </div>
     );
   }
 
-  // ── WAITING PHASE ──────────────────────────────────────────────────────────
+  // ── WAITING ────────────────────────────────────────────────────────────────
 
   if (phase === 'WAITING') {
     return (
       <div style={{
         minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        background: C.bg, fontFamily: font,
+        background: bg, fontFamily: font,
       }}>
-        <motion.div
-          animate={{ opacity: [0.4, 1, 0.4] }}
-          transition={{ duration: 2, repeat: Infinity }}
-          style={{ fontSize: 48, marginBottom: 16 }}
-        >⚓</motion.div>
-        <h2 style={{ color: C.text, fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
-          Flotte déployée !
-        </h2>
-        <p style={{ color: C.textDim, fontSize: 14 }}>En attente de l'adversaire...</p>
+        <motion.div animate={{ rotate: [0, 10, -10, 0] }} transition={{ duration: 3, repeat: Infinity }}
+          style={{ fontSize: 52, marginBottom: 16 }}>⚓</motion.div>
+        <h2 style={{ color: '#c8e0f5', fontSize: 20, fontWeight: 800, marginBottom: 6 }}>Flotte déployée !</h2>
+        <p style={{ color: 'rgba(100,210,255,0.5)', fontSize: 13 }}>En attente de l'adversaire...</p>
+        <motion.div animate={{ opacity: [0.3, 0.8, 0.3] }} transition={{ duration: 1.5, repeat: Infinity }}
+          style={{ marginTop: 16, width: 40, height: 3, borderRadius: 2, background: '#3478F6' }} />
       </div>
     );
   }
 
-  // ── BATTLE PHASE ───────────────────────────────────────────────────────────
+  // ── BATTLE ─────────────────────────────────────────────────────────────────
 
   return (
     <div style={{
       minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
-      padding: '8px 4px', background: C.bg, fontFamily: font, overflow: 'auto',
+      padding: '8px 4px', background: bg, fontFamily: font, overflow: 'auto',
     }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
         <h1 style={{
-          fontSize: 20, fontWeight: 900,
-          background: 'linear-gradient(135deg, #3478F6, #64D2FF)',
+          fontSize: 18, fontWeight: 900,
+          background: 'linear-gradient(135deg, #3478F6, #60a5fa)',
           WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-        }}>⚓ LÉA NAVAL</h1>
-        <span style={{
-          fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 8,
-          background: C.glass, border: `1px solid ${C.border}`, color: C.textDim,
-        }}>{enemySunkShips.length}/{SHIP_DEFS.length} coulés</span>
+        }}>⚓ BATAILLE NAVALE</h1>
+        <div style={{
+          fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+          background: glass, border: `1px solid ${border}`, color: 'rgba(100,210,255,0.6)',
+        }}>💀 {enemySunkShips.length}/{SHIP_DEFS.length}</div>
       </div>
 
-      {/* Turn indicator */}
+      {/* Turn */}
       <motion.div
-        key={isPlayerTurn ? 'turn' : 'wait'}
-        initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
+        key={isPlayerTurn ? 'my' : 'op'}
+        initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
         style={{
-          padding: '6px 20px', borderRadius: 20, fontSize: 14, fontWeight: 700, marginBottom: 8,
-          background: gameOver
-            ? 'rgba(52,199,89,0.2)' : isPlayerTurn
-              ? 'rgba(52,120,246,0.15)' : 'rgba(100,100,100,0.15)',
-          color: gameOver
-            ? '#34C759' : isPlayerTurn
-              ? '#64D2FF' : '#8e8e93',
-          border: `1px solid ${gameOver ? 'rgba(52,199,89,0.3)' : isPlayerTurn ? 'rgba(52,120,246,0.3)' : 'rgba(100,100,100,0.2)'}`,
+          padding: '4px 16px', borderRadius: 16, fontSize: 13, fontWeight: 700, marginBottom: 6,
+          background: gameOver ? 'rgba(52,199,89,0.12)' : isPlayerTurn ? 'rgba(52,120,246,0.12)' : 'rgba(100,100,100,0.1)',
+          color: gameOver ? '#34C759' : isPlayerTurn ? '#60a5fa' : '#6b7280',
+          border: `1px solid ${gameOver ? 'rgba(52,199,89,0.25)' : isPlayerTurn ? 'rgba(52,120,246,0.25)' : 'rgba(100,100,100,0.12)'}`,
         }}
       >
         {gameOver
           ? (winner === playerId ? '🏆 Victoire !' : '💥 Défaite...')
-          : isPlayerTurn ? '🎯 À toi de tirer !' : '⏳ L\'adversaire vise...'}
+          : isPlayerTurn ? '🎯 À toi !' : '⏳ Adversaire...'}
       </motion.div>
 
-      {/* Sunk announcement */}
+      {/* Sunk message */}
       <AnimatePresence>
-        {sunkAnnouncement && (
-          <motion.div
-            initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}
+        {sunkMsg && (
+          <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}
             style={{
-              padding: '8px 20px', borderRadius: 12, fontSize: 14, fontWeight: 700, marginBottom: 6,
-              background: 'rgba(255,59,48,0.15)', border: '1px solid rgba(255,59,48,0.3)',
-              color: '#FF6961',
-            }}
-          >💥 {sunkAnnouncement}</motion.div>
+              padding: '6px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, marginBottom: 4,
+              background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171',
+            }}>{sunkMsg}</motion.div>
         )}
       </AnimatePresence>
 
       {/* Enemy grid */}
-      <div style={{ marginBottom: 6 }}>
-        <h2 style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, letterSpacing: 2, color: 'rgba(255,100,100,0.7)', marginBottom: 4, textTransform: 'uppercase' }}>
+      <div style={{ marginBottom: 4 }}>
+        <div style={{ textAlign: 'center', fontSize: 10, fontWeight: 700, letterSpacing: 2, color: 'rgba(239,68,68,0.5)', marginBottom: 2, textTransform: 'uppercase' }}>
           Flotte Ennemie
-        </h2>
-        <div style={{
-          padding: 6, borderRadius: 12, background: C.glass, border: `1px solid ${C.border}`,
-        }}>
-          {renderGrid(enemyGrid, gameOver ? null : isPlayerTurn ? handleFire : null, null, false, true, false)}
+        </div>
+        <div style={{ padding: 4, borderRadius: 12, background: glass, border: `1px solid ${border}` }}>
+          {renderSVGGrid(enemyGrid, gameOver ? null : isPlayerTurn ? handleFire : null, null, false, false)}
         </div>
       </div>
 
-      {/* Enemy ships status */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'center', marginBottom: 8, maxWidth: 400 }}>
+      {/* Enemy fleet status */}
+      <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 6, maxWidth: 400 }}>
         {SHIP_DEFS.map(def => {
           const sunk = enemySunkShips.includes(def.name);
           return (
-            <span key={def.name} style={{
-              padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-              background: sunk ? 'rgba(10,22,40,0.5)' : `${def.color}44`,
-              color: C.text, opacity: sunk ? 0.4 : 1,
-              textDecoration: sunk ? 'line-through' : 'none',
-            }}>{sunk ? '💀' : def.emoji} {def.name}</span>
+            <span key={def.id} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 5,
+              fontSize: 10, fontWeight: 600,
+              background: sunk ? 'rgba(10,22,40,0.4)' : `${def.color}22`,
+              color: sunk ? '#4b5563' : '#c8e0f5', textDecoration: sunk ? 'line-through' : 'none',
+            }}>
+              <div style={{
+                width: def.size * 6, height: 4, borderRadius: 2,
+                background: sunk ? '#374151' : `linear-gradient(90deg, ${def.color}, ${def.colorLight})`,
+              }} />
+              {def.name}
+            </span>
           );
         })}
       </div>
 
       {/* My grid */}
       <div>
-        <h2 style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, letterSpacing: 2, color: C.textDim, marginBottom: 4, textTransform: 'uppercase' }}>
+        <div style={{ textAlign: 'center', fontSize: 10, fontWeight: 700, letterSpacing: 2, color: 'rgba(100,210,255,0.4)', marginBottom: 2, textTransform: 'uppercase' }}>
           Ma Flotte
-        </h2>
-        <div style={{
-          padding: 6, borderRadius: 12, background: C.glass, border: `1px solid ${C.border}`,
-        }}>
-          {renderGrid(myGrid, null, null, true, false, true)}
+        </div>
+        <div style={{ padding: 4, borderRadius: 12, background: glass, border: `1px solid ${border}` }}>
+          {renderSVGGrid(myGrid, null, null, true, true)}
         </div>
       </div>
     </div>

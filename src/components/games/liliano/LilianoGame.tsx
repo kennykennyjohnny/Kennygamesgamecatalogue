@@ -1,82 +1,66 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 
-// ── Constants ────────────────────────────────────────────────────────────────
+// ── LILIANO THUNDER — Punk Rock Artillery ────────────────────────────────────
 
 const GAME_W = 800;
-const GAME_H = 400;
-const GROUND_Y = 340;
-const GRAVITY = 0.15;
-const TANK_W = 44;
-const TANK_H = 26;
-const BARREL_LEN = 24;
-const HIT_RADIUS = 38;
-const MAX_HP = 3;
-const POWER_MULT = 0.14;
+const GAME_H = 420;
+const GRAVITY = 0.16;
+const TANK_W = 48;
+const TANK_H = 28;
+const BARREL_LEN = 26;
+const HIT_RADIUS = 42;
+const MAX_HP = 4;
+const POWER_MULT = 0.15;
 
 function clamp(v: number, lo: number, hi: number) { return Math.max(lo, Math.min(hi, v)); }
 
-// ── Palette ──────────────────────────────────────────────────────────────────
+// ── Palette — dark neon punk ─────────────────────────────────────────────────
 
 const C = {
-  bg1: '#0a0d15', bg2: '#0d1320',
-  ground: 'linear-gradient(180deg, #1a2435, #0d1520)',
-  accent: '#6e42e5', accent2: '#a855f7',
-  cyan: '#22d3ee', yellow: '#fbbf24',
-  hit: '#ff4444', miss: '#3b82f6',
-  text: '#e2e8f0', dim: '#64748b',
-  glass: 'rgba(13,19,32,0.8)',
-  border: 'rgba(110,66,229,0.25)',
+  bg1: '#08060e', bg2: '#0c0814',
+  neon1: '#e11d48', neon2: '#f43f5e', // hot pink/red
+  neon3: '#a855f7', neon4: '#c084fc', // purple
+  electric: '#22d3ee',
+  yellow: '#fbbf24',
+  white: '#e2e8f0',
+  dim: '#4b3a5e',
+  glass: 'rgba(12,8,20,0.85)',
+  border: 'rgba(225,29,72,0.25)',
 };
 
-// Static decoration generated once
-const stars = Array.from({ length: 30 }, () => ({
-  x: Math.random() * 100, y: Math.random() * 55,
-  s: Math.random() * 2 + 0.5, d: Math.random() * 4,
-}));
-
-const mountains = [
-  { x: 0, w: 35, h: 22, c: 'rgba(30,40,60,0.6)' },
-  { x: 25, w: 30, h: 30, c: 'rgba(25,35,55,0.5)' },
-  { x: 55, w: 40, h: 26, c: 'rgba(20,30,50,0.5)' },
-  { x: 80, w: 25, h: 18, c: 'rgba(30,40,60,0.6)' },
-];
-
-// ── Terrain generation ───────────────────────────────────────────────────────
-
+// Terrain generation — rougher, more chaotic
 function generateTerrain(seed: number): number[] {
+  const GROUND_BASE = 340;
   const t: number[] = [];
-  let h = GROUND_Y;
-  const rng = (s: number) => {
-    s = ((s * 9301 + 49297) % 233280);
-    return s / 233280;
-  };
   let s = seed;
+  let h = GROUND_BASE;
   for (let x = 0; x < GAME_W; x++) {
     s = ((s * 9301 + 49297) % 233280);
-    const r = s / 233280;
-    if (x > 100 && x < GAME_W - 100) {
-      h += (r - 0.5) * 3;
-      h = clamp(h, GROUND_Y - 60, GROUND_Y + 10);
+    if (x > 80 && x < GAME_W - 80) {
+      h += ((s / 233280) - 0.5) * 5;
+      // Add some craters/bumps
+      if (x % 120 < 2) h += (Math.random() - 0.5) * 30;
+      h = clamp(h, GROUND_BASE - 80, GROUND_BASE + 15);
     }
     t.push(h);
   }
-  // Smooth
-  for (let pass = 0; pass < 3; pass++) {
-    for (let x = 2; x < GAME_W - 2; x++) {
-      t[x] = (t[x - 2] + t[x - 1] + t[x] + t[x + 1] + t[x + 2]) / 5;
+  // Smooth less (keep it rough)
+  for (let pass = 0; pass < 2; pass++) {
+    for (let x = 1; x < GAME_W - 1; x++) {
+      t[x] = (t[x - 1] + t[x] + t[x + 1]) / 3;
     }
   }
   return t;
 }
 
-// ── Wind ─────────────────────────────────────────────────────────────────────
-
-function randomWind() {
-  return (Math.random() - 0.5) * 0.06;
+// Particles for explosions
+function spawnParticles(x: number, y: number, count: number, color: string) {
+  return Array.from({ length: count }, () => ({
+    x, y, vx: (Math.random() - 0.5) * 8, vy: -Math.random() * 6 - 2,
+    life: 1, color, size: Math.random() * 4 + 2,
+  }));
 }
-
-// ── Component ────────────────────────────────────────────────────────────────
 
 interface Props {
   gameId: string; playerId: string; opponentId: string;
@@ -85,123 +69,114 @@ interface Props {
 }
 
 export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn, gameState, onMove, onGameOver }: Props) {
-  const isHost = playerId < opponentId; // deterministic: lower ID = left tank
+  const isHost = playerId < opponentId;
 
-  // Terrain (same for both)
   const seed = useMemo(() => {
-    const id = gameId || 'default';
     let h = 0;
-    for (let i = 0; i < id.length; i++) h = ((h << 5) - h + id.charCodeAt(i)) | 0;
+    for (let i = 0; i < (gameId || 'x').length; i++) h = ((h << 5) - h + (gameId || 'x').charCodeAt(i)) | 0;
     return Math.abs(h);
   }, [gameId]);
 
   const terrain = useMemo(() => generateTerrain(seed), [seed]);
 
-  // Tank positions
-  const myX = isHost ? 80 : GAME_W - 80;
-  const opX = isHost ? GAME_W - 80 : 80;
-  const myY = terrain[Math.round(myX)] || GROUND_Y;
-  const opY = terrain[Math.round(opX)] || GROUND_Y;
+  const myX = isHost ? 90 : GAME_W - 90;
+  const opX = isHost ? GAME_W - 90 : 90;
+  const myY = terrain[Math.round(myX)] || 340;
+  const opY = terrain[Math.round(opX)] || 340;
 
-  // State
-  const [angle, setAngle] = useState(isHost ? 45 : 135);
-  const [power, setPower] = useState(60);
+  const [angle, setAngle] = useState(isHost ? 50 : 130);
+  const [power, setPower] = useState(55);
   const [myHp, setMyHp] = useState(MAX_HP);
   const [opHp, setOpHp] = useState(MAX_HP);
-  const [wind, setWind] = useState(() => randomWind());
+  const [wind, setWind] = useState(() => (Math.random() - 0.5) * 0.08);
   const [firing, setFiring] = useState(false);
-  const [projPath, setProjPath] = useState<{ x: number; y: number }[]>([]);
-  const [projIdx, setProjIdx] = useState(0);
-  const [explosions, setExplosions] = useState<{ x: number; y: number; hit: boolean; id: number }[]>([]);
+  const [projPos, setProjPos] = useState<{ x: number; y: number } | null>(null);
+  const [explosions, setExplosions] = useState<{ x: number; y: number; hit: boolean; id: number; size: number }[]>([]);
+  const [particles, setParticles] = useState<any[]>([]);
+  const [screenShake, setScreenShake] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [winner, setWinner] = useState<string | null>(null);
-  const [turnMessage, setTurnMessage] = useState<string | null>(null);
+  const [hitFlash, setHitFlash] = useState(false);
+  const [lastDamageMsg, setLastDamageMsg] = useState<string | null>(null);
 
-  const animFrame = useRef<number>(0);
-  const expCounter = useRef(0);
+  const animRef = useRef<number>(0);
+  const expId = useRef(0);
 
-  // ── Simulate projectile trajectory ─────────────────────────────────────────
+  // ── Fire simulation ────────────────────────────────────────────────────────
 
-  const simulate = useCallback((fromX: number, fromY: number, a: number, p: number, w: number): { x: number; y: number }[] => {
+  const fire = useCallback((fromX: number, fromY: number, a: number, p: number, w: number, targetX: number, targetY: number, isMine: boolean) => {
     const rad = (a * Math.PI) / 180;
     let vx = Math.cos(rad) * p * POWER_MULT;
     let vy = -Math.sin(rad) * p * POWER_MULT;
     let x = fromX, y = fromY - TANK_H;
-    const path: { x: number; y: number }[] = [{ x, y }];
+    setFiring(true);
 
-    for (let i = 0; i < 600; i++) {
+    const step = () => {
       vx += w;
       vy += GRAVITY;
       x += vx;
       y += vy;
-      path.push({ x, y });
-      if (y > GAME_H + 20 || x < -50 || x > GAME_W + 50) break;
+      setProjPos({ x, y });
+
+      // Check terrain collision
       const tx = clamp(Math.round(x), 0, GAME_W - 1);
-      if (y >= (terrain[tx] || GROUND_Y)) break;
-    }
-    return path;
-  }, [terrain]);
+      const hitGround = y >= (terrain[tx] || 340);
+      const outOfBounds = y > GAME_H + 30 || x < -60 || x > GAME_W + 60;
 
-  // ── Fire! ──────────────────────────────────────────────────────────────────
-
-  const fire = useCallback((fromX: number, fromY: number, a: number, p: number, w: number, targetX: number, targetY: number, isMine: boolean) => {
-    const path = simulate(fromX, fromY, a, p, w);
-    setProjPath(path);
-    setProjIdx(0);
-    setFiring(true);
-
-    let idx = 0;
-    const step = () => {
-      idx += 2; // speed
-      if (idx >= path.length) {
-        // Impact
-        const end = path[path.length - 1];
-        const dist = Math.sqrt((end.x - targetX) ** 2 + (end.y - targetY) ** 2);
+      if (hitGround || outOfBounds) {
+        const dist = Math.sqrt((x - targetX) ** 2 + (y - targetY) ** 2);
         const isHit = dist < HIT_RADIUS;
 
-        expCounter.current++;
-        setExplosions(prev => [...prev, { x: end.x, y: end.y, hit: isHit, id: expCounter.current }]);
-        setTimeout(() => {
-          setExplosions(prev => prev.filter(e => e.id !== expCounter.current));
-        }, 1200);
+        expId.current++;
+        const eid = expId.current;
+        const size = isHit ? 60 : 30;
+        setExplosions(prev => [...prev, { x, y: Math.min(y, terrain[tx] || 340), hit: isHit, id: eid, size }]);
+        setParticles(spawnParticles(x, Math.min(y, terrain[tx] || 340), isHit ? 20 : 8, isHit ? C.neon1 : C.dim));
+
+        // Screen shake!
+        setScreenShake(isHit ? 8 : 3);
+        setTimeout(() => setScreenShake(0), 300);
 
         if (isHit) {
+          setHitFlash(true);
+          setTimeout(() => setHitFlash(false), 200);
+
           if (isMine) {
             setOpHp(prev => {
               const next = prev - 1;
-              if (next <= 0) {
-                setGameOver(true);
-                setWinner(playerId);
-                onGameOver({ winner_id: playerId });
-              }
+              setLastDamageMsg('💀 TOUCHÉ !');
+              setTimeout(() => setLastDamageMsg(null), 1500);
+              if (next <= 0) { setGameOver(true); setWinner(playerId); onGameOver({ winner_id: playerId }); }
               return next;
             });
           } else {
             setMyHp(prev => {
               const next = prev - 1;
-              if (next <= 0) {
-                setGameOver(true);
-                setWinner(opponentId);
-              }
+              setLastDamageMsg('💥 Tu prends un coup !');
+              setTimeout(() => setLastDamageMsg(null), 1500);
+              if (next <= 0) { setGameOver(true); setWinner(opponentId); }
               return next;
             });
           }
         }
 
+        setTimeout(() => {
+          setExplosions(prev => prev.filter(e => e.id !== eid));
+          setParticles([]);
+        }, 1500);
+
         setFiring(false);
-        setProjPath([]);
-        setWind(randomWind()); // new wind each turn
+        setProjPos(null);
+        setWind((Math.random() - 0.5) * 0.08);
         return;
       }
-      setProjIdx(idx);
-      animFrame.current = requestAnimationFrame(step);
+
+      animRef.current = requestAnimationFrame(step);
     };
-    animFrame.current = requestAnimationFrame(step);
-  }, [simulate, playerId, opponentId, onGameOver]);
+    animRef.current = requestAnimationFrame(step);
+  }, [terrain, playerId, opponentId, onGameOver]);
 
-  useEffect(() => () => { if (animFrame.current) cancelAnimationFrame(animFrame.current); }, []);
-
-  // ── Handle my shot ─────────────────────────────────────────────────────────
+  useEffect(() => () => { if (animRef.current) cancelAnimationFrame(animRef.current); }, []);
 
   const handleFire = useCallback(() => {
     if (!isPlayerTurn || firing || gameOver) return;
@@ -209,296 +184,295 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
     onMove({ type: 'fire', angle, power, wind });
   }, [isPlayerTurn, firing, gameOver, myX, myY, angle, power, wind, opX, opY, fire, onMove]);
 
-  // ── Handle opponent's shot ─────────────────────────────────────────────────
-
+  // Opponent shot
   useEffect(() => {
     if (!gameState?.lastMove) return;
-    const move = gameState.lastMove;
-    if (move.playerId === playerId || move.type !== 'fire') return;
-
-    // Animate opponent's shot
-    const { angle: a, power: p, wind: w } = move;
-    setWind(w);
-    setTimeout(() => {
-      fire(opX, opY, a, p, w, myX, myY, false);
-    }, 400);
+    const m = gameState.lastMove;
+    if (m.playerId === playerId || m.type !== 'fire') return;
+    setWind(m.wind);
+    setTimeout(() => fire(opX, opY, m.angle, m.power, m.wind, myX, myY, false), 500);
   }, [gameState?.lastMove]);
-
-  // ── Trajectory preview ─────────────────────────────────────────────────────
-
-  const preview = useMemo(() => {
-    if (!isPlayerTurn || firing || gameOver) return [];
-    const path = simulate(myX, myY, angle, power, wind);
-    return path.filter((_, i) => i % 6 === 0).slice(0, 20);
-  }, [isPlayerTurn, firing, gameOver, myX, myY, angle, power, wind, simulate]);
-
-  // ── Current projectile position ────────────────────────────────────────────
-
-  const projPos = firing && projPath[projIdx] ? projPath[projIdx] : null;
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  const renderTank = (x: number, ty: number, color1: string, color2: string, facingRight: boolean, hp: number) => (
+  const barrelRad = isHost ? -angle : -(180 - angle);
+  const displayAngle = isHost ? angle : 180 - angle;
+
+  const shakeX = screenShake ? (Math.random() - 0.5) * screenShake * 2 : 0;
+  const shakeY = screenShake ? (Math.random() - 0.5) * screenShake * 2 : 0;
+
+  const renderTank = (x: number, ty: number, color: string, glow: string, hp: number, isMine: boolean) => (
     <g>
-      {/* Body */}
-      <rect
-        x={x - TANK_W / 2} y={ty - TANK_H}
-        width={TANK_W} height={TANK_H}
-        rx={6} fill={`url(#tank-${color1})`}
-        stroke={color2} strokeWidth={1.5}
-      />
+      {/* Glow under tank */}
+      <ellipse cx={x} cy={ty + 2} rx={TANK_W / 2 + 5} ry={6}
+        fill={glow} opacity={0.15} />
       {/* Treads */}
-      <rect
-        x={x - TANK_W / 2 - 3} y={ty - 5}
-        width={TANK_W + 6} height={8}
-        rx={4} fill="#1a1a2e" stroke={color2} strokeWidth={1}
-      />
-      {/* HP indicator */}
+      <rect x={x - TANK_W / 2 - 4} y={ty - 4} width={TANK_W + 8} height={9}
+        rx={4} fill="#1a1225" stroke={color} strokeWidth={1} opacity={0.8} />
+      {/* Body */}
+      <rect x={x - TANK_W / 2} y={ty - TANK_H} width={TANK_W} height={TANK_H}
+        rx={5} fill={color} stroke={glow} strokeWidth={1.5} />
+      {/* Neon stripe */}
+      <rect x={x - TANK_W / 2 + 3} y={ty - TANK_H / 2 - 1} width={TANK_W - 6} height={2}
+        rx={1} fill={glow} opacity={0.6} />
+      {/* Skull or star on body */}
+      <text x={x} y={ty - TANK_H / 2 + 5} textAnchor="middle" fontSize={12} fill={glow} opacity={0.5}>
+        {isMine ? '☠' : '⚡'}
+      </text>
+      {/* HP bars — punk style (anarchy) */}
       {Array.from({ length: MAX_HP }, (_, i) => (
-        <circle
-          key={i}
-          cx={x - 8 + i * 8} cy={ty - TANK_H - 10}
-          r={3.5}
-          fill={i < hp ? '#34d399' : '#374151'}
-          stroke={i < hp ? '#10b981' : '#4b5563'}
-          strokeWidth={1}
+        <rect key={i}
+          x={x - MAX_HP * 5 + i * 10 + 2} y={ty - TANK_H - 14}
+          width={8} height={6} rx={1}
+          fill={i < hp ? glow : '#1a1225'}
+          stroke={i < hp ? glow : '#2a2035'} strokeWidth={0.8}
+          opacity={i < hp ? 1 : 0.3}
         />
       ))}
     </g>
   );
 
-  const barrelAngle = isHost ? -angle : -(180 - angle);
-  const opBarrelAngle = isHost ? -(180 - 45) : -45;
-
   return (
     <div style={{
       minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
-      justifyContent: 'center', background: C.bg1, fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
-      padding: 16,
+      justifyContent: 'center', background: C.bg1, fontFamily: '-apple-system, sans-serif',
+      padding: 12,
     }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8 }}>
-        <motion.h1
-          initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-          style={{
-            fontSize: 22, fontWeight: 900,
-            background: 'linear-gradient(135deg, #a855f7, #22d3ee)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-          }}
-        >⚡ LILIANO THUNDER</motion.h1>
+      {/* Header — punk style */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <h1 style={{
+          fontSize: 24, fontWeight: 900, letterSpacing: 2,
+          background: 'linear-gradient(135deg, #e11d48, #a855f7, #22d3ee)',
+          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+          textShadow: 'none',
+        }}>⚡ LILIANO THUNDER ⚡</h1>
       </div>
 
-      {/* Turn / Status */}
-      <div style={{
-        padding: '4px 16px', borderRadius: 16, fontSize: 13, fontWeight: 700, marginBottom: 8,
-        background: gameOver ? 'rgba(52,199,89,0.15)' : isPlayerTurn ? `${C.accent}22` : 'rgba(100,100,100,0.1)',
-        color: gameOver ? '#34C759' : isPlayerTurn ? C.cyan : C.dim,
-        border: `1px solid ${gameOver ? 'rgba(52,199,89,0.3)' : isPlayerTurn ? C.border : 'rgba(100,100,100,0.15)'}`,
-      }}>
-        {gameOver
-          ? (winner === playerId ? '🏆 Victoire !' : '💥 Défaite...')
-          : firing ? '💨 Tir en cours...'
-            : isPlayerTurn ? '�� Règle ton tir !' : '⏳ L\'adversaire vise...'}
-      </div>
-
-      {/* Wind indicator */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8,
-        fontSize: 12, fontWeight: 600, color: C.dim,
-      }}>
-        <span>🌬️ Vent</span>
-        <div style={{
-          width: 80, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.08)',
-          position: 'relative',
+      {/* Status */}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 6 }}>
+        <span style={{
+          fontSize: 12, fontWeight: 800, padding: '3px 10px', borderRadius: 6,
+          background: gameOver ? 'rgba(52,199,89,0.12)' : isPlayerTurn ? 'rgba(225,29,72,0.12)' : 'rgba(50,50,50,0.1)',
+          color: gameOver ? '#34C759' : isPlayerTurn ? C.neon2 : '#5a4a6e',
+          border: `1px solid ${gameOver ? 'rgba(52,199,89,0.25)' : isPlayerTurn ? C.border : 'rgba(50,50,50,0.1)'}`,
+          textTransform: 'uppercase', letterSpacing: 1,
         }}>
-          <div style={{
-            position: 'absolute', top: -2, height: 10, width: 4, borderRadius: 2,
-            background: C.cyan, left: `${50 + wind * 600}%`,
-            transition: 'left 0.3s',
-          }} />
-        </div>
-        <span style={{ color: wind > 0 ? '#22d3ee' : '#f472b6', fontSize: 11 }}>
-          {wind > 0 ? '→' : '←'} {Math.abs(wind * 100).toFixed(1)}
+          {gameOver
+            ? (winner === playerId ? '🏆 VICTOIRE' : '💀 DÉFAITE')
+            : firing ? '💨 FEU !'
+              : isPlayerTurn ? '🎯 À TOI' : '⏳ ATTENDS'}
+        </span>
+
+        {/* Wind — just a raw number, no pretty gauge */}
+        <span style={{ fontSize: 11, fontWeight: 700, color: C.dim }}>
+          🌬️ {wind > 0 ? '→' : '←'} {Math.abs(wind * 100).toFixed(0)}
         </span>
       </div>
 
-      {/* Game canvas */}
+      {/* Damage message */}
+      <AnimatePresence>
+        {lastDamageMsg && (
+          <motion.div
+            initial={{ scale: 2, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ opacity: 0, y: -20 }}
+            style={{
+              position: 'fixed', top: '30%', left: '50%', transform: 'translateX(-50%)',
+              fontSize: 28, fontWeight: 900, color: C.neon1, zIndex: 50,
+              textShadow: `0 0 20px ${C.neon1}, 0 0 40px ${C.neon1}`,
+              fontFamily: 'Impact, sans-serif', letterSpacing: 3,
+            }}
+          >{lastDamageMsg}</motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Canvas */}
       <div style={{
-        borderRadius: 16, overflow: 'hidden', border: `1px solid ${C.border}`,
-        boxShadow: `0 0 30px ${C.accent}22`,
+        borderRadius: 14, overflow: 'hidden', border: `2px solid ${C.border}`,
+        boxShadow: `0 0 30px ${C.neon1}15, inset 0 0 60px rgba(0,0,0,0.5)`,
+        background: hitFlash ? 'rgba(225,29,72,0.1)' : 'transparent',
+        transition: 'background 0.1s',
       }}>
-        <svg width={GAME_W} height={GAME_H} viewBox={`0 0 ${GAME_W} ${GAME_H}`}
-          style={{ background: C.bg2, display: 'block' }}>
-          <defs>
-            <linearGradient id="tank-purple" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#a855f7" />
-              <stop offset="100%" stopColor="#7c3aed" />
-            </linearGradient>
-            <linearGradient id="tank-red" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#ef4444" />
-              <stop offset="100%" stopColor="#b91c1c" />
-            </linearGradient>
-            <linearGradient id="sky-grad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#0a0d15" />
-              <stop offset="100%" stopColor="#0d1320" />
-            </linearGradient>
-          </defs>
+        <svg width={GAME_W} height={GAME_H}
+          viewBox={`0 0 ${GAME_W} ${GAME_H}`}
+          style={{
+            display: 'block', background: C.bg2,
+            transform: `translate(${shakeX}px, ${shakeY}px)`,
+          }}
+        >
+          {/* Dark sky with noise */}
+          <rect width={GAME_W} height={GAME_H} fill={C.bg2} />
 
-          {/* Sky */}
-          <rect width={GAME_W} height={GAME_H} fill="url(#sky-grad)" />
+          {/* Stars — but punk: some are colored */}
+          {useMemo(() => Array.from({ length: 40 }, (_, i) => {
+            const colors = [C.neon1, C.neon3, C.electric, '#fff', '#fff', '#fff'];
+            return (
+              <circle key={i}
+                cx={Math.random() * GAME_W} cy={Math.random() * GAME_H * 0.6}
+                r={Math.random() * 1.5 + 0.5}
+                fill={colors[Math.floor(Math.random() * colors.length)]}
+                opacity={0.3 + Math.random() * 0.4}
+              />
+            );
+          }), [])}
 
-          {/* Stars */}
-          {stars.map((s, i) => (
-            <circle key={i} cx={`${s.x}%`} cy={`${s.y}%`} r={s.s} fill="#fff" opacity={0.4}>
-              <animate attributeName="opacity" values="0.2;0.6;0.2" dur={`${2 + s.d}s`} repeatCount="indefinite" />
-            </circle>
-          ))}
-
-          {/* Mountains */}
-          {mountains.map((m, i) => (
-            <polygon key={i}
-              points={`${(m.x / 100) * GAME_W},${GROUND_Y} ${((m.x + m.w / 2) / 100) * GAME_W},${GROUND_Y - (m.h / 100) * GAME_H} ${((m.x + m.w) / 100) * GAME_W},${GROUND_Y}`}
-              fill={m.c}
-            />
-          ))}
-
-          {/* Terrain */}
+          {/* Terrain — dark with neon edge */}
           <path
             d={`M0,${GAME_H} ${terrain.map((y, x) => `L${x},${y}`).join(' ')} L${GAME_W},${GAME_H} Z`}
-            fill="#111827" stroke="rgba(110,66,229,0.15)" strokeWidth={1}
+            fill="#0e0a16"
           />
-          {/* Terrain top glow */}
           <path
             d={terrain.map((y, x) => `${x === 0 ? 'M' : 'L'}${x},${y}`).join(' ')}
-            fill="none" stroke="rgba(110,66,229,0.3)" strokeWidth={1.5}
+            fill="none" stroke={C.neon1} strokeWidth={1.5} opacity={0.25}
+          />
+          {/* Secondary glow line */}
+          <path
+            d={terrain.map((y, x) => `${x === 0 ? 'M' : 'L'}${x},${y + 1}`).join(' ')}
+            fill="none" stroke={C.neon3} strokeWidth={0.8} opacity={0.1}
           />
 
           {/* My tank */}
-          {renderTank(myX, myY, 'purple', '#a855f7', isHost, myHp)}
+          {renderTank(myX, myY, '#7c3aed', C.neon3, myHp, true)}
           {/* My barrel */}
           <line
-            x1={myX} y1={myY - TANK_H + 4}
-            x2={myX + Math.cos((barrelAngle * Math.PI) / 180) * BARREL_LEN}
-            y2={myY - TANK_H + 4 + Math.sin((barrelAngle * Math.PI) / 180) * BARREL_LEN}
-            stroke="#c084fc" strokeWidth={4} strokeLinecap="round"
+            x1={myX} y1={myY - TANK_H + 5}
+            x2={myX + Math.cos((barrelRad * Math.PI) / 180) * BARREL_LEN}
+            y2={myY - TANK_H + 5 + Math.sin((barrelRad * Math.PI) / 180) * BARREL_LEN}
+            stroke={C.neon4} strokeWidth={5} strokeLinecap="round"
+          />
+          {/* Muzzle glow */}
+          <circle
+            cx={myX + Math.cos((barrelRad * Math.PI) / 180) * BARREL_LEN}
+            cy={myY - TANK_H + 5 + Math.sin((barrelRad * Math.PI) / 180) * BARREL_LEN}
+            r={3} fill={C.neon4} opacity={firing ? 1 : 0.3}
           />
 
           {/* Opponent tank */}
-          {renderTank(opX, opY, 'red', '#ef4444', !isHost, opHp)}
-          {/* Opponent barrel */}
+          {renderTank(opX, opY, '#b91c1c', C.neon1, opHp, false)}
           <line
-            x1={opX} y1={opY - TANK_H + 4}
-            x2={opX + Math.cos((opBarrelAngle * Math.PI) / 180) * BARREL_LEN}
-            y2={opY - TANK_H + 4 + Math.sin((opBarrelAngle * Math.PI) / 180) * BARREL_LEN}
-            stroke="#f87171" strokeWidth={4} strokeLinecap="round"
+            x1={opX} y1={opY - TANK_H + 5}
+            x2={opX + Math.cos(((isHost ? -(180 - 50) : -50) * Math.PI) / 180) * BARREL_LEN}
+            y2={opY - TANK_H + 5 + Math.sin(((isHost ? -(180 - 50) : -50) * Math.PI) / 180) * BARREL_LEN}
+            stroke={C.neon2} strokeWidth={5} strokeLinecap="round"
           />
 
-          {/* Trajectory preview */}
-          {preview.map((p, i) => (
-            <circle key={i} cx={p.x} cy={p.y} r={2} fill={C.cyan} opacity={0.15 + (i / preview.length) * 0.35} />
-          ))}
+          {/* NO trajectory preview — shoot blind, punk style! */}
 
-          {/* Projectile */}
+          {/* Projectile — glowing orb */}
           {projPos && (
-            <>
+            <g>
+              <circle cx={projPos.x} cy={projPos.y} r={10} fill={C.yellow} opacity={0.15} />
               <circle cx={projPos.x} cy={projPos.y} r={5} fill={C.yellow}>
-                <animate attributeName="r" values="4;6;4" dur="0.15s" repeatCount="indefinite" />
+                <animate attributeName="r" values="4;6;4" dur="0.1s" repeatCount="indefinite" />
               </circle>
-              <circle cx={projPos.x} cy={projPos.y} r={12} fill={C.yellow} opacity={0.15} />
-            </>
+              {/* Trail */}
+              <circle cx={projPos.x - 3} cy={projPos.y + 2} r={3} fill={C.neon1} opacity={0.4} />
+              <circle cx={projPos.x - 6} cy={projPos.y + 5} r={2} fill={C.neon3} opacity={0.2} />
+            </g>
           )}
 
           {/* Explosions */}
           {explosions.map(e => (
             <g key={e.id}>
-              <circle cx={e.x} cy={e.y} r={5} fill={e.hit ? '#ff4444' : '#64748b'}>
-                <animate attributeName="r" from="5" to={e.hit ? '45' : '25'} dur="0.6s" fill="freeze" />
-                <animate attributeName="opacity" from="0.9" to="0" dur="0.8s" fill="freeze" />
+              {/* Shockwave ring */}
+              <circle cx={e.x} cy={e.y} r={5} fill="none"
+                stroke={e.hit ? C.neon1 : C.dim} strokeWidth={2}>
+                <animate attributeName="r" from="5" to={`${e.size}`} dur="0.5s" fill="freeze" />
+                <animate attributeName="opacity" from="0.8" to="0" dur="0.6s" fill="freeze" />
               </circle>
-              {e.hit && (
-                <text x={e.x} y={e.y - 30} textAnchor="middle" fill="#ff4444" fontSize="14" fontWeight="bold">
-                  💥 TOUCHÉ !
-                  <animate attributeName="y" from={e.y - 20} to={e.y - 50} dur="1s" fill="freeze" />
-                  <animate attributeName="opacity" from="1" to="0" dur="1s" fill="freeze" />
-                </text>
-              )}
+              {/* Inner blast */}
+              <circle cx={e.x} cy={e.y} r={5}
+                fill={e.hit ? C.neon1 : C.dim}>
+                <animate attributeName="r" from="5" to={`${e.size * 0.6}`} dur="0.3s" fill="freeze" />
+                <animate attributeName="opacity" from="0.9" to="0" dur="0.5s" fill="freeze" />
+              </circle>
+              {/* Flash */}
+              <circle cx={e.x} cy={e.y} r={3} fill="white">
+                <animate attributeName="r" from="3" to="20" dur="0.15s" fill="freeze" />
+                <animate attributeName="opacity" from="1" to="0" dur="0.2s" fill="freeze" />
+              </circle>
             </g>
+          ))}
+
+          {/* Particles */}
+          {particles.map((p, i) => (
+            <circle key={i} cx={p.x + p.vx * 8} cy={p.y + p.vy * 8}
+              r={p.size} fill={p.color} opacity={0.6}>
+              <animate attributeName="opacity" from="0.6" to="0" dur="0.8s" fill="freeze" />
+            </circle>
           ))}
         </svg>
       </div>
 
-      {/* Controls */}
+      {/* Controls — raw, punk style */}
       {!gameOver && (
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 16, marginTop: 12, padding: '8px 16px',
-          background: C.glass, borderRadius: 16, border: `1px solid ${C.border}`,
+          display: 'flex', alignItems: 'center', gap: 12, marginTop: 10, padding: '8px 14px',
+          background: C.glass, borderRadius: 12, border: `1px solid ${C.border}`,
         }}>
-          {/* Angle */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-            <label style={{ fontSize: 10, fontWeight: 700, color: C.dim, textTransform: 'uppercase', letterSpacing: 1 }}>Angle</label>
-            <input type="range" min={10} max={80} value={isHost ? angle : 180 - angle}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+            <span style={{ fontSize: 9, fontWeight: 800, color: C.dim, textTransform: 'uppercase', letterSpacing: 2 }}>ANGLE</span>
+            <input type="range" min={10} max={80} value={displayAngle}
               onChange={e => setAngle(isHost ? +e.target.value : 180 - +e.target.value)}
               disabled={!isPlayerTurn || firing}
-              style={{ width: 120, accentColor: C.accent }}
-            />
-            <span style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{isHost ? angle : 180 - angle}°</span>
+              style={{ width: 110, accentColor: C.neon3 }} />
+            <span style={{ fontSize: 13, fontWeight: 800, color: C.neon4 }}>{displayAngle}°</span>
           </div>
 
-          {/* Power */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-            <label style={{ fontSize: 10, fontWeight: 700, color: C.dim, textTransform: 'uppercase', letterSpacing: 1 }}>Puissance</label>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+            <span style={{ fontSize: 9, fontWeight: 800, color: C.dim, textTransform: 'uppercase', letterSpacing: 2 }}>PUISSANCE</span>
             <input type="range" min={20} max={100} value={power}
               onChange={e => setPower(+e.target.value)}
               disabled={!isPlayerTurn || firing}
-              style={{ width: 120, accentColor: C.yellow }}
-            />
-            <span style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{power}%</span>
+              style={{ width: 110, accentColor: C.neon1 }} />
+            <span style={{ fontSize: 13, fontWeight: 800, color: C.neon2 }}>{power}%</span>
           </div>
 
-          {/* Fire button */}
           <motion.button
-            whileTap={{ scale: 0.92 }}
+            whileTap={{ scale: 0.88 }}
             onClick={handleFire}
             disabled={!isPlayerTurn || firing}
             style={{
-              padding: '10px 24px', borderRadius: 12, fontSize: 15, fontWeight: 800,
+              padding: '10px 20px', borderRadius: 10, fontSize: 16, fontWeight: 900,
               background: isPlayerTurn && !firing
-                ? 'linear-gradient(135deg, #a855f7, #7c3aed)'
-                : 'rgba(60,60,60,0.3)',
-              color: '#fff', border: 'none',
+                ? `linear-gradient(135deg, ${C.neon1}, ${C.neon3})`
+                : 'rgba(40,30,50,0.4)',
+              color: '#fff', border: isPlayerTurn && !firing ? `2px solid ${C.neon2}` : '1px solid rgba(40,30,50,0.3)',
               cursor: isPlayerTurn && !firing ? 'pointer' : 'not-allowed',
-              opacity: isPlayerTurn && !firing ? 1 : 0.4,
-              boxShadow: isPlayerTurn && !firing ? '0 4px 16px rgba(168,85,247,0.4)' : 'none',
+              opacity: isPlayerTurn && !firing ? 1 : 0.3,
+              boxShadow: isPlayerTurn && !firing ? `0 0 20px ${C.neon1}55` : 'none',
+              letterSpacing: 2, textTransform: 'uppercase',
+              fontFamily: 'Impact, sans-serif',
             }}
-          >⚡ FEU !</motion.button>
+          >⚡ FEU</motion.button>
         </div>
       )}
 
-      {/* Game over overlay */}
+      {/* Game Over */}
       <AnimatePresence>
         {gameOver && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             style={{
-              position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)',
-              zIndex: 100,
+              position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(0,0,0,0.8)', zIndex: 100,
             }}
           >
             <motion.div
-              initial={{ scale: 0.5 }} animate={{ scale: 1 }}
+              initial={{ scale: 0.3, rotate: -10 }} animate={{ scale: 1, rotate: 0 }}
               style={{
-                padding: '32px 48px', borderRadius: 24, textAlign: 'center',
-                background: C.glass, border: `1px solid ${C.border}`,
+                padding: '32px 48px', borderRadius: 20, textAlign: 'center',
+                background: C.glass, border: `2px solid ${C.border}`,
+                boxShadow: `0 0 40px ${C.neon1}33`,
               }}
             >
-              <p style={{ fontSize: 48, marginBottom: 8 }}>{winner === playerId ? '🏆' : '💥'}</p>
-              <h2 style={{ fontSize: 24, fontWeight: 900, color: C.text, marginBottom: 4 }}>
-                {winner === playerId ? 'Victoire !' : 'Défaite...'}
+              <p style={{ fontSize: 52, marginBottom: 8 }}>{winner === playerId ? '⚡' : '💀'}</p>
+              <h2 style={{
+                fontSize: 28, fontWeight: 900, letterSpacing: 3,
+                background: `linear-gradient(135deg, ${C.neon1}, ${C.neon3})`,
+                WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+                fontFamily: 'Impact, sans-serif', textTransform: 'uppercase',
+              }}>
+                {winner === playerId ? 'VICTOIRE' : 'DÉFAITE'}
               </h2>
-              <p style={{ fontSize: 14, color: C.dim }}>
-                {winner === playerId ? 'Tonnerre triomphant !' : 'La foudre t\'a frappé...'}
-              </p>
             </motion.div>
           </motion.div>
         )}
