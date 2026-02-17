@@ -4,6 +4,24 @@ import { AuthScreen } from './components/AuthScreen'
 import { MainApp } from './components/MainApp'
 import { ThemeProvider } from './contexts/ThemeContext'
 
+// Request browser notification permission
+async function requestNotificationPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    await Notification.requestPermission();
+  }
+}
+
+// Send a browser notification
+function sendNotification(title: string, body: string) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  new Notification(title, {
+    body,
+    icon: '/favicon.svg',
+    badge: '/favicon.svg',
+  });
+}
+
 function App() {
   const [user, setUser] = useState<{ id: string; name: string; email: string } | null>(null)
   const [loading, setLoading] = useState(true)
@@ -11,6 +29,51 @@ function App() {
   useEffect(() => {
     checkUserSession()
   }, [])
+
+  // Subscribe to realtime game notifications when user is logged in
+  useEffect(() => {
+    if (!user) return;
+
+    requestNotificationPermission();
+
+    // Listen for challenges where it becomes my turn
+    const channel = supabase
+      .channel('game-notifications')
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'challenges',
+      }, (payload: any) => {
+        const challenge = payload.new;
+        if (challenge.current_turn === user.id && challenge.status === 'active') {
+          const gameNames: Record<string, string> = {
+            sandy: 'SandyPong 🍷', lea: 'LéaNaval 🚢', liliano: 'LilianoThunder ⚡', nour: 'NourArchery 🏹'
+          };
+          const gameName = gameNames[challenge.game_type] || challenge.game_type;
+          sendNotification(
+            '🎮 C\'est à ton tour !',
+            `Ta partie de ${gameName} t'attend. Montre-leur qui est le GOAT !`
+          );
+        }
+      })
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'friendships',
+      }, (payload: any) => {
+        if (payload.new.friend_id === user.id && payload.new.status === 'pending') {
+          sendNotification(
+            '👥 Nouvelle demande d\'ami !',
+            'Quelqu\'un veut devenir ton ami sur KennyGames !'
+          );
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   async function checkUserSession() {
     try {

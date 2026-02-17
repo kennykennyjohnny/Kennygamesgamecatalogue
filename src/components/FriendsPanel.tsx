@@ -28,10 +28,11 @@ interface SearchResult {
 
 export function FriendsPanel() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'online' | 'all' | 'pending'>('online');
+  const [activeTab, setActiveTab] = useState<'online' | 'all' | 'pending' | 'sent'>('online');
   const [onlineFriends, setOnlineFriends] = useState<Friend[]>([]);
   const [offlineFriends, setOfflineFriends] = useState<Friend[]>([]);
   const [pendingRequests, setPendingRequests] = useState<FriendRequest[]>([]);
+  const [sentRequests, setSentRequests] = useState<FriendRequest[]>([]);
   const [userId, setUserId] = useState<string>('');
 
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -197,6 +198,7 @@ export function FriendsPanel() {
     setUserId(user.id);
     await loadFriends(user.id);
     await loadPendingRequests(user.id);
+    await loadSentRequests(user.id);
   }
 
   async function loadFriends(currentUserId: string) {
@@ -273,6 +275,46 @@ export function FriendsPanel() {
         };
       }));
     }
+  }
+
+  async function loadSentRequests(currentUserId: string) {
+    const { data: requests } = await supabase
+      .from('friendships')
+      .select('id, friend_id')
+      .eq('user_id', currentUserId)
+      .eq('status', 'pending');
+
+    if (!requests || requests.length === 0) {
+      setSentRequests([]);
+      return;
+    }
+
+    const recipientIds = requests.map((r: any) => r.friend_id);
+    const { data: profiles } = await supabase
+      .from('user_profiles')
+      .select('id, username')
+      .in('id', recipientIds);
+
+    if (profiles) {
+      setSentRequests(requests.map((r: any) => {
+        const profile = profiles.find((p: any) => p.id === r.friend_id);
+        return {
+          id: profile?.id || r.friend_id,
+          name: profile?.username || 'Inconnu',
+          avatar: '🎮',
+          requestId: r.id,
+        };
+      }));
+    }
+  }
+
+  async function cancelRequest(requestId: string) {
+    await supabase
+      .from('friendships')
+      .delete()
+      .eq('id', requestId);
+
+    loadUserAndFriends();
   }
 
   async function acceptRequest(requestId: string) {
@@ -441,7 +483,8 @@ export function FriendsPanel() {
             {[
               { id: 'online', label: 'En ligne', count: onlineFriends.length },
               { id: 'all', label: 'Tous', count: onlineFriends.length + offlineFriends.length },
-              { id: 'pending', label: 'Demandes', count: pendingRequests.length },
+              { id: 'pending', label: 'Reçues', count: pendingRequests.length },
+              { id: 'sent', label: 'Envoyées', count: sentRequests.length },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -684,6 +727,61 @@ export function FriendsPanel() {
                     >
                       <X size={16} />
                       Refuser
+                    </motion.button>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+
+          {activeTab === 'sent' && (
+            <div className="space-y-2">
+              <p className="text-xs text-white/40 uppercase font-bold mb-3 px-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                Demandes envoyées — {sentRequests.length}
+              </p>
+              {sentRequests.length === 0 && (
+                <p className="text-sm text-white/40 text-center py-8" style={{ fontFamily: 'Inter, sans-serif' }}>
+                  Aucune demande envoyée
+                </p>
+              )}
+              {sentRequests.map((request) => (
+                <motion.div
+                  key={request.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="p-3 rounded-xl"
+                  style={{
+                    background: 'rgba(251, 191, 36, 0.1)',
+                    border: '1px solid rgba(251, 191, 36, 0.3)',
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-12 h-12 rounded-full flex items-center justify-center text-2xl"
+                      style={{ background: 'rgba(251, 191, 36, 0.2)' }}
+                    >
+                      {request.avatar}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-semibold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                        {request.name}
+                      </p>
+                      <p className="text-xs text-amber-400" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                        En attente de réponse...
+                      </p>
+                    </div>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => cancelRequest(request.requestId)}
+                      className="px-3 py-2 rounded-lg font-semibold text-white text-sm flex items-center gap-1"
+                      style={{
+                        background: 'rgba(239, 68, 68, 0.3)',
+                        fontFamily: 'Poppins, sans-serif',
+                      }}
+                    >
+                      <X size={14} />
+                      Annuler
                     </motion.button>
                   </div>
                 </motion.div>

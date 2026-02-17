@@ -19,6 +19,7 @@ export function ProfilePanel({ user, onLogout }: ProfilePanelProps) {
   const [notifications, setNotifications] = useState(true);
   const [avatarSeed, setAvatarSeed] = useState('felix');
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [recentGames, setRecentGames] = useState<{game: string; result: string; score: string; gameId: string}[]>([]);
   const [stats, setStats] = useState([
     { icon: Trophy, label: 'Victoires', value: '0', color: colors.primary },
     { icon: Star, label: 'Défaites', value: '0', color: '#ef4444' },
@@ -65,6 +66,32 @@ export function ProfilePanel({ user, onLogout }: ProfilePanelProps) {
         { icon: Star, label: 'Défaites', value: String(statsData.total_losses || 0), color: '#ef4444' },
         { icon: Trophy, label: 'Série', value: String(statsData.current_streak || 0), color: '#fbbf24' },
       ]);
+    }
+
+    // Load recent completed games
+    const { data: recentData } = await supabase
+      .from('challenges')
+      .select('game_type, challenger_id, challenger_score, opponent_score, status')
+      .or(`challenger_id.eq.${user.id},opponent_id.eq.${user.id}`)
+      .eq('status', 'completed')
+      .order('updated_at', { ascending: false })
+      .limit(5);
+
+    if (recentData && recentData.length > 0) {
+      const gameNames: Record<string, string> = {
+        sandy: 'SandyPong', lea: 'LéaNaval', liliano: 'LilianoThunder', nour: 'NourArchery'
+      };
+      setRecentGames(recentData.map((g: any) => {
+        const isChallenger = g.challenger_id === user.id;
+        const myScore = isChallenger ? g.challenger_score : g.opponent_score;
+        const oppScore = isChallenger ? g.opponent_score : g.challenger_score;
+        return {
+          game: gameNames[g.game_type] || g.game_type,
+          result: myScore > oppScore ? 'Victoire' : myScore < oppScore ? 'Défaite' : 'Égalité',
+          score: `${myScore}-${oppScore}`,
+          gameId: g.game_type,
+        };
+      }));
     }
   }
 
@@ -227,20 +254,6 @@ export function ProfilePanel({ user, onLogout }: ProfilePanelProps) {
                 <p className="text-white/60 text-sm mb-3" style={{ fontFamily: 'Inter, sans-serif' }}>
                   {user.email}
                 </p>
-                
-                {/* Level Badge */}
-                <motion.div
-                  whileHover={{ scale: 1.05 }}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full"
-                  style={{
-                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                  }}
-                >
-                  <Star className="text-white" size={16} fill="white" />
-                  <span className="text-white font-bold text-sm" style={{ fontFamily: 'Inter, sans-serif' }}>
-                    Goat du jour 🔥
-                  </span>
-                </motion.div>
               </div>
 
               {/* Stats */}
@@ -268,7 +281,8 @@ export function ProfilePanel({ user, onLogout }: ProfilePanelProps) {
                 ))}
               </div>
 
-              {/* Recent Games */}
+              {/* Recent Games - loaded from DB */}
+              {recentGames.length > 0 && (
               <div
                 className="p-4 rounded-2xl border border-white/10"
                 style={{
@@ -280,11 +294,7 @@ export function ProfilePanel({ user, onLogout }: ProfilePanelProps) {
                   Dernières parties
                 </p>
                 <div className="space-y-2">
-                  {[
-                    { game: 'SandyPong', result: 'Victoire', score: '10-7', gameId: 'sandy' },
-                    { game: 'LilianoThunder', result: 'Défaite', score: '3-5', gameId: 'liliano' },
-                    { game: 'LéaNaval', result: 'Victoire', score: '5-0', gameId: 'lea' },
-                  ].map((game, index) => (
+                  {recentGames.map((game, index) => (
                     <motion.div
                       key={index}
                       whileHover={{ x: 3 }}
@@ -321,34 +331,16 @@ export function ProfilePanel({ user, onLogout }: ProfilePanelProps) {
                   ))}
                 </div>
               </div>
+              )}
 
-              {/* Achievements */}
-              <div
-                className="p-4 rounded-2xl border border-white/10"
-                style={{
-                  background: 'rgba(255, 255, 255, 0.03)',
-                  backdropFilter: 'blur(10px)',
-                }}
-              >
-                <p className="text-xs text-white/40 uppercase font-bold mb-3" style={{ fontFamily: 'Inter, sans-serif' }}>
-                  Succès récents
-                </p>
-                <div className="grid grid-cols-4 gap-2">
-                  {['🏆', '🔥', '⭐', '💎', '🎯', '👑', '⚡', '🎮'].map((emoji, index) => (
-                    <motion.div
-                      key={index}
-                      whileHover={{ scale: 1.1, rotate: 5 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="aspect-square rounded-xl flex items-center justify-center text-2xl cursor-pointer"
-                      style={{
-                        background: 'rgba(255, 255, 255, 0.05)',
-                      }}
-                    >
-                      {emoji}
-                    </motion.div>
-                  ))}
+              {recentGames.length === 0 && (
+                <div className="p-6 rounded-2xl border border-white/10 text-center" style={{ background: 'rgba(255, 255, 255, 0.03)' }}>
+                  <p className="text-white/40 text-sm" style={{ fontFamily: 'Inter, sans-serif' }}>
+                    🎮 Aucune partie jouée pour l'instant
+                  </p>
                 </div>
-              </div>
+              )}
+
             </motion.div>
           )}
 
