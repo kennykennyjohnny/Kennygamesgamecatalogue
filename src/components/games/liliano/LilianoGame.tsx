@@ -360,20 +360,21 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
       background: P.bg, fontFamily: font, overflow: 'hidden' }}>
 
       {/* Header */}
-      <div style={{ padding: '8px 12px 2px', width: '100%', display: 'flex', justifyContent: 'space-between',
-        maxWidth: 520 }}>
+      <div style={{ padding: '10px 12px 2px', width: '100%', display: 'flex', justifyContent: 'space-between',
+        maxWidth: 520, alignItems: 'flex-start' }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 900, color: P.neon, margin: 0,
-            textShadow: `0 0 10px ${P.neon}, 0 0 20px ${P.neon}`, letterSpacing: 2 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 900, color: P.neon, margin: 0,
+            textShadow: `0 0 12px ${P.neon}, 0 0 24px ${P.neon}, 0 2px 8px rgba(0,0,0,0.5)`, letterSpacing: 2 }}>
             ⚡ LILIANO THUNDER
           </h1>
-          <div style={{ fontSize: 8, color: P.dim, letterSpacing: 3 }}>PUNK ROCK ARTILLERY</div>
+          <div style={{ fontSize: 9, color: P.dim, letterSpacing: 3, marginTop: 2 }}>PUNK ROCK ARTILLERY</div>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 11, color: P.neonCyan }}>
-            💨 Vent: {wind > 0 ? '→' : '←'} {Math.abs(wind).toFixed(1)}
+        <div style={{ textAlign: 'right', background: 'rgba(255,0,255,0.04)', padding: '4px 10px',
+          borderRadius: 8, border: '1px solid rgba(255,0,255,0.08)' }}>
+          <div style={{ fontSize: 12, color: P.neonCyan, fontWeight: 900 }}>
+            💨 {wind > 0 ? '→' : '←'} {Math.abs(wind).toFixed(1)}
           </div>
-          <div style={{ fontSize: 10, color: P.dim }}>Tour {turn + 1}</div>
+          <div style={{ fontSize: 10, color: P.dim, fontWeight: 700 }}>Tour {turn + 1}</div>
         </div>
       </div>
 
@@ -415,10 +416,13 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
       <AnimatePresence mode="wait">
         <motion.div key={over ? 'over' : isPlayerTurn ? 't' : 'w'} initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-          style={{ padding: '2px 14px', borderRadius: 4, fontSize: 11, fontWeight: 900,
-            background: 'rgba(255,0,255,0.05)', border: `1px solid ${P.dim}`,
+          style={{ padding: '3px 18px', borderRadius: 6, fontSize: 12, fontWeight: 900,
+            background: over ? (win === playerId ? 'rgba(57,255,20,0.08)' : 'rgba(255,0,68,0.08)') : 'rgba(255,0,255,0.05)',
+            border: `1px solid ${over ? (win === playerId ? 'rgba(57,255,20,0.2)' : 'rgba(255,0,68,0.2)') : P.dim}`,
             color: over ? (win === playerId ? P.neonGreen : '#ff0044') : isPlayerTurn ? P.neon : '#555',
-            textShadow: over || isPlayerTurn ? `0 0 8px currentColor` : 'none', marginBottom: 2,
+            textShadow: over || isPlayerTurn ? `0 0 10px currentColor` : 'none', marginBottom: 2,
+            boxShadow: over ? '0 2px 12px rgba(0,0,0,0.2)' : 'none',
+            letterSpacing: 1,
           }}>
           {over ? (win === playerId ? '🏆 VICTOIRE !!' : '💀 DÉFAITE...') : isPlayerTurn ? '🎯 À TOI !' : '⏳ TOUR ADVERSE...'}
         </motion.div>

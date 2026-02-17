@@ -109,7 +109,7 @@ export function HomeScreen({ onPlayMatch }: HomeScreenProps) {
 
       setGameStats([
         { gameId: 'sandy', name: 'SandyPong', wins: data.sandy_wins || 0, losses: data.sandy_losses || 0 },
-        { gameId: 'nour', name: 'NourArchery', wins: data.nour_wins || 0, losses: data.nour_losses || 0 },
+        { gameId: 'nour', name: 'NourPigeon', wins: data.nour_wins || 0, losses: data.nour_losses || 0 },
         { gameId: 'liliano', name: 'LilianoThunder', wins: data.liliano_wins || 0, losses: data.liliano_losses || 0 },
         { gameId: 'lea', name: 'LéaNaval', wins: data.lea_wins || 0, losses: data.lea_losses || 0 },
       ]);
@@ -121,7 +121,7 @@ export function HomeScreen({ onPlayMatch }: HomeScreenProps) {
       sandy: 'SandyPong',
       lea: 'LéaNaval',
       liliano: 'LilianoThunder',
-      nour: 'NourArchery',
+      nour: 'NourPigeon',
     };
     return names[gameType] || gameType;
   }
@@ -326,10 +326,10 @@ export function HomeScreen({ onPlayMatch }: HomeScreenProps) {
           </h3>
           <div className="grid grid-cols-2 gap-3">
             {[
-              { id: 'sandy', name: 'SandyPong', subtitle: 'Beer Pong' },
-              { id: 'lea', name: 'LéaNaval', subtitle: 'Bataille' },
-              { id: 'liliano', name: 'LilianoThunder', subtitle: 'Tank' },
-              { id: 'nour', name: 'NourArchery', subtitle: 'Archery' },
+              { id: 'sandy', name: 'SandyPong', subtitle: 'Beer Pong Rosé' },
+              { id: 'lea', name: 'LéaNaval', subtitle: 'Bataille Navale' },
+              { id: 'liliano', name: 'LilianoThunder', subtitle: 'Artillerie Punk' },
+              { id: 'nour', name: 'NourPigeon', subtitle: 'Tir aux Pigeons' },
             ].map((game, index) => (
               <motion.button
                 key={game.id}

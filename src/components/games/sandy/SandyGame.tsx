@@ -293,29 +293,37 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
     }}>
 
       {/* Header */}
-      <div style={{ padding: '10px 0 2px', textAlign: 'center', width: '100%', zIndex: 2 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 900, fontStyle: 'italic', margin: 0,
-          background: 'linear-gradient(135deg, #f4b0c3, #e8879f, #d4a053)',
+      <div style={{ padding: '10px 0 4px', textAlign: 'center', width: '100%', zIndex: 2 }}>
+        <h1 style={{ fontSize: 26, fontWeight: 900, fontStyle: 'italic', margin: 0,
+          background: 'linear-gradient(135deg, #f4b0c3, #e8527a, #d4a053)',
           WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-          letterSpacing: 1,
+          letterSpacing: 1, textShadow: 'none',
         }}>🥂 Sandy Pong</h1>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 4 }}>
-          <span style={{ fontSize: 11, color: 'rgba(244,176,195,0.5)', fontWeight: 700 }}>
-            🎯 Adversaire: <strong style={{ color: '#e8879f' }}>{opAlive}</strong>/10
-          </span>
-          <span style={{ fontSize: 11, color: 'rgba(244,176,195,0.5)', fontWeight: 700 }}>
-            🛡️ Toi: <strong style={{ color: '#f4b0c3' }}>{myAlive}</strong>/10
-          </span>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 20, marginTop: 6 }}>
+          <div style={{ padding: '2px 12px', borderRadius: 8, background: 'rgba(232,82,122,0.08)',
+            border: '1px solid rgba(232,82,122,0.12)' }}>
+            <span style={{ fontSize: 11, color: 'rgba(244,176,195,0.6)', fontWeight: 700 }}>
+              🎯 <strong style={{ color: '#e8527a', fontSize: 14 }}>{opAlive}</strong><span style={{ fontSize: 9 }}>/10</span>
+            </span>
+          </div>
+          <div style={{ padding: '2px 12px', borderRadius: 8, background: 'rgba(244,176,195,0.06)',
+            border: '1px solid rgba(244,176,195,0.1)' }}>
+            <span style={{ fontSize: 11, color: 'rgba(244,176,195,0.6)', fontWeight: 700 }}>
+              🛡️ <strong style={{ color: '#f4b0c3', fontSize: 14 }}>{myAlive}</strong><span style={{ fontSize: 9 }}>/10</span>
+            </span>
+          </div>
         </div>
       </div>
 
       {/* Status */}
       <motion.div key={over ? 'o' : isPlayerTurn ? 't' : 'w'} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-        style={{ padding: '3px 16px', borderRadius: 10, fontSize: 12, fontWeight: 700, fontStyle: 'italic', marginBottom: 4, zIndex: 2,
-          background: over ? 'rgba(52,199,89,0.08)' : isPlayerTurn ? 'rgba(232,135,159,0.08)' : 'rgba(80,80,80,0.04)',
+        style={{ padding: '4px 18px', borderRadius: 12, fontSize: 13, fontWeight: 700, fontStyle: 'italic', marginBottom: 6, zIndex: 2,
+          background: over ? (win === playerId ? 'rgba(52,199,89,0.1)' : 'rgba(232,82,122,0.08)') : isPlayerTurn ? 'rgba(232,135,159,0.1)' : 'rgba(80,80,80,0.04)',
           color: over ? (win === playerId ? '#4ade80' : '#e8527a') : isPlayerTurn ? '#f4b0c3' : '#555',
-          border: `1px solid ${over ? 'rgba(52,199,89,0.15)' : isPlayerTurn ? 'rgba(232,135,159,0.12)' : 'rgba(50,50,50,0.05)'}`,
-          backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
+          border: `1px solid ${over ? (win === playerId ? 'rgba(52,199,89,0.2)' : 'rgba(232,82,122,0.2)') : isPlayerTurn ? 'rgba(232,135,159,0.15)' : 'rgba(50,50,50,0.05)'}`,
+          backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+          boxShadow: over || isPlayerTurn ? '0 2px 12px rgba(0,0,0,0.1)' : 'none',
+          textShadow: over ? '0 1px 4px rgba(0,0,0,0.2)' : 'none',
         }}>
         {over ? (win === playerId ? '🏆 Victoire !' : '💔 Défaite…') : isPlayerTurn ? '🎯 Glisse vers le haut !' : '⏳ Tour adverse…'}
       </motion.div>

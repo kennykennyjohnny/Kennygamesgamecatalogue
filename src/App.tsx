@@ -47,7 +47,7 @@ function App() {
         const challenge = payload.new;
         if (challenge.current_turn_user_id === user.id && challenge.status === 'playing') {
           const gameNames: Record<string, string> = {
-            sandy: 'SandyPong 🍷', lea: 'LéaNaval 🚢', liliano: 'LilianoThunder ⚡', nour: 'NourArchery 🏹'
+            sandy: 'SandyPong 🥂', lea: 'LéaNaval 🍷', liliano: 'LilianoThunder ⚡', nour: 'NourPigeon 🪶'
           };
           const gameName = gameNames[challenge.game_type] || challenge.game_type;
           sendNotification(

@@ -536,11 +536,11 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
     <div style={{
       minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
       padding: '12px 6px', fontFamily: font, overflow: 'auto',
-      background: 'linear-gradient(160deg, #18100c 0%, #241810 25%, #2a1c14 50%, #1e1410 75%, #14100c 100%)',
+      background: 'linear-gradient(160deg, #18100c 0%, #241810 20%, #2e1c14 40%, #241810 60%, #1e1410 80%, #14100c 100%)',
     }}>
       {/* Warm ambient glow */}
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none',
-        background: 'radial-gradient(ellipse at 50% 30%, rgba(201,160,80,0.04) 0%, transparent 60%)',
+        background: 'radial-gradient(ellipse at 50% 20%, rgba(201,160,80,0.06) 0%, transparent 55%), radial-gradient(ellipse at 30% 80%, rgba(123,16,36,0.03) 0%, transparent 50%)',
       }} />
       {children}
     </div>
@@ -553,10 +553,12 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
       <Bg>
         <motion.div initial={{ y: -15, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
           style={{ textAlign: 'center', marginBottom: 10 }}>
-          <h1 style={{ fontSize: 26, fontWeight: 900, fontStyle: 'italic', margin: 0,
-            color: '#c9a050', textShadow: '0 0 20px rgba(201,160,80,0.15)',
+          <h1 style={{ fontSize: 28, fontWeight: 900, fontStyle: 'italic', margin: 0,
+            color: '#c9a050', textShadow: '0 0 20px rgba(201,160,80,0.2), 0 2px 8px rgba(0,0,0,0.4)',
+            letterSpacing: 1,
           }}>🍷 Léa Naval</h1>
-          <p style={{ fontSize: 11, color: 'rgba(201,160,80,0.35)', margin: '2px 0 0', fontStyle: 'italic' }}>
+          <p style={{ fontSize: 11, color: 'rgba(201,160,80,0.4)', margin: '4px 0 0', fontStyle: 'italic',
+            letterSpacing: 0.5 }}>
             Dispose tes bouteilles sur la toile — elles ne doivent pas se toucher
           </p>
         </motion.div>
@@ -638,12 +640,15 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
     return (
       <Bg>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <motion.div animate={{ rotate: [0, 8, -8, 0] }} transition={{ duration: 5, repeat: Infinity }}
-            style={{ fontSize: 56, marginBottom: 16, filter: 'drop-shadow(0 4px 12px rgba(123,16,36,0.3))' }}>🍷</motion.div>
-          <h2 style={{ color: '#c9a050', fontSize: 20, fontWeight: 800, fontStyle: 'italic', marginBottom: 6 }}>Cave prête !</h2>
-          <p style={{ color: 'rgba(201,160,80,0.3)', fontSize: 12, fontStyle: 'italic' }}>En attente du sommelier adverse…</p>
-          <motion.div animate={{ opacity: [0.15, 0.5, 0.15] }} transition={{ duration: 2.5, repeat: Infinity }}
-            style={{ marginTop: 20, width: 50, height: 1.5, borderRadius: 1, background: '#c9a050' }} />
+          <motion.div animate={{ rotate: [0, 8, -8, 0], scale: [1, 1.05, 1, 1.05, 1] }}
+            transition={{ duration: 5, repeat: Infinity }}
+            style={{ fontSize: 64, marginBottom: 20, filter: 'drop-shadow(0 6px 16px rgba(123,16,36,0.4))' }}>🍷</motion.div>
+          <h2 style={{ color: '#c9a050', fontSize: 22, fontWeight: 800, fontStyle: 'italic', marginBottom: 8,
+            textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>Cave prête !</h2>
+          <p style={{ color: 'rgba(201,160,80,0.35)', fontSize: 13, fontStyle: 'italic', marginBottom: 6 }}>En attente du sommelier adverse…</p>
+          <motion.div animate={{ opacity: [0.15, 0.5, 0.15], width: [40, 60, 40] }}
+            transition={{ duration: 2.5, repeat: Infinity }}
+            style={{ height: 2, borderRadius: 1, background: 'linear-gradient(90deg, transparent, #c9a050, transparent)' }} />
         </div>
       </Bg>
     );
@@ -653,22 +658,27 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
 
   return (
     <Bg>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 900, fontStyle: 'italic', margin: 0,
-          color: '#c9a050', textShadow: '0 0 15px rgba(201,160,80,0.1)', letterSpacing: 0.5 }}>🍷 Léa Naval</h1>
-        <div style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 8,
-          background: 'rgba(123,16,36,0.1)', border: '1px solid rgba(123,16,36,0.15)',
-          color: 'rgba(201,160,80,0.5)', fontStyle: 'italic' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 900, fontStyle: 'italic', margin: 0,
+          color: '#c9a050', textShadow: '0 0 15px rgba(201,160,80,0.15), 0 2px 6px rgba(0,0,0,0.3)', letterSpacing: 0.5 }}>🍷 Léa Naval</h1>
+        <div style={{ fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: 8,
+          background: 'linear-gradient(135deg, rgba(123,16,36,0.12), rgba(123,16,36,0.06))',
+          border: '1px solid rgba(123,16,36,0.2)',
+          color: opSunk.length >= SHIPS.length ? '#4ade80' : 'rgba(201,160,80,0.6)', fontStyle: 'italic',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+        }}>
           💀 {opSunk.length}/{SHIPS.length} coulés
         </div>
       </div>
 
       <motion.div key={isPlayerTurn ? 'y' : 'n'} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-        style={{ padding: '4px 18px', borderRadius: 12, fontSize: 13, fontWeight: 700, fontStyle: 'italic', marginBottom: 8,
-          background: over ? 'rgba(52,199,89,0.08)' : isPlayerTurn ? 'rgba(123,16,36,0.08)' : 'rgba(80,80,80,0.04)',
+        style={{ padding: '5px 20px', borderRadius: 12, fontSize: 14, fontWeight: 700, fontStyle: 'italic', marginBottom: 8,
+          background: over ? (win === playerId ? 'rgba(52,199,89,0.1)' : 'rgba(200,50,50,0.08)') : isPlayerTurn ? 'rgba(123,16,36,0.1)' : 'rgba(80,80,80,0.04)',
           color: over ? (win === playerId ? '#4ade80' : '#e85050') : isPlayerTurn ? '#c9a050' : '#555',
-          border: `1px solid ${over ? 'rgba(52,199,89,0.15)' : isPlayerTurn ? 'rgba(201,160,80,0.15)' : 'rgba(80,80,80,0.06)'}`,
+          border: `1px solid ${over ? (win === playerId ? 'rgba(52,199,89,0.2)' : 'rgba(200,50,50,0.15)') : isPlayerTurn ? 'rgba(201,160,80,0.2)' : 'rgba(80,80,80,0.06)'}`,
           backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
+          boxShadow: over || isPlayerTurn ? '0 2px 12px rgba(0,0,0,0.15)' : 'none',
+          textShadow: over || isPlayerTurn ? '0 1px 4px rgba(0,0,0,0.2)' : 'none',
         }}>
         {over ? (win === playerId ? '🏆 Victoire !' : '💔 Défaite…') : isPlayerTurn ? '🎯 À toi de tirer !' : '⏳ Tour adverse…'}
       </motion.div>

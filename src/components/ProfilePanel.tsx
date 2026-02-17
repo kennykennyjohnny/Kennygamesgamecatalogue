@@ -79,7 +79,7 @@ export function ProfilePanel({ user, onLogout }: ProfilePanelProps) {
 
     if (recentData && recentData.length > 0) {
       const gameNames: Record<string, string> = {
-        sandy: 'SandyPong', lea: 'LéaNaval', liliano: 'LilianoThunder', nour: 'NourArchery'
+        sandy: 'SandyPong', lea: 'LéaNaval', liliano: 'LilianoThunder', nour: 'NourPigeon'
       };
       setRecentGames(recentData.map((g: any) => {
         const won = g.winner_id === user.id;

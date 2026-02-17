@@ -3,7 +3,7 @@
  * 
  * Exports all 4 adapted games:
  * - LéaNaval (Battleship — thème vin rouge & peinture)
- * - NourArchery (Tir à l'arc — thème Matrix/Néo)
+ * - NourPigeon (Tir aux pigeons d'argile — campagne)
  * - SandyPong (Beer pong — thème rosé & plage chic)
  * - LilianoThunder (Artillerie — thème punk rock)
  */
@@ -25,9 +25,9 @@ export const GAMES = {
   },
   nourarchery: {
     id: 'nourarchery',
-    name: 'NourArchery',
-    emoji: '💊',
-    description: 'Tir à l\'arc — Matrix Protocol',
+    name: 'NourPigeon',
+    emoji: '🪶',
+    description: 'Tir aux pigeons d\'argile — campagne',
     players: 2,
     component: 'NourarcheryGame'
   },

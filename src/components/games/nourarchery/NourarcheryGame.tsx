@@ -406,7 +406,7 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
   return (
     <div style={{
       minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
-      background: 'linear-gradient(180deg, #2a5a3a 0%, #1a3a1a 40%, #0a1a0a 100%)',
+      background: 'linear-gradient(180deg, #1a4a2a 0%, #1a3a1a 30%, #122a12 60%, #0a1a0a 100%)',
       overflow: 'hidden', touchAction: 'none',
       fontFamily: "'Georgia', 'Times New Roman', serif", position: 'relative',
     }}>
@@ -415,39 +415,45 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
       <div style={{ padding: '10px 14px 2px', width: '100%', maxWidth: 500, zIndex: 2,
         display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 900, margin: 0, fontStyle: 'italic',
-            color: P.gold, textShadow: '0 1px 4px rgba(0,0,0,0.5)', letterSpacing: 0.5 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 900, margin: 0, fontStyle: 'italic',
+            color: P.gold, textShadow: '0 1px 6px rgba(0,0,0,0.5), 0 0 12px rgba(212,168,83,0.15)', letterSpacing: 0.5 }}>
             🪶 Nour Pigeon
           </h1>
-          <div style={{ fontSize: 9, color: 'rgba(212,168,83,0.5)', fontStyle: 'italic', letterSpacing: 1 }}>
+          <div style={{ fontSize: 9, color: 'rgba(212,168,83,0.5)', fontStyle: 'italic', letterSpacing: 1.5, marginTop: 1 }}>
             Tir aux Pigeons d'Argile
           </div>
         </div>
-        <div style={{ textAlign: 'right', background: 'rgba(0,0,0,0.15)', padding: '4px 10px',
-          borderRadius: 8, border: '1px solid rgba(232,118,42,0.1)' }}>
-          <div style={{ fontSize: 12, color: P.orange, fontWeight: 700 }}>
+        <div style={{ textAlign: 'right', background: 'rgba(0,0,0,0.2)', padding: '5px 12px',
+          borderRadius: 10, border: '1px solid rgba(232,118,42,0.15)',
+          backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
+        }}>
+          <div style={{ fontSize: 13, color: P.orange, fontWeight: 700,
+            textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>
             Manche {round}/{ROUNDS} • Tir {shot}/{SHOTS_PER_ROUND}
           </div>
-          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)', fontStyle: 'italic' }}>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', fontStyle: 'italic', marginTop: 1 }}>
             💨 {wind > 0 ? '→' : wind < 0 ? '←' : '○'} {Math.abs(wind).toFixed(1)} km/h
           </div>
         </div>
       </div>
 
       {/* Score bar */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: 24, padding: '4px 0 6px', width: '100%', zIndex: 2 }}>
-        <div style={{ textAlign: 'center', background: 'rgba(232,118,42,0.06)', padding: '4px 16px',
-          borderRadius: 10, border: '1px solid rgba(232,118,42,0.1)' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 20, padding: '4px 0 6px', width: '100%', zIndex: 2 }}>
+        <div style={{ textAlign: 'center', background: 'rgba(232,118,42,0.08)', padding: '5px 20px',
+          borderRadius: 12, border: '1px solid rgba(232,118,42,0.15)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
           <div style={{ fontSize: 8, color: P.dim, letterSpacing: 2, fontWeight: 900 }}>TOI</div>
-          <div style={{ fontSize: 28, fontWeight: 900, color: P.orange,
-            textShadow: `0 2px 6px rgba(232,118,42,0.3)` }}>{myScore}</div>
+          <div style={{ fontSize: 30, fontWeight: 900, color: P.orange,
+            textShadow: `0 2px 8px rgba(232,118,42,0.35)` }}>{myScore}</div>
         </div>
-        <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.2)', alignSelf: 'center', fontWeight: 900 }}>VS</div>
-        <div style={{ textAlign: 'center', background: 'rgba(200,50,50,0.04)', padding: '4px 16px',
-          borderRadius: 10, border: '1px solid rgba(200,50,50,0.08)' }}>
+        <div style={{ fontSize: 16, color: 'rgba(255,255,255,0.25)', alignSelf: 'center', fontWeight: 900,
+          textShadow: '0 1px 3px rgba(0,0,0,0.2)' }}>VS</div>
+        <div style={{ textAlign: 'center', background: 'rgba(200,50,50,0.06)', padding: '5px 20px',
+          borderRadius: 12, border: '1px solid rgba(200,50,50,0.1)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
           <div style={{ fontSize: 8, color: P.dim, letterSpacing: 2, fontWeight: 900 }}>ADV</div>
-          <div style={{ fontSize: 28, fontWeight: 900, color: '#c44',
-            textShadow: '0 2px 6px rgba(200,50,50,0.2)' }}>{opScore}</div>
+          <div style={{ fontSize: 30, fontWeight: 900, color: '#c44',
+            textShadow: '0 2px 8px rgba(200,50,50,0.25)' }}>{opScore}</div>
         </div>
       </div>
 
@@ -466,10 +472,12 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
 
       {/* Status */}
       <motion.div key={over ? 'o' : isPlayerTurn ? 't' : 'w'} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-        style={{ padding: '2px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700, fontStyle: 'italic', marginBottom: 2, zIndex: 2,
-          background: over ? 'rgba(52,199,89,0.1)' : isPlayerTurn ? 'rgba(232,118,42,0.08)' : 'rgba(80,80,80,0.06)',
+        style={{ padding: '3px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700, fontStyle: 'italic', marginBottom: 2, zIndex: 2,
+          background: over ? (win === playerId ? 'rgba(52,199,89,0.12)' : 'rgba(200,68,68,0.08)') : isPlayerTurn ? 'rgba(232,118,42,0.1)' : 'rgba(80,80,80,0.06)',
           color: over ? (win === playerId ? '#4ade80' : '#c44') : isPlayerTurn ? P.orange : '#555',
-          border: `1px solid ${over ? 'rgba(52,199,89,0.15)' : isPlayerTurn ? 'rgba(232,118,42,0.12)' : 'rgba(80,80,80,0.06)'}`,
+          border: `1px solid ${over ? (win === playerId ? 'rgba(52,199,89,0.2)' : 'rgba(200,68,68,0.15)') : isPlayerTurn ? 'rgba(232,118,42,0.15)' : 'rgba(80,80,80,0.06)'}`,
+          boxShadow: over || isPlayerTurn ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
+          textShadow: over ? '0 1px 3px rgba(0,0,0,0.2)' : 'none',
         }}>
         {over ? (win === playerId ? '🏆 Victoire !' : '💔 Défaite…')
           : isPlayerTurn
