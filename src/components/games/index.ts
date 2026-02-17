@@ -2,10 +2,10 @@
  * KennyGames - Game Components Index
  * 
  * Exports all 4 adapted games:
- * - LéaNaval (Battleship with wine bottles)
- * - NourArchery (Cyber archery with wind)
- * - SandyPong (Rosé beer pong)
- * - LilianoThunder (Guitar tanks)
+ * - LéaNaval (Battleship - naval warfare)
+ * - NourArchery (Forest archery with wind)
+ * - SandyPong (Beach ball pong)
+ * - LilianoThunder (Thunder tanks)
  */
 
 export { default as LeanavGame } from './leanav/LeanavGame';
@@ -18,24 +18,24 @@ export const GAMES = {
   leanav: {
     id: 'leanav',
     name: 'LéaNaval',
-    emoji: '🍾',
-    description: 'Bataille Navale with wine bottles',
+    emoji: '⚓',
+    description: 'Bataille Navale - place tes navires et coule la flotte ennemie',
     players: 2,
     component: 'LeanavGame'
   },
   nourarchery: {
     id: 'nourarchery',
     name: 'NourArchery',
-    emoji: '🎯',
-    description: 'Cyber archery with wind mechanics',
+    emoji: '🏹',
+    description: 'Tir à l\'arc en forêt avec vent',
     players: 2,
     component: 'NourarcheryGame'
   },
   sandy: {
     id: 'sandy',
     name: 'SandyPong',
-    emoji: '🍷',
-    description: 'Rosé beer pong game',
+    emoji: '🏖️',
+    description: 'Beer pong sur la plage',
     players: 2,
     component: 'SandyGame'
   },
@@ -43,7 +43,7 @@ export const GAMES = {
     id: 'liliano',
     name: 'LilianoThunder',
     emoji: '⚡',
-    description: 'Guitar tanks with lightning',
+    description: 'Tanks tonnerre - artillerie avec éclairs',
     players: 2,
     component: 'LilianoGame'
   }

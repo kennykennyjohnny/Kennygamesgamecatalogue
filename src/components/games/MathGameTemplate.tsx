@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
-import { Home, RotateCcw, LucideIcon, Trophy, Medal } from 'lucide-react';
+import { Home, RotateCcw, LucideIcon, Trophy } from 'lucide-react';
 
 interface MathGameTemplateProps {
   user: any;
@@ -14,7 +14,6 @@ interface MathGameTemplateProps {
   generateQuestion: (score: number) => { a: number; b: number; op: string; answer: number };
 }
 
-// Données fictives pour le top 10 du jeu
 const FAKE_GAME_TOP_10 = [
   { rank: 1, name: 'MathPro', score: 42 },
   { rank: 2, name: 'CalcKing', score: 38 },
@@ -27,6 +26,19 @@ const FAKE_GAME_TOP_10 = [
   { rank: 9, name: 'NumberNinja', score: 18 },
   { rank: 10, name: 'BrainSpeed', score: 15 },
 ];
+
+// GamePigeon-style color palette per operation
+const OP_THEMES: Record<string, { bg: string; accent: string; light: string }> = {
+  '+': { bg: '#007AFF', accent: '#5AC8FA', light: '#E8F4FD' },
+  '−': { bg: '#FF9500', accent: '#FFCC00', light: '#FFF8E8' },
+  '×': { bg: '#FF3B30', accent: '#FF6961', light: '#FDE8E8' },
+  '÷': { bg: '#AF52DE', accent: '#DA70D6', light: '#F3E8FD' },
+  'mix': { bg: '#34C759', accent: '#30D158', light: '#E8FDE8' },
+};
+
+function getOpTheme(op: string) {
+  return OP_THEMES[op] || OP_THEMES['mix'];
+}
 
 export function MathGameTemplate({ 
   user, 
@@ -46,6 +58,8 @@ export function MathGameTemplate({
   const [choices, setChoices] = useState<number[]>([]);
   const [bestScore, setBestScore] = useState(0);
   const [feedback, setFeedback] = useState<number | null>(null);
+  const [streak, setStreak] = useState(0);
+  const [shakeWrong, setShakeWrong] = useState(false);
   const [myRank, setMyRank] = useState<number | null>(null);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -123,6 +137,7 @@ export function MathGameTemplate({
     setGameState('playing');
     setScore(0);
     setTimeLeft(30);
+    setStreak(0);
     generateNewQuestion();
     
     timerRef.current = setInterval(() => {
@@ -137,13 +152,17 @@ export function MathGameTemplate({
   };
 
   const handleChoice = (choice: number) => {
+    if (feedback !== null) return;
     if (choice === currentQuestion.answer) {
       setScore((prev) => prev + 1);
+      setStreak((prev) => prev + 1);
       setFeedback(choice);
-      setTimeout(() => generateNewQuestion(), 400);
+      setTimeout(() => generateNewQuestion(), 350);
     } else {
       setFeedback(choice);
-      setTimeout(() => setFeedback(null), 600);
+      setStreak(0);
+      setShakeWrong(true);
+      setTimeout(() => { setFeedback(null); setShakeWrong(false); }, 500);
     }
   };
 
@@ -151,7 +170,6 @@ export function MathGameTemplate({
     if (timerRef.current) clearInterval(timerRef.current);
     setGameState('finished');
 
-    // Calculer le rang fictif
     const rank = FAKE_GAME_TOP_10.findIndex(p => score > p.score);
     setMyRank(rank === -1 ? (score === 0 ? null : 11) : rank + 1);
 
@@ -166,140 +184,255 @@ export function MathGameTemplate({
     }
   };
 
+  const theme = getOpTheme(gameId === 'mix' ? 'mix' : currentQuestion.op || '+');
+  const timerPct = (timeLeft / 30) * 100;
+
+  // ── COUNTDOWN ──
   if (gameState === 'countdown') {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--kg-bg)' }}>
-        <div className="text-9xl font-black animate-pulse" style={{ color: 'var(--kg-primary)' }}>
-          {countdown}
+      <div style={{
+        minHeight: '100vh', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        background: 'linear-gradient(180deg, #1c1c1e 0%, #2c2c2e 100%)',
+      }}>
+        <div style={{
+          fontSize: 18, fontWeight: 600, color: '#8e8e93',
+          marginBottom: 16, letterSpacing: 1, fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
+        }}>{gameName}</div>
+        <div style={{
+          width: 120, height: 120, borderRadius: '50%',
+          background: `linear-gradient(135deg, ${theme.bg}, ${theme.accent})`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: `0 8px 32px ${theme.bg}66`,
+          animation: 'pulse 1s ease-in-out infinite',
+        }}>
+          <span style={{ fontSize: 56, fontWeight: 900, color: '#fff', fontFamily: '-apple-system, sans-serif' }}>
+            {countdown}
+          </span>
         </div>
+        <div style={{ color: '#636366', fontSize: 14, marginTop: 20, fontFamily: '-apple-system, sans-serif' }}>
+          Prépare-toi...
+        </div>
+        <style>{`@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.1); } }`}</style>
       </div>
     );
   }
 
+  // ── PLAYING ──
   if (gameState === 'playing') {
     return (
-      <div className="min-h-screen flex flex-col p-4" style={{ backgroundColor: 'var(--kg-bg)' }}>
-        <div className="flex justify-between items-center mb-6">
-          <p className="text-2xl font-bold" style={{ color: 'var(--kg-text)' }}>{score}</p>
-          <p className="text-2xl font-bold" style={{ color: timeLeft < 10 ? 'var(--kg-error)' : 'var(--kg-text)' }}>{timeLeft}s</p>
+      <div style={{
+        minHeight: '100vh', display: 'flex', flexDirection: 'column',
+        background: 'linear-gradient(180deg, #1c1c1e 0%, #2c2c2e 100%)',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
+      }}>
+        {/* Top bar */}
+        <div style={{ padding: '16px 20px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{
+              fontSize: 28, fontWeight: 800, color: '#fff',
+              background: `linear-gradient(135deg, ${theme.bg}, ${theme.accent})`,
+              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+            }}>{score}</span>
+            {streak >= 3 && (
+              <span style={{
+                fontSize: 13, fontWeight: 700, color: '#FFCC00',
+                background: 'rgba(255,204,0,0.15)', padding: '2px 8px', borderRadius: 10,
+              }}>🔥 x{streak}</span>
+            )}
+          </div>
+          <div style={{
+            fontSize: 22, fontWeight: 700,
+            color: timeLeft <= 5 ? '#FF3B30' : timeLeft <= 10 ? '#FF9500' : '#fff',
+            transition: 'color 0.3s',
+          }}>
+            {timeLeft}s
+          </div>
         </div>
 
-        <div className="flex-1 flex items-center justify-center overflow-y-auto">
-          <div className="w-full max-w-lg px-2">
-            <div className="text-5xl md:text-6xl font-bold text-center mb-6" style={{ color: 'var(--kg-text)' }}>
-              {currentQuestion.a} {currentQuestion.op} {currentQuestion.b}
-            </div>
+        {/* Timer bar */}
+        <div style={{ padding: '0 20px', marginBottom: 12 }}>
+          <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+            <div style={{
+              height: '100%', borderRadius: 2, transition: 'width 1s linear, background-color 0.3s',
+              width: `${timerPct}%`,
+              background: timerPct <= 17 ? '#FF3B30' : timerPct <= 33 ? '#FF9500' : `linear-gradient(90deg, ${theme.bg}, ${theme.accent})`,
+            }} />
+          </div>
+        </div>
 
-            <div className="grid grid-cols-4 gap-2">
-              {choices.map((choice) => (
+        {/* Question */}
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+          justifyContent: 'center', padding: '0 16px', gap: 24,
+        }}>
+          <div style={{
+            background: 'rgba(255,255,255,0.06)', borderRadius: 20, padding: '24px 32px',
+            backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.08)',
+            animation: shakeWrong ? 'shake 0.4s ease-in-out' : undefined,
+          }}>
+            <div style={{
+              fontSize: 48, fontWeight: 800, color: '#fff', textAlign: 'center',
+              letterSpacing: 4,
+            }}>
+              {currentQuestion.a}
+              <span style={{ color: theme.accent, margin: '0 12px' }}>{currentQuestion.op}</span>
+              {currentQuestion.b}
+            </div>
+          </div>
+
+          {/* Answer grid – iMessage bubble style */}
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10,
+            width: '100%', maxWidth: 420, padding: '0 4px',
+          }}>
+            {choices.map((choice) => {
+              const isCorrectFeedback = feedback === choice && choice === currentQuestion.answer;
+              const isWrongFeedback = feedback === choice && choice !== currentQuestion.answer;
+              return (
                 <button
                   key={choice}
                   onClick={() => handleChoice(choice)}
-                  className={`p-3 md:p-4 rounded-lg text-base md:text-lg font-bold transition-all ${
-                    feedback === choice
-                      ? choice === currentQuestion.answer
-                        ? 'scale-105'
-                        : 'opacity-50 scale-95'
-                      : 'hover:scale-105 active:scale-95'
-                  }`}
                   style={{
-                    backgroundColor: feedback === choice
-                      ? choice === currentQuestion.answer
-                        ? 'var(--kg-success)'
-                        : 'var(--kg-error)'
-                      : 'var(--kg-card)',
-                    color: 'var(--kg-text)',
-                    border: '2px solid var(--border)',
+                    padding: '14px 8px', borderRadius: 16, fontSize: 18, fontWeight: 700,
+                    border: 'none', cursor: 'pointer',
+                    fontFamily: '-apple-system, sans-serif',
+                    transition: 'all 0.15s ease',
+                    transform: isCorrectFeedback ? 'scale(1.08)' : isWrongFeedback ? 'scale(0.92)' : undefined,
+                    background: isCorrectFeedback
+                      ? '#34C759'
+                      : isWrongFeedback
+                        ? '#FF3B30'
+                        : 'rgba(255,255,255,0.1)',
+                    color: (isCorrectFeedback || isWrongFeedback) ? '#fff' : '#e5e5ea',
+                    boxShadow: isCorrectFeedback
+                      ? '0 4px 16px rgba(52,199,89,0.4)'
+                      : isWrongFeedback
+                        ? '0 4px 16px rgba(255,59,48,0.4)'
+                        : '0 2px 8px rgba(0,0,0,0.2)',
                   }}
                 >
                   {choice}
                 </button>
-              ))}
-            </div>
-            
-            <p className="text-center mt-4 text-xs" style={{ color: 'var(--kg-text-muted)' }}>
-              Cherche bien parmi les 8 choix !
-            </p>
+              );
+            })}
           </div>
         </div>
+
+        <style>{`
+          @keyframes shake { 0%,100% { transform:translateX(0); } 25% { transform:translateX(-8px); } 75% { transform:translateX(8px); } }
+        `}</style>
       </div>
     );
   }
 
+  // ── FINISHED ──
   return (
-    <div className="min-h-screen p-4 overflow-y-auto" style={{ backgroundColor: 'var(--kg-bg)' }}>
-      <div className="max-w-2xl mx-auto py-6">
-        {/* Header avec score */}
-        <div className="text-center mb-6">
-          <div className="inline-block p-6 rounded-2xl mb-4" style={{ backgroundColor: 'var(--kg-card)' }}>
-            <Icon className="w-12 h-12 mx-auto mb-3" style={{ color: 'var(--kg-primary)' }} />
-            <div className="text-6xl font-bold mb-2" style={{ color: 'var(--kg-primary)' }}>{score}</div>
-            <p className="text-sm" style={{ color: 'var(--kg-text-muted)' }}>bonnes réponses</p>
+    <div style={{
+      minHeight: '100vh', padding: 20, overflowY: 'auto',
+      background: 'linear-gradient(180deg, #1c1c1e 0%, #2c2c2e 100%)',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
+    }}>
+      <div style={{ maxWidth: 480, margin: '0 auto', paddingTop: 24 }}>
+        {/* Score card */}
+        <div style={{
+          textAlign: 'center', marginBottom: 24, padding: '32px 20px', borderRadius: 24,
+          background: `linear-gradient(135deg, ${theme.bg}22, ${theme.accent}22)`,
+          border: `1px solid ${theme.bg}33`,
+        }}>
+          <div style={{
+            width: 64, height: 64, borderRadius: 16, margin: '0 auto 12px',
+            background: `linear-gradient(135deg, ${theme.bg}, ${theme.accent})`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: `0 8px 24px ${theme.bg}44`,
+          }}>
+            <Icon style={{ width: 32, height: 32, color: '#fff' }} />
           </div>
+          <div style={{
+            fontSize: 56, fontWeight: 900, lineHeight: 1,
+            background: `linear-gradient(135deg, ${theme.bg}, ${theme.accent})`,
+            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+          }}>{score}</div>
+          <div style={{ color: '#8e8e93', fontSize: 14, marginTop: 4 }}>bonnes réponses</div>
           
           {score > bestScore && score > 0 && (
-            <div className="text-lg font-bold mb-2" style={{ color: 'var(--kg-success)' }}>
-              🎉 Nouveau record personnel !
-            </div>
+            <div style={{
+              marginTop: 12, padding: '6px 16px', borderRadius: 12, display: 'inline-block',
+              background: 'rgba(52,199,89,0.15)', color: '#34C759', fontSize: 14, fontWeight: 600,
+            }}>🎉 Nouveau record !</div>
           )}
-          
           {myRank && myRank <= 10 && (
-            <div className="text-base font-bold" style={{ color: 'var(--kg-accent)' }}>
-              🏆 #{myRank} au classement !
-            </div>
+            <div style={{
+              marginTop: 8, color: '#FFCC00', fontSize: 14, fontWeight: 600,
+            }}>🏆 #{myRank} au classement</div>
           )}
         </div>
 
-        {/* Top 10 du jeu */}
-        <Card className="p-4 mb-4" style={{ backgroundColor: 'var(--kg-card)', border: '1px solid var(--border)' }}>
-          <h3 className="text-lg font-bold mb-3 flex items-center gap-2" style={{ color: 'var(--kg-text)' }}>
-            <Trophy className="w-5 h-5" style={{ color: 'var(--kg-accent)' }} />
+        {/* Top 10 */}
+        <div style={{
+          background: 'rgba(255,255,255,0.06)', borderRadius: 16,
+          border: '1px solid rgba(255,255,255,0.08)', padding: 16, marginBottom: 16,
+        }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+            color: '#e5e5ea', fontSize: 16, fontWeight: 700,
+          }}>
+            <Trophy style={{ width: 18, height: 18, color: '#FFCC00' }} />
             Top 10 {gameName}
-          </h3>
-          <div className="space-y-1">
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {FAKE_GAME_TOP_10.map((entry) => {
               const isMyScore = myRank === entry.rank;
               return (
                 <div
                   key={entry.rank}
-                  className="flex items-center justify-between p-2 rounded text-sm"
                   style={{
-                    backgroundColor: isMyScore ? 'var(--kg-primary)' : entry.rank <= 3 ? 'var(--kg-bg)' : 'transparent',
-                    color: isMyScore ? 'white' : 'var(--kg-text)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '8px 12px', borderRadius: 10, fontSize: 14,
+                    background: isMyScore ? `linear-gradient(135deg, ${theme.bg}, ${theme.accent})` : entry.rank <= 3 ? 'rgba(255,255,255,0.04)' : 'transparent',
+                    color: isMyScore ? '#fff' : '#e5e5ea',
+                    fontWeight: isMyScore ? 700 : 400,
                   }}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="w-6 font-bold">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 24, fontWeight: 700, fontSize: 13 }}>
                       {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : `#${entry.rank}`}
                     </span>
                     <span>{isMyScore ? user.name : entry.name}</span>
                   </div>
-                  <span className="font-bold">{isMyScore ? score : entry.score}</span>
+                  <span style={{ fontWeight: 700 }}>{isMyScore ? score : entry.score}</span>
                 </div>
               );
             })}
           </div>
-        </Card>
+        </div>
 
         {/* Actions */}
-        <div className="flex gap-3">
-          <Button 
-            onClick={startCountdown} 
-            className="flex-1 text-white font-bold" 
-            style={{ backgroundColor: 'var(--kg-accent)' }}
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button
+            onClick={startCountdown}
+            style={{
+              flex: 1, padding: '14px 0', borderRadius: 14, border: 'none', cursor: 'pointer',
+              background: `linear-gradient(135deg, ${theme.bg}, ${theme.accent})`,
+              color: '#fff', fontSize: 16, fontWeight: 700, fontFamily: '-apple-system, sans-serif',
+              boxShadow: `0 4px 16px ${theme.bg}44`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            }}
           >
-            <RotateCcw className="w-4 h-4 mr-2" />
-            Rejouer
-          </Button>
-          <Button 
-            onClick={onBackToMenu} 
-            variant="ghost" 
-            className="flex-1" 
-            style={{ color: 'var(--kg-text)', border: '1px solid var(--border)' }}
+            <RotateCcw style={{ width: 18, height: 18 }} /> Rejouer
+          </button>
+          <button
+            onClick={onBackToMenu}
+            style={{
+              flex: 1, padding: '14px 0', borderRadius: 14, cursor: 'pointer',
+              background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
+              color: '#e5e5ea', fontSize: 16, fontWeight: 600, fontFamily: '-apple-system, sans-serif',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            }}
           >
-            <Home className="w-4 h-4 mr-2" />
-            Menu
-          </Button>
+            <Home style={{ width: 18, height: 18 }} /> Menu
+          </button>
         </div>
       </div>
     </div>

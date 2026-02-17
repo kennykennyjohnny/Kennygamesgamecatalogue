@@ -10,6 +10,7 @@ type CellState = 'empty' | 'miss' | 'hit';
 interface ShipDef {
   name: string;
   size: number;
+  emoji: string;
   color: string;
   colorDark: string;
 }
@@ -17,6 +18,7 @@ interface ShipDef {
 interface PlacedShip {
   name: string;
   size: number;
+  emoji: string;
   color: string;
   colorDark: string;
   cells: [number, number][];
@@ -24,7 +26,7 @@ interface PlacedShip {
   sunk: boolean;
 }
 
-interface Explosion {
+interface FxEvent {
   id: number;
   x: number;
   y: number;
@@ -33,6 +35,7 @@ interface Explosion {
 interface SunkAnnouncement {
   id: number;
   name: string;
+  emoji: string;
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -42,33 +45,41 @@ const ROW_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
 const COL_LABELS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
 
 const SHIP_DEFS: ShipDef[] = [
-  { name: 'Carrier',    size: 5, color: '#6366f1', colorDark: '#4338ca' },
-  { name: 'Battleship', size: 4, color: '#22d3ee', colorDark: '#0891b2' },
-  { name: 'Cruiser',    size: 3, color: '#f59e0b', colorDark: '#d97706' },
-  { name: 'Submarine',  size: 3, color: '#10b981', colorDark: '#059669' },
-  { name: 'Destroyer',  size: 2, color: '#f43f5e', colorDark: '#e11d48' },
+  { name: 'Porte-avions', size: 5, emoji: '🚢', color: '#3478F6', colorDark: '#1a4da8' },
+  { name: 'Croiseur',     size: 4, emoji: '⛴️', color: '#30B0C7', colorDark: '#1a7a8c' },
+  { name: 'Sous-marin',   size: 3, emoji: '🛥️', color: '#5856D6', colorDark: '#3634a3' },
+  { name: 'Torpilleur',   size: 3, emoji: '⛵', color: '#007AFF', colorDark: '#0055b3' },
+  { name: 'Patrouilleur', size: 2, emoji: '🚤', color: '#64D2FF', colorDark: '#2ba8d4' },
 ];
+
+const NAVAL_BG = {
+  main: 'linear-gradient(180deg, #0a1628 0%, #0d2137 40%, #0a1a2e 100%)',
+  glass: 'rgba(13, 33, 55, 0.6)',
+  glassBorder: 'rgba(52, 120, 246, 0.15)',
+  accent: '#3478F6',
+  accentGlow: 'rgba(52, 120, 246, 0.3)',
+  labelColor: 'rgba(100, 210, 255, 0.7)',
+  cellBorder: 'rgba(52, 120, 246, 0.18)',
+  cellBg: 'linear-gradient(135deg, rgba(10, 22, 40, 0.8), rgba(13, 33, 55, 0.6))',
+  hitGlow: 'rgba(255, 59, 48, 0.6)',
+};
 
 const makeGrid = (): CellState[][] =>
   Array.from({ length: GRID }, () => Array(GRID).fill('empty'));
 
+// ── Glassmorphism panel style helper ───────────────────────────────────────────
+
+const glassPanel = (extraShadow?: string): React.CSSProperties => ({
+  background: NAVAL_BG.glass,
+  border: `1px solid ${NAVAL_BG.glassBorder}`,
+  backdropFilter: 'blur(12px)',
+  WebkitBackdropFilter: 'blur(12px)',
+  boxShadow: `0 0 24px rgba(0,0,0,0.4)${extraShadow ? `, ${extraShadow}` : ''}`,
+});
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
-export default function LeanavGame({
-  gameId,
-  playerId,
-  opponentId,
-  isPlayerTurn,
-  onMove,
-  onGameOver,
-}: {
-  gameId: string;
-  playerId: string;
-  opponentId: string;
-  isPlayerTurn: boolean;
-  onMove: (data: any) => void;
-  onGameOver: (data: any) => void;
-}) {
+export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn, onMove, onGameOver }: any) {
   // ── Phase & placement state ──
   const [phase, setPhase] = useState<Phase>('PLACEMENT');
   const [placedShips, setPlacedShips] = useState<PlacedShip[]>([]);
@@ -81,12 +92,12 @@ export default function LeanavGame({
   const [myGrid, setMyGrid] = useState<CellState[][]>(makeGrid);
   const [enemyGrid, setEnemyGrid] = useState<CellState[][]>(makeGrid);
   const [enemyShips, setEnemyShips] = useState<PlacedShip[]>([]);
-  const [explosions, setExplosions] = useState<Explosion[]>([]);
-  const [splashes, setSplashes] = useState<Explosion[]>([]);
+  const [explosions, setExplosions] = useState<FxEvent[]>([]);
+  const [splashes, setSplashes] = useState<FxEvent[]>([]);
   const [sunkAnnouncement, setSunkAnnouncement] = useState<SunkAnnouncement | null>(null);
   const [gameOver, setGameOver] = useState(false);
 
-  const explosionId = useRef(0);
+  const fxId = useRef(0);
   const announcementTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -143,6 +154,7 @@ export default function LeanavGame({
       const ship: PlacedShip = {
         name: currentShip.name,
         size: currentShip.size,
+        emoji: currentShip.emoji,
         color: currentShip.color,
         colorDark: currentShip.colorDark,
         cells,
@@ -170,7 +182,6 @@ export default function LeanavGame({
 
   const handleReady = useCallback(() => {
     if (placedShips.length !== SHIP_DEFS.length) return;
-    // Generate random enemy ships
     const enemy: PlacedShip[] = [];
     for (const def of SHIP_DEFS) {
       let placed = false;
@@ -219,12 +230,10 @@ export default function LeanavGame({
       setEnemyGrid(newGrid);
 
       if (hitShip) {
-        // Explosion effect
-        const eid = explosionId.current++;
+        const eid = fxId.current++;
         setExplosions((prev) => [...prev, { id: eid, x: c, y: r }]);
-        setTimeout(() => setExplosions((prev) => prev.filter((e) => e.id !== eid)), 800);
+        setTimeout(() => setExplosions((prev) => prev.filter((e) => e.id !== eid)), 900);
 
-        // Check if sunk
         const allHit = hitShip.cells.every(([sr, sc]) =>
           (sr === r && sc === c) || newGrid[sr][sc] === 'hit',
         );
@@ -234,12 +243,11 @@ export default function LeanavGame({
           );
           setEnemyShips(updatedShips);
 
-          const aid = explosionId.current++;
-          setSunkAnnouncement({ id: aid, name: hitShip.name });
+          const aid = fxId.current++;
+          setSunkAnnouncement({ id: aid, name: hitShip.name, emoji: hitShip.emoji });
           if (announcementTimer.current) clearTimeout(announcementTimer.current);
           announcementTimer.current = setTimeout(() => setSunkAnnouncement(null), 2500);
 
-          // Check win
           const allSunk = updatedShips.every((s) => s.sunk);
           if (allSunk) {
             setGameOver(true);
@@ -247,9 +255,9 @@ export default function LeanavGame({
           }
         }
       } else {
-        const sid = explosionId.current++;
+        const sid = fxId.current++;
         setSplashes((prev) => [...prev, { id: sid, x: c, y: r }]);
-        setTimeout(() => setSplashes((prev) => prev.filter((s) => s.id !== sid)), 600);
+        setTimeout(() => setSplashes((prev) => prev.filter((s) => s.id !== sid)), 700);
       }
 
       onMove({ type: 'fire', x: c, y: r });
@@ -257,14 +265,13 @@ export default function LeanavGame({
     [isPlayerTurn, gameOver, enemyGrid, enemyShips, onMove, onGameOver, playerId],
   );
 
-  // Cleanup announcement timer
   useEffect(() => {
     return () => {
       if (announcementTimer.current) clearTimeout(announcementTimer.current);
     };
   }, []);
 
-  // ── Ship lookup for player grid ──────────────────────────────────────────────
+  // ── Lookup helpers ───────────────────────────────────────────────────────────
 
   const playerShipAt = useCallback(
     (r: number, c: number): PlacedShip | undefined =>
@@ -273,13 +280,10 @@ export default function LeanavGame({
   );
 
   const hoverSet = new Set(hoverCells.map(([r, c]) => `${r},${c}`));
-
-  // ── Count sunk ships ─────────────────────────────────────────────────────────
-
   const sunkCount = enemyShips.filter((s) => s.sunk).length;
   const totalShips = SHIP_DEFS.length;
 
-  // ── Render helpers ───────────────────────────────────────────────────────────
+  // ── Render grid ──────────────────────────────────────────────────────────────
 
   const renderGrid = (
     grid: CellState[][] | null,
@@ -289,8 +293,13 @@ export default function LeanavGame({
     isEnemy: boolean,
     small: boolean,
   ) => {
-    const cellSize = small ? 'w-[28px] h-[28px] sm:w-[32px] sm:h-[32px]' : 'w-[32px] h-[32px] sm:w-[36px] sm:h-[36px]';
+    const cellPx = small ? 28 : 32;
+    const cellPxSm = small ? 32 : 36;
+    const cellSize = small
+      ? 'w-[28px] h-[28px] sm:w-[32px] sm:h-[32px]'
+      : 'w-[32px] h-[32px] sm:w-[36px] sm:h-[36px]';
     const fontSize = small ? 'text-[9px] sm:text-[10px]' : 'text-[10px] sm:text-xs';
+    const emojiSize = small ? 'text-sm' : 'text-base';
 
     return (
       <div className="inline-block">
@@ -300,7 +309,8 @@ export default function LeanavGame({
           {COL_LABELS.map((label) => (
             <div
               key={label}
-              className={`${cellSize} flex items-center justify-center ${fontSize} font-bold text-cyan-300/70 select-none`}
+              className={`${cellSize} flex items-center justify-center ${fontSize} font-bold select-none`}
+              style={{ color: NAVAL_BG.labelColor }}
             >
               {label}
             </div>
@@ -309,13 +319,12 @@ export default function LeanavGame({
         {/* Rows */}
         {Array.from({ length: GRID }, (_, r) => (
           <div key={r} className="flex">
-            {/* Row label */}
             <div
-              className={`${cellSize} flex items-center justify-center ${fontSize} font-bold text-cyan-300/70 select-none`}
+              className={`${cellSize} flex items-center justify-center ${fontSize} font-bold select-none`}
+              style={{ color: NAVAL_BG.labelColor }}
             >
               {ROW_LABELS[r]}
             </div>
-            {/* Cells */}
             {Array.from({ length: GRID }, (_, c) => {
               const state = grid ? grid[r][c] : 'empty';
               const ship = showShips ? playerShipAt(r, c) : undefined;
@@ -323,95 +332,152 @@ export default function LeanavGame({
               const isClickable = !!onClick && state === 'empty';
               const explosion = explosions.find((e) => e.x === c && e.y === r);
               const splash = splashes.find((s) => s.x === c && s.y === r);
-
-              // Enemy sunk ship highlight
               const enemySunkShip = isEnemy
                 ? enemyShips.find((s) => s.sunk && s.cells.some(([sr, sc]) => sr === r && sc === c))
                 : undefined;
+
+              let cellStyle: React.CSSProperties = {
+                borderColor: NAVAL_BG.cellBorder,
+              };
+
+              if (ship) {
+                cellStyle = {
+                  ...cellStyle,
+                  background: `linear-gradient(135deg, ${ship.color}cc, ${ship.colorDark}cc)`,
+                  boxShadow: `inset 0 1px 3px rgba(255,255,255,0.15), inset 0 -1px 3px rgba(0,0,0,0.4), 0 0 6px ${ship.color}44`,
+                };
+              } else if (isHover) {
+                cellStyle = {
+                  ...cellStyle,
+                  background: hoverValid
+                    ? `linear-gradient(135deg, ${currentShip?.color}66, ${currentShip?.colorDark}66)`
+                    : 'rgba(180, 30, 30, 0.4)',
+                };
+              } else if (enemySunkShip) {
+                cellStyle = {
+                  ...cellStyle,
+                  background: `linear-gradient(135deg, ${enemySunkShip.color}44, ${enemySunkShip.colorDark}44)`,
+                };
+              } else {
+                cellStyle = {
+                  ...cellStyle,
+                  background: NAVAL_BG.cellBg,
+                };
+              }
 
               return (
                 <div
                   key={c}
                   className={`
-                    ${cellSize} relative border border-cyan-900/40 flex items-center justify-center
+                    ${cellSize} relative border flex items-center justify-center
                     transition-colors duration-150 select-none
-                    ${isClickable ? 'cursor-crosshair hover:bg-cyan-500/20' : 'cursor-default'}
-                    ${ship ? '' : 'bg-gradient-to-br from-slate-800/60 to-slate-900/80'}
+                    ${isClickable ? 'cursor-crosshair' : 'cursor-default'}
                   `}
-                  style={
-                    ship
-                      ? {
-                          background: `linear-gradient(135deg, ${ship.color}cc, ${ship.colorDark}cc)`,
-                          boxShadow: `inset 0 1px 2px rgba(255,255,255,0.2), inset 0 -1px 2px rgba(0,0,0,0.3)`,
-                        }
-                      : isHover
-                        ? {
-                            background: hoverValid
-                              ? `linear-gradient(135deg, ${currentShip?.color}88, ${currentShip?.colorDark}88)`
-                              : 'rgba(239,68,68,0.4)',
-                          }
-                        : enemySunkShip
-                          ? {
-                              background: `linear-gradient(135deg, ${enemySunkShip.color}55, ${enemySunkShip.colorDark}55)`,
-                            }
-                          : undefined
-                  }
+                  style={cellStyle}
                   onClick={() => onClick?.(r, c)}
-                  onMouseEnter={() => onHover?.(r, c)}
+                  onMouseEnter={() => {
+                    onHover?.(r, c);
+                    // subtle hover glow for enemy clickable cells
+                  }}
                   onMouseLeave={() => onHover && setHoverCells([])}
+                  onTouchStart={() => onHover?.(r, c)}
                 >
-                  {/* Hit marker */}
+                  {/* Ship emoji on player grid */}
+                  {ship && showShips && !isEnemy && state !== 'hit' && (
+                    <span className={`${emojiSize} drop-shadow-[0_0_4px_rgba(201,162,39,0.5)]`}>
+                      {ship.emoji}
+                    </span>
+                  )}
+
+                  {/* Hit marker: red splash 💥 */}
                   {state === 'hit' && (
                     <motion.div
-                      initial={{ scale: 0, rotate: -45 }}
+                      initial={{ scale: 0, rotate: -30 }}
                       animate={{ scale: 1, rotate: 0 }}
+                      transition={{ type: 'spring', stiffness: 400, damping: 15 }}
                       className="absolute inset-0 flex items-center justify-center"
                     >
-                      <span className="text-red-500 font-black text-lg drop-shadow-[0_0_6px_rgba(239,68,68,0.8)]">
-                        ✕
+                      <span
+                        className={`${small ? 'text-base' : 'text-lg'}`}
+                        style={{
+                          filter: 'drop-shadow(0 0 8px rgba(255, 59, 48, 0.9))',
+                        }}
+                      >
+                        💥
                       </span>
                     </motion.div>
                   )}
-                  {/* Miss marker */}
+
+                  {/* Miss marker: white dot 💨 */}
                   {state === 'miss' && (
                     <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      className="w-2 h-2 rounded-full bg-white/70 shadow-[0_0_4px_rgba(255,255,255,0.5)]"
-                    />
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                      className="absolute inset-0 flex items-center justify-center"
+                    >
+                      <span
+                        className={`${small ? 'text-xs' : 'text-sm'}`}
+                        style={{
+                          filter: 'drop-shadow(0 0 4px rgba(255, 255, 255, 0.6))',
+                        }}
+                      >
+                        💨
+                      </span>
+                    </motion.div>
                   )}
-                  {/* Explosion animation */}
+
+                  {/* Explosion ripple animation */}
                   <AnimatePresence>
                     {explosion && (
                       <motion.div
                         key={explosion.id}
                         initial={{ scale: 0.2, opacity: 1 }}
-                        animate={{ scale: 2.5, opacity: 0 }}
+                        animate={{ scale: 2.8, opacity: 0 }}
                         exit={{ opacity: 0 }}
-                        transition={{ duration: 0.7, ease: 'easeOut' }}
+                        transition={{ duration: 0.8, ease: 'easeOut' }}
                         className="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
                       >
-                        <div className="w-full h-full rounded-full bg-gradient-radial from-yellow-400 via-orange-500 to-red-600 opacity-80" 
-                             style={{ background: 'radial-gradient(circle, #facc15, #f97316, #dc2626, transparent)' }} />
+                        <div
+                          className="w-full h-full rounded-full"
+                          style={{
+                            background: 'radial-gradient(circle, rgba(220,38,38,0.9), rgba(180,30,30,0.5), rgba(139,26,74,0.3), transparent)',
+                          }}
+                        />
                       </motion.div>
                     )}
                   </AnimatePresence>
-                  {/* Splash animation */}
+
+                  {/* Splash ripple animation */}
                   <AnimatePresence>
                     {splash && (
                       <motion.div
                         key={splash.id}
-                        initial={{ scale: 0.3, opacity: 1 }}
-                        animate={{ scale: 2, opacity: 0 }}
+                        initial={{ scale: 0.3, opacity: 0.8 }}
+                        animate={{ scale: 2.2, opacity: 0 }}
                         exit={{ opacity: 0 }}
-                        transition={{ duration: 0.5, ease: 'easeOut' }}
+                        transition={{ duration: 0.6, ease: 'easeOut' }}
                         className="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
                       >
-                        <div className="w-full h-full rounded-full"
-                             style={{ background: 'radial-gradient(circle, rgba(147,197,253,0.8), rgba(59,130,246,0.3), transparent)' }} />
+                        <div
+                          className="w-full h-full rounded-full"
+                          style={{
+                            background: 'radial-gradient(circle, rgba(255,255,255,0.6), rgba(201,162,39,0.2), transparent)',
+                          }}
+                        />
                       </motion.div>
                     )}
                   </AnimatePresence>
+
+                  {/* Hover glow overlay for clickable cells */}
+                  {isClickable && !isHover && (
+                    <div
+                      className="absolute inset-0 opacity-0 hover:opacity-100 transition-opacity duration-200 pointer-events-none"
+                      style={{
+                        background: 'radial-gradient(circle, rgba(201,162,39,0.15), transparent)',
+                      }}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -429,43 +495,51 @@ export default function LeanavGame({
     return (
       <div
         className="min-h-screen flex flex-col items-center px-2 py-4 overflow-auto"
-        style={{
-          background: 'linear-gradient(180deg, #0c1220 0%, #0f172a 40%, #1e293b 100%)',
-        }}
+        style={{ background: NAVAL_BG.main }}
       >
         {/* Title */}
         <motion.h1
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          className="text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 mb-1 tracking-wide"
+          className="text-2xl sm:text-3xl font-black mb-1 tracking-wide"
+          style={{
+            background: 'linear-gradient(135deg, #3478F6, #64D2FF, #3478F6)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+          }}
         >
-          ⚓ SEA BATTLE
+          ⚓ LÉA NAVAL
         </motion.h1>
-        <p className="text-cyan-300/60 text-xs sm:text-sm mb-4">Deploy your fleet, Admiral</p>
+        <p className="text-xs sm:text-sm mb-4" style={{ color: 'rgba(100, 210, 255, 0.5)' }}>
+          Placez vos navires, Amiral
+        </p>
 
-        {/* Ship selector */}
+        {/* Ship / bottle selector */}
         <div className="w-full max-w-md mb-4">
           <div className="flex flex-wrap gap-2 justify-center mb-3">
             {SHIP_DEFS.map((def, idx) => {
               const isPlaced = idx < placedShips.length;
               const isCurrent = idx === currentShipIdx;
               return (
-                <div
+                <motion.div
                   key={def.name}
+                  animate={isCurrent ? { scale: 1.08 } : { scale: 1 }}
                   className={`
                     px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all
-                    ${isPlaced ? 'opacity-40 line-through' : ''}
-                    ${isCurrent ? 'ring-2 ring-white/60 scale-105' : ''}
+                    ${isPlaced ? 'opacity-35 line-through' : ''}
                   `}
                   style={{
+                    ...glassPanel(isCurrent ? `0 0 12px ${def.color}88` : undefined),
                     background: isPlaced
-                      ? `${def.colorDark}66`
-                      : `linear-gradient(135deg, ${def.color}, ${def.colorDark})`,
-                    color: 'white',
+                      ? 'rgba(10, 22, 40, 0.4)'
+                      : `linear-gradient(135deg, ${def.color}cc, ${def.colorDark}cc)`,
+                    color: '#c8e0f5',
+                    border: isCurrent ? `2px solid ${NAVAL_BG.accent}` : `1px solid ${NAVAL_BG.glassBorder}`,
                   }}
                 >
-                  {def.name} ({def.size})
-                </div>
+                  {def.emoji} {def.name} ({def.size})
+                </motion.div>
               );
             })}
           </div>
@@ -474,9 +548,16 @@ export default function LeanavGame({
           <div className="flex gap-2 justify-center">
             <button
               onClick={handleRotate}
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
+              className="px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 active:scale-95"
+              style={{
+                ...glassPanel(),
+                color: '#c8e0f5',
+              }}
             >
-              <span className="inline-block transition-transform" style={{ transform: orientation === 'V' ? 'rotate(90deg)' : 'none' }}>
+              <span
+                className="inline-block transition-transform text-base"
+                style={{ transform: orientation === 'V' ? 'rotate(90deg)' : 'none' }}
+              >
                 ↔
               </span>
               {orientation === 'H' ? 'Horizontal' : 'Vertical'}
@@ -484,9 +565,13 @@ export default function LeanavGame({
             <button
               onClick={handleUndo}
               disabled={placedShips.length === 0}
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
+              className="px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-25 disabled:cursor-not-allowed active:scale-95"
+              style={{
+                ...glassPanel(),
+                color: '#c8e0f5',
+              }}
             >
-              ↩ Undo
+              ↩ Annuler
             </button>
           </div>
         </div>
@@ -495,11 +580,17 @@ export default function LeanavGame({
         <div
           className="p-2 rounded-xl"
           style={{
-            background: 'linear-gradient(135deg, rgba(6,182,212,0.08), rgba(15,23,42,0.6))',
-            boxShadow: '0 0 30px rgba(6,182,212,0.1), inset 0 0 30px rgba(6,182,212,0.05)',
+            ...glassPanel(`0 0 30px ${NAVAL_BG.accentGlow}`),
           }}
         >
-          {renderGrid(null, allPlaced ? null : handlePlacementClick, allPlaced ? null : handlePlacementHover, true, false, false)}
+          {renderGrid(
+            null,
+            allPlaced ? null : handlePlacementClick,
+            allPlaced ? null : handlePlacementHover,
+            true,
+            false,
+            false,
+          )}
         </div>
 
         {/* Ready button */}
@@ -508,16 +599,27 @@ export default function LeanavGame({
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.04 }}
             onClick={handleReady}
-            className="mt-5 px-8 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-bold text-lg rounded-xl shadow-lg shadow-green-500/30 transition-all"
+            className="mt-5 px-8 py-3 font-bold text-lg rounded-xl transition-all"
+            style={{
+              background: 'linear-gradient(135deg, #3478F6, #1a4da8)',
+              color: '#c8e0f5',
+              boxShadow: '0 0 20px rgba(52, 120, 246, 0.5), 0 0 40px rgba(52, 120, 246, 0.2)',
+              border: '1px solid rgba(100, 210, 255, 0.3)',
+            }}
           >
-            ⚔ Ready for Battle!
+            ⚓ Prêt !
           </motion.button>
         )}
 
         {!allPlaced && currentShip && (
-          <p className="mt-3 text-cyan-300/70 text-sm">
-            Tap the grid to place your <span className="font-bold text-white">{currentShip.name}</span> ({currentShip.size} cells)
+          <p className="mt-3 text-sm" style={{ color: 'rgba(100, 210, 255, 0.6)' }}>
+            Placez votre{' '}
+            <span className="font-bold" style={{ color: '#c8e0f5' }}>
+              {currentShip.emoji} {currentShip.name}
+            </span>{' '}
+            ({currentShip.size} cases)
           </p>
         )}
       </div>
@@ -529,21 +631,28 @@ export default function LeanavGame({
   return (
     <div
       className="min-h-screen flex flex-col items-center px-2 py-3 overflow-auto"
-      style={{
-        background: 'linear-gradient(180deg, #0c1220 0%, #0f172a 40%, #1e293b 100%)',
-      }}
+      style={{ background: NAVAL_BG.main }}
     >
       {/* Header */}
       <div className="flex items-center gap-3 mb-2">
         <motion.h1
           initial={{ y: -10, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          className="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 tracking-wide"
+          className="text-xl sm:text-2xl font-black tracking-wide"
+          style={{
+            background: 'linear-gradient(135deg, #3478F6, #64D2FF, #3478F6)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+          }}
         >
-          ⚓ SEA BATTLE
+          ⚓ LÉA NAVAL
         </motion.h1>
-        <div className="text-xs text-slate-400 font-mono">
-          {sunkCount}/{totalShips} sunk
+        <div
+          className="text-xs font-mono px-2 py-0.5 rounded"
+          style={{ color: NAVAL_BG.labelColor, ...glassPanel() }}
+        >
+          {sunkCount}/{totalShips} coulés
         </div>
       </div>
 
@@ -552,17 +661,35 @@ export default function LeanavGame({
         key={isPlayerTurn ? 'turn' : 'wait'}
         initial={{ opacity: 0, y: -5 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`
-          px-4 py-1.5 rounded-full text-sm font-bold mb-3 tracking-wide
-          ${gameOver
-            ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
+        className="px-5 py-1.5 rounded-full text-sm font-bold mb-3 tracking-wide"
+        style={
+          gameOver
+            ? {
+                background: 'rgba(201, 162, 39, 0.2)',
+                color: '#64D2FF',
+                border: '1px solid rgba(100, 210, 255, 0.4)',
+                boxShadow: '0 0 16px rgba(100, 210, 255, 0.3)',
+              }
             : isPlayerTurn
-              ? 'bg-green-500/20 text-green-300 border border-green-500/30 animate-pulse'
-              : 'bg-orange-500/20 text-orange-300 border border-orange-500/30'
-          }
-        `}
+              ? {
+                  background: 'rgba(201, 162, 39, 0.15)',
+                  color: '#64D2FF',
+                  border: '1px solid rgba(100, 210, 255, 0.4)',
+                  boxShadow: '0 0 20px rgba(201, 162, 39, 0.25)',
+                  animation: 'pulse 2s ease-in-out infinite',
+                }
+              : {
+                  background: 'rgba(13, 33, 55, 0.3)',
+                  color: 'rgba(100, 210, 255, 0.5)',
+                  border: '1px solid rgba(13, 33, 55, 0.4)',
+                }
+        }
       >
-        {gameOver ? '🏆 VICTORY!' : isPlayerTurn ? '🎯 Your turn — Fire!' : '⏳ Waiting for opponent...'}
+        {gameOver
+          ? '🏆 VICTOIRE !'
+          : isPlayerTurn
+            ? '🎯 À vous de tirer !'
+            : '⏳ L\'adversaire réfléchit...'}
       </motion.div>
 
       {/* Sunk announcement */}
@@ -574,23 +701,31 @@ export default function LeanavGame({
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.5, opacity: 0, y: 10 }}
             transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-            className="px-5 py-2 bg-red-600/30 border border-red-500/50 rounded-xl text-red-200 font-bold text-sm mb-2 shadow-lg shadow-red-500/20"
+            className="px-5 py-2.5 rounded-xl font-bold text-sm mb-2"
+            style={{
+              background: 'rgba(52, 120, 246, 0.4)',
+              border: '1px solid rgba(255, 59, 48, 0.5)',
+              color: '#c6daf5',
+              boxShadow: '0 0 20px rgba(255, 59, 48, 0.3)',
+            }}
           >
-            💥 {sunkAnnouncement.name.toUpperCase()} SUNK!
+            💥 {sunkAnnouncement.emoji} {sunkAnnouncement.name.toUpperCase()} COULÉE !
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Enemy grid */}
+      {/* Enemy grid — Flotte Ennemie */}
       <div className="mb-2">
-        <h2 className="text-center text-xs font-bold text-red-400/80 uppercase tracking-widest mb-1">
-          Enemy Waters
+        <h2
+          className="text-center text-xs font-bold uppercase tracking-widest mb-1"
+          style={{ color: 'rgba(255, 100, 100, 0.7)' }}
+        >
+          Flotte Ennemie
         </h2>
         <div
           className="p-1.5 rounded-xl"
           style={{
-            background: 'linear-gradient(135deg, rgba(239,68,68,0.06), rgba(15,23,42,0.6))',
-            boxShadow: '0 0 20px rgba(239,68,68,0.08)',
+            ...glassPanel('0 0 16px rgba(52, 120, 246, 0.15)'),
           }}
         >
           {renderGrid(
@@ -604,34 +739,39 @@ export default function LeanavGame({
         </div>
       </div>
 
-      {/* Ship status bar */}
+      {/* Ship / bottle status bar */}
       <div className="flex flex-wrap gap-1.5 justify-center mb-2 max-w-md">
         {enemyShips.map((ship) => (
           <div
             key={ship.name}
-            className={`px-2 py-0.5 rounded text-[10px] sm:text-xs font-semibold transition-all ${
-              ship.sunk ? 'line-through opacity-40' : ''
+            className={`px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${
+              ship.sunk ? 'line-through opacity-35' : ''
             }`}
             style={{
-              background: ship.sunk ? '#374151' : `linear-gradient(135deg, ${ship.color}aa, ${ship.colorDark}aa)`,
-              color: 'white',
+              background: ship.sunk
+                ? 'rgba(10, 22, 40, 0.5)'
+                : `linear-gradient(135deg, ${ship.color}99, ${ship.colorDark}99)`,
+              color: '#c8e0f5',
+              border: `1px solid ${ship.sunk ? 'rgba(10,22,40,0.3)' : `${ship.color}44`}`,
             }}
           >
-            {ship.sunk ? '💀' : '🚢'} {ship.name}
+            {ship.sunk ? '💀' : ship.emoji} {ship.name}
           </div>
         ))}
       </div>
 
-      {/* Player grid */}
+      {/* Player grid — Ma Flotte */}
       <div>
-        <h2 className="text-center text-xs font-bold text-cyan-400/80 uppercase tracking-widest mb-1">
-          Your Fleet
+        <h2
+          className="text-center text-xs font-bold uppercase tracking-widest mb-1"
+          style={{ color: NAVAL_BG.labelColor }}
+        >
+          Ma Flotte
         </h2>
         <div
           className="p-1.5 rounded-xl"
           style={{
-            background: 'linear-gradient(135deg, rgba(6,182,212,0.06), rgba(15,23,42,0.6))',
-            boxShadow: '0 0 20px rgba(6,182,212,0.08)',
+            ...glassPanel(`0 0 16px ${NAVAL_BG.accentGlow}`),
           }}
         >
           {renderGrid(myGrid, null, null, true, false, true)}
