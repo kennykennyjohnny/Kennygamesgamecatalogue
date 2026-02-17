@@ -50,13 +50,7 @@ export const GAMES = {
 };
 
 // Helper to get game component by ID
-export function getGameComponent(gameId) {
-  const gameMap = {
-    leanav: require('./leanav/LeanavGame').default,
-    nourarchery: require('./nourarchery/NourarcheryGame').default,
-    sandy: require('./sandy/SandyGame').default,
-    liliano: require('./liliano/LilianoGame').default
-  };
-  
-  return gameMap[gameId] || null;
-}
+export { default as LeanavGameComponent } from './leanav/LeanavGame';
+export { default as NourarcheryGameComponent } from './nourarchery/NourarcheryGame';
+export { default as SandyGameComponent } from './sandy/SandyGame';
+export { default as LilianoGameComponent } from './liliano/LilianoGame';

@@ -49,13 +49,6 @@ export function GameRoomWrapper({ gameId, gameType, playerId, opponentId, onBack
 
     if (profileData) {
       username = profileData.username;
-    } else {
-      const { data: userData } = await supabase
-        .from('users')
-        .select('username')
-        .eq('id', playerId)
-        .single();
-      if (userData) username = userData.username;
     }
 
     setUserName(username);

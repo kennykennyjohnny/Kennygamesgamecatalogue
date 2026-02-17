@@ -39,13 +39,6 @@ export function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
         if (profileData) {
           userData = { id: profileData.id, username: profileData.username, email };
-        } else {
-          const { data: usersData } = await supabase
-            .from('users')
-            .select('id, username, email')
-            .eq('id', data.user!.id)
-            .single();
-          userData = usersData;
         }
 
         if (userData) {

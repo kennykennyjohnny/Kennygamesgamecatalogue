@@ -94,7 +94,7 @@ export function HomeScreen({ onPlayMatch }: HomeScreenProps) {
 
   async function loadStats(currentUserId: string) {
     const { data } = await supabase
-      .from('player_stats')
+      .from('user_stats')
       .select('*')
       .eq('user_id', currentUserId)
       .single();

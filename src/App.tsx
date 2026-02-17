@@ -97,21 +97,6 @@ function App() {
           name: profileData.username,
           email: authUser.email || '',
         })
-      } else {
-        // Fallback to users table
-        const { data: userData } = await supabase
-          .from('users')
-          .select('id, username, email')
-          .eq('id', authUser.id)
-          .single()
-
-        if (userData) {
-          setUser({
-            id: userData.id,
-            name: userData.username,
-            email: userData.email,
-          })
-        }
       }
       
       setLoading(false)
