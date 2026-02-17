@@ -125,6 +125,40 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
   const svgRef = useRef<SVGSVGElement>(null);
   const raf = useRef<number>(0);
   const resultT = useRef<ReturnType<typeof setTimeout>>();
+  const reconstructed = useRef(false);
+
+  // ── Reconstruct state from move history ──────────────────────────────────
+
+  useEffect(() => {
+    if (reconstructed.current || !gameState?.moves) return;
+    const moves = gameState.moves as any[];
+    if (moves.length === 0) return;
+
+    let myC = makeCups();
+    let opC = makeCups();
+
+    for (const m of moves) {
+      if (m.type === 'throw' && m.hitId !== null && m.hitId !== undefined) {
+        if (m.playerId === playerId) {
+          // I hit opponent's cup
+          opC = opC.map(c => c.id === m.hitId ? { ...c, alive: false } : c);
+        } else {
+          // Opponent hit my cup
+          myC = myC.map(c => c.id === m.hitId ? { ...c, alive: false } : c);
+        }
+      }
+    }
+
+    setMyCups(myC);
+    setOpCups(opC);
+
+    const myAlive = myC.filter(c => c.alive).length;
+    const opAlive = opC.filter(c => c.alive).length;
+    if (myAlive === 0) { setOver(true); setWin(opponentId); }
+    if (opAlive === 0) { setOver(true); setWin(playerId); }
+
+    reconstructed.current = true;
+  }, [gameState, playerId, opponentId]);
 
   // ── Sync ───────────────────────────────────────────────────────────────────
 
@@ -136,9 +170,11 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
     if (m.type === 'throw') {
       const { hitId } = m;
       if (hitId !== null && hitId !== undefined) {
-        setMyCups(prev => prev.map(c => c.id === hitId ? { ...c, alive: false } : c));
-        const remaining = myCups.filter(c => c.alive && c.id !== hitId);
-        if (remaining.length === 0) { setOver(true); setWin(opponentId); }
+        setMyCups(prev => {
+          const updated = prev.map(c => c.id === hitId ? { ...c, alive: false } : c);
+          if (updated.filter(c => c.alive).length === 0) { setOver(true); setWin(opponentId); }
+          return updated;
+        });
         setLastResult('💔 Touché !');
       } else {
         setLastResult('✨ Raté !');
@@ -252,42 +288,49 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
   return (
     <div style={{
       minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
-      background: '#0e0808', overflow: 'hidden', touchAction: 'none',
+      background: 'linear-gradient(180deg, #1a0818 0%, #0e0808 50%)', overflow: 'hidden', touchAction: 'none',
       fontFamily: "'Didot', 'Bodoni MT', Georgia, serif",
     }}>
 
       {/* Header */}
-      <div style={{ padding: '8px 0 2px', textAlign: 'center', width: '100%', zIndex: 2 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 900, fontStyle: 'italic', margin: 0,
+      <div style={{ padding: '10px 0 2px', textAlign: 'center', width: '100%', zIndex: 2 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 900, fontStyle: 'italic', margin: 0,
           background: 'linear-gradient(135deg, #f4b0c3, #e8879f, #d4a053)',
           WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+          letterSpacing: 1,
         }}>🥂 Sandy Pong</h1>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 20, marginTop: 2 }}>
-          <span style={{ fontSize: 10, color: 'rgba(244,176,195,0.35)' }}>Adversaire: {opAlive}/10</span>
-          <span style={{ fontSize: 10, color: 'rgba(244,176,195,0.35)' }}>Toi: {myAlive}/10</span>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 4 }}>
+          <span style={{ fontSize: 11, color: 'rgba(244,176,195,0.5)', fontWeight: 700 }}>
+            🎯 Adversaire: <strong style={{ color: '#e8879f' }}>{opAlive}</strong>/10
+          </span>
+          <span style={{ fontSize: 11, color: 'rgba(244,176,195,0.5)', fontWeight: 700 }}>
+            🛡️ Toi: <strong style={{ color: '#f4b0c3' }}>{myAlive}</strong>/10
+          </span>
         </div>
       </div>
 
       {/* Status */}
       <motion.div key={over ? 'o' : isPlayerTurn ? 't' : 'w'} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-        style={{ padding: '2px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700, fontStyle: 'italic', marginBottom: 4, zIndex: 2,
-          background: over ? 'rgba(52,199,89,0.06)' : isPlayerTurn ? 'rgba(232,135,159,0.06)' : 'rgba(80,80,80,0.04)',
-          color: over ? '#4ade80' : isPlayerTurn ? '#f4b0c3' : '#555',
-          border: `1px solid ${over ? 'rgba(52,199,89,0.1)' : isPlayerTurn ? 'rgba(232,135,159,0.1)' : 'rgba(50,50,50,0.05)'}`,
+        style={{ padding: '3px 16px', borderRadius: 10, fontSize: 12, fontWeight: 700, fontStyle: 'italic', marginBottom: 4, zIndex: 2,
+          background: over ? 'rgba(52,199,89,0.08)' : isPlayerTurn ? 'rgba(232,135,159,0.08)' : 'rgba(80,80,80,0.04)',
+          color: over ? (win === playerId ? '#4ade80' : '#e8527a') : isPlayerTurn ? '#f4b0c3' : '#555',
+          border: `1px solid ${over ? 'rgba(52,199,89,0.15)' : isPlayerTurn ? 'rgba(232,135,159,0.12)' : 'rgba(50,50,50,0.05)'}`,
+          backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
         }}>
-        {over ? (win === playerId ? '🏆 Victoire !' : '💔 Défaite…') : isPlayerTurn ? '🎯 Glisse pour lancer !' : '⏳ Tour adverse…'}
+        {over ? (win === playerId ? '🏆 Victoire !' : '💔 Défaite…') : isPlayerTurn ? '🎯 Glisse vers le haut !' : '⏳ Tour adverse…'}
       </motion.div>
 
       {/* Result popup */}
       <AnimatePresence>
         {lastResult && (
-          <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}
+          <motion.div initial={{ scale: 0, opacity: 0, y: 10 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.5, opacity: 0, y: -10 }}
             style={{ position: 'absolute', top: '25%', left: '50%', transform: 'translateX(-50%)',
-              padding: '8px 22px', borderRadius: 14, fontSize: 18, fontWeight: 900, fontStyle: 'italic',
-              background: lastResult.includes('Touché') ? 'rgba(232,82,122,0.15)' : 'rgba(50,40,35,0.15)',
-              color: lastResult.includes('Touché') ? '#e8527a' : '#888',
-              border: `1px solid ${lastResult.includes('Touché') ? 'rgba(232,82,122,0.2)' : 'rgba(80,80,80,0.1)'}`,
-              zIndex: 20, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+              padding: '10px 26px', borderRadius: 16, fontSize: 20, fontWeight: 900, fontStyle: 'italic',
+              background: lastResult.includes('Touché') ? 'rgba(232,82,122,0.2)' : 'rgba(50,40,35,0.2)',
+              color: lastResult.includes('Touché') ? '#e8527a' : '#999',
+              border: `1.5px solid ${lastResult.includes('Touché') ? 'rgba(232,82,122,0.3)' : 'rgba(80,80,80,0.15)'}`,
+              zIndex: 20, backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+              boxShadow: lastResult.includes('Touché') ? '0 4px 20px rgba(232,82,122,0.15)' : 'none',
             }}>
             {lastResult}
           </motion.div>
@@ -304,12 +347,14 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
           <defs>
             {/* Sunset sky */}
             <linearGradient id="sky" x1="50%" y1="0%" x2="50%" y2="100%">
-              <stop offset="0%" stopColor="#1a0520" />
-              <stop offset="25%" stopColor="#3a0830" />
-              <stop offset="45%" stopColor="#8b2050" />
+              <stop offset="0%" stopColor="#0a0318" />
+              <stop offset="15%" stopColor="#1a0525" />
+              <stop offset="30%" stopColor="#3a0830" />
+              <stop offset="48%" stopColor="#8b2050" />
               <stop offset="60%" stopColor="#c45030" />
               <stop offset="75%" stopColor="#d4903a" />
-              <stop offset="100%" stopColor="#e8c070" />
+              <stop offset="90%" stopColor="#e8c070" />
+              <stop offset="100%" stopColor="#f0d888" />
             </linearGradient>
             {/* Wood table */}
             <linearGradient id="wood" x1="50%" y1="0%" x2="50%" y2="100%">
@@ -320,7 +365,7 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
             </linearGradient>
             {/* Table glow */}
             <radialGradient id="tableGlow" cx="50%" cy="20%" r="60%">
-              <stop offset="0%" stopColor="rgba(232,135,159,0.06)" />
+              <stop offset="0%" stopColor="rgba(232,135,159,0.08)" />
               <stop offset="100%" stopColor="transparent" />
             </radialGradient>
           </defs>
@@ -329,33 +374,50 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
           <rect width="100" height="100" fill="url(#sky)" />
 
           {/* Sun glow */}
-          <circle cx="50" cy="8" r="20" fill="rgba(212,144,58,0.15)" />
-          <circle cx="50" cy="8" r="8" fill="rgba(232,192,112,0.2)" />
-          <circle cx="50" cy="8" r="3" fill="rgba(255,220,160,0.3)" />
+          <circle cx="50" cy="10" r="22" fill="rgba(212,144,58,0.12)" />
+          <circle cx="50" cy="10" r="10" fill="rgba(232,192,112,0.18)" />
+          <circle cx="50" cy="10" r="4" fill="rgba(255,220,160,0.25)" />
+          <circle cx="50" cy="10" r="1.5" fill="rgba(255,240,200,0.4)" />
 
           {/* Stars (faint in sunset) */}
-          {[12, 28, 72, 85, 40, 65].map((sx, i) => (
-            <circle key={i} cx={sx} cy={3 + i * 1.5} r={0.3} fill="white" opacity={0.15 + i * 0.02} />
+          {[12, 28, 72, 85, 40, 65, 18, 55, 90, 8].map((sx, i) => (
+            <circle key={i} cx={sx} cy={2 + i * 1.2} r={0.25} fill="white" opacity={0.12 + i * 0.02}>
+              <animate attributeName="opacity" values={`${0.08 + i * 0.02};${0.2 + i * 0.02};${0.08 + i * 0.02}`}
+                dur={`${2 + i % 3}s`} repeatCount="indefinite" />
+            </circle>
           ))}
 
-          {/* Horizon line */}
-          <line x1="0" y1="55" x2="100" y2="55" stroke="rgba(212,144,58,0.08)" strokeWidth="0.3" />
+          {/* Palm tree silhouettes */}
+          <g opacity={0.12}>
+            {/* Left palm */}
+            <line x1="8" y1="55" x2="10" y2="30" stroke="#1a0510" strokeWidth="1" />
+            <ellipse cx="6" cy="28" rx="6" ry="3" fill="#1a0510" transform="rotate(-20, 6, 28)" />
+            <ellipse cx="14" cy="29" rx="5" ry="2.5" fill="#1a0510" transform="rotate(15, 14, 29)" />
+            <ellipse cx="10" cy="26" rx="5" ry="2" fill="#1a0510" transform="rotate(-5, 10, 26)" />
+            {/* Right palm */}
+            <line x1="92" y1="55" x2="90" y2="32" stroke="#1a0510" strokeWidth="0.8" />
+            <ellipse cx="86" cy="30" rx="5" ry="2.5" fill="#1a0510" transform="rotate(-15, 86, 30)" />
+            <ellipse cx="94" cy="31" rx="5" ry="2" fill="#1a0510" transform="rotate(20, 94, 31)" />
+          </g>
+
+          {/* Horizon glow */}
+          <line x1="0" y1="55" x2="100" y2="55" stroke="rgba(240,180,80,0.12)" strokeWidth="0.5" />
 
           {/* Table surface — wood in perspective */}
-          <polygon points="15,55 85,55 100,100 0,100" fill="url(#wood)" />
-          <polygon points="15,55 85,55 100,100 0,100" fill="url(#tableGlow)" />
+          <polygon points="12,55 88,55 100,100 0,100" fill="url(#wood)" />
+          <polygon points="12,55 88,55 100,100 0,100" fill="url(#tableGlow)" />
 
           {/* Wood grain lines */}
           {[60, 68, 76, 84, 92].map((yy, i) => {
-            const xShrink = (100 - yy) * 0.3;
+            const xShrink = (100 - yy) * 0.28;
             return (
               <line key={i} x1={xShrink} y1={yy} x2={100 - xShrink} y2={yy}
-                stroke="rgba(100,60,30,0.12)" strokeWidth={0.3} />
+                stroke="rgba(100,60,30,0.1)" strokeWidth={0.3} />
             );
           })}
 
           {/* Table edge highlight */}
-          <line x1="15" y1="55" x2="85" y2="55" stroke="rgba(255,200,150,0.08)" strokeWidth="0.5" />
+          <line x1="12" y1="55" x2="88" y2="55" stroke="rgba(255,200,150,0.1)" strokeWidth="0.6" />
 
           {/* Center line on table */}
           <line x1="42" y1="55" x2="50" y2="100" stroke="rgba(255,200,150,0.03)" strokeWidth="0.3" />

@@ -185,6 +185,57 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
   const raf = useRef<number>(0);
   const infoT = useRef<ReturnType<typeof setTimeout>>();
   const launchT = useRef<ReturnType<typeof setTimeout>>();
+  const reconstructed = useRef(false);
+
+  // ── Reconstruct state from move history ──────────────────────────────────
+
+  useEffect(() => {
+    if (reconstructed.current || !gameState?.moves) return;
+    const moves = gameState.moves as any[];
+    if (moves.length === 0) return;
+
+    let myS = 0, opS = 0;
+    let lastRound = 1, lastShot = 0;
+
+    for (const m of moves) {
+      if (m.type === 'shoot') {
+        if (m.playerId === playerId) {
+          myS += m.score;
+          lastRound = m.round;
+          lastShot = m.arrow;
+        } else {
+          opS += m.score;
+        }
+      }
+    }
+
+    setMyScore(myS);
+    setOpScore(opS);
+
+    // Figure out current round/shot from last move
+    if (lastShot >= SHOTS_PER_ROUND) {
+      if (lastRound < ROUNDS) {
+        setRound(lastRound + 1);
+        setShot(1);
+      } else {
+        setRound(lastRound);
+        setShot(lastShot);
+      }
+    } else {
+      setRound(lastRound);
+      setShot(lastShot + 1);
+    }
+
+    // Check if game is over
+    const myMoves = moves.filter((m: any) => m.playerId === playerId && m.type === 'shoot');
+    const opMoves = moves.filter((m: any) => m.playerId === opponentId && m.type === 'shoot');
+    if (myMoves.length >= ROUNDS * SHOTS_PER_ROUND && opMoves.length >= ROUNDS * SHOTS_PER_ROUND) {
+      setOver(true);
+      setWin(myS > opS ? playerId : opS > myS ? opponentId : playerId);
+    }
+
+    reconstructed.current = true;
+  }, [gameState, playerId, opponentId]);
 
   // Deterministic wind per round
   useEffect(() => {
@@ -355,42 +406,48 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
   return (
     <div style={{
       minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
-      background: '#1a3a1a', overflow: 'hidden', touchAction: 'none',
+      background: 'linear-gradient(180deg, #2a5a3a 0%, #1a3a1a 40%, #0a1a0a 100%)',
+      overflow: 'hidden', touchAction: 'none',
       fontFamily: "'Georgia', 'Times New Roman', serif", position: 'relative',
     }}>
 
       {/* HUD Header */}
-      <div style={{ padding: '8px 14px 2px', width: '100%', maxWidth: 500, zIndex: 2,
+      <div style={{ padding: '10px 14px 2px', width: '100%', maxWidth: 500, zIndex: 2,
         display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1 style={{ fontSize: 18, fontWeight: 900, margin: 0, fontStyle: 'italic',
-            color: P.gold, textShadow: '0 1px 3px rgba(0,0,0,0.4)' }}>
+          <h1 style={{ fontSize: 20, fontWeight: 900, margin: 0, fontStyle: 'italic',
+            color: P.gold, textShadow: '0 1px 4px rgba(0,0,0,0.5)', letterSpacing: 0.5 }}>
             🪶 Nour Pigeon
           </h1>
-          <div style={{ fontSize: 9, color: P.dim, fontStyle: 'italic' }}>Tir aux Pigeons d'Argile</div>
+          <div style={{ fontSize: 9, color: 'rgba(212,168,83,0.5)', fontStyle: 'italic', letterSpacing: 1 }}>
+            Tir aux Pigeons d'Argile
+          </div>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 11, color: P.orange, fontWeight: 700 }}>
+        <div style={{ textAlign: 'right', background: 'rgba(0,0,0,0.15)', padding: '4px 10px',
+          borderRadius: 8, border: '1px solid rgba(232,118,42,0.1)' }}>
+          <div style={{ fontSize: 12, color: P.orange, fontWeight: 700 }}>
             Manche {round}/{ROUNDS} • Tir {shot}/{SHOTS_PER_ROUND}
           </div>
-          <div style={{ fontSize: 9, color: P.dim, fontStyle: 'italic' }}>
-            Vent : {wind > 0 ? '→' : wind < 0 ? '←' : '○'} {Math.abs(wind).toFixed(1)} km/h
+          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)', fontStyle: 'italic' }}>
+            💨 {wind > 0 ? '→' : wind < 0 ? '←' : '○'} {Math.abs(wind).toFixed(1)} km/h
           </div>
         </div>
       </div>
 
       {/* Score bar */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: 30, padding: '2px 0 4px', width: '100%', zIndex: 2 }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 9, color: P.dim, letterSpacing: 2, fontWeight: 700 }}>TOI</div>
-          <div style={{ fontSize: 26, fontWeight: 900, color: P.orange,
-            textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>{myScore}</div>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 24, padding: '4px 0 6px', width: '100%', zIndex: 2 }}>
+        <div style={{ textAlign: 'center', background: 'rgba(232,118,42,0.06)', padding: '4px 16px',
+          borderRadius: 10, border: '1px solid rgba(232,118,42,0.1)' }}>
+          <div style={{ fontSize: 8, color: P.dim, letterSpacing: 2, fontWeight: 900 }}>TOI</div>
+          <div style={{ fontSize: 28, fontWeight: 900, color: P.orange,
+            textShadow: `0 2px 6px rgba(232,118,42,0.3)` }}>{myScore}</div>
         </div>
-        <div style={{ fontSize: 12, color: P.dim, alignSelf: 'center', fontStyle: 'italic' }}>vs</div>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 9, color: P.dim, letterSpacing: 2, fontWeight: 700 }}>ADV</div>
-          <div style={{ fontSize: 26, fontWeight: 900, color: '#c44',
-            textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>{opScore}</div>
+        <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.2)', alignSelf: 'center', fontWeight: 900 }}>VS</div>
+        <div style={{ textAlign: 'center', background: 'rgba(200,50,50,0.04)', padding: '4px 16px',
+          borderRadius: 10, border: '1px solid rgba(200,50,50,0.08)' }}>
+          <div style={{ fontSize: 8, color: P.dim, letterSpacing: 2, fontWeight: 900 }}>ADV</div>
+          <div style={{ fontSize: 28, fontWeight: 900, color: '#c44',
+            textShadow: '0 2px 6px rgba(200,50,50,0.2)' }}>{opScore}</div>
         </div>
       </div>
 

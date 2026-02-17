@@ -152,6 +152,7 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
 
   const raf = useRef<number>(0);
   const msgT = useRef<ReturnType<typeof setTimeout>>();
+  const reconstructed = useRef(false);
 
   // ── Init ───────────────────────────────────────────────────────────────────
 
@@ -170,6 +171,47 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
     setWind(getWind(gameId, 0));
   }, [gameId, isHost]);
 
+  // ── Reconstruct HP from move history on mount ─────────────────────────────
+
+  useEffect(() => {
+    if (reconstructed.current || !gameState?.moves) return;
+    const moves = gameState.moves as any[];
+    if (moves.length === 0) return;
+
+    // Replay all fire moves to reconstruct HP
+    let hp1 = MAX_HP; // host HP
+    let hp2 = MAX_HP; // guest HP
+    let turnCount = 0;
+
+    for (const m of moves) {
+      if (m.type === 'fire' && m.dmg !== undefined) {
+        // Determine who was shooting: the move sender
+        const shooterIsHost = m.playerId < opponentId && m.playerId === playerId
+          ? true : m.playerId > opponentId ? false
+          : m.playerId === playerId ? isHost : !isHost;
+
+        // dmg > 0 means the shooter hit the opponent
+        if (m.dmg > 0) {
+          if (shooterIsHost) { hp2 = Math.max(0, hp2 - m.dmg); }
+          else { hp1 = Math.max(0, hp1 - m.dmg); }
+        }
+        turnCount++;
+      }
+    }
+
+    const myHPVal = isHost ? hp1 : hp2;
+    const opHPVal = isHost ? hp2 : hp1;
+    setMyHP(myHPVal);
+    setOpHP(opHPVal);
+    setTurn(turnCount);
+    setWind(getWind(gameId, turnCount));
+
+    if (myHPVal <= 0) { setOver(true); setWin(opponentId); }
+    if (opHPVal <= 0) { setOver(true); setWin(playerId); }
+
+    reconstructed.current = true;
+  }, [gameState, playerId, opponentId, gameId, isHost]);
+
   // ── Sync ───────────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -178,7 +220,25 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
     if (m.playerId === playerId) return;
 
     if (m.type === 'fire') {
-      // Animate opponent's shot
+      // Apply opponent's damage result directly from the move data
+      if (m.dmg !== undefined && m.dmg > 0) {
+        setMyHP(prev => {
+          const n = Math.max(0, prev - m.dmg);
+          if (n <= 0) { setOver(true); setWin(opponentId); }
+          return n;
+        });
+        setFlash(true);
+        setTimeout(() => setFlash(false), 300);
+        setLastMsg(`💥 -${m.dmg} HP !`);
+        setShake(true);
+        setTimeout(() => setShake(false), 400);
+      } else {
+        setLastMsg('🎸 Raté !');
+      }
+      if (msgT.current) clearTimeout(msgT.current);
+      msgT.current = setTimeout(() => setLastMsg(null), 1800);
+
+      // Animate opponent's shot visually
       animateShot(opPos.x, opPos.y, m.angle, m.power, wind, true);
     }
   }, [gameState?.lastMove]);
@@ -213,6 +273,8 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
           setLastMsg('💨 Perdu dans le vide !');
           if (msgT.current) clearTimeout(msgT.current);
           msgT.current = setTimeout(() => setLastMsg(null), 1500);
+          // Send miss move
+          onMove({ type: 'fire', angle: ang, power: pow, dmg: 0, _keepTurn: false });
         }
         setTurn(t => t + 1);
         setWind(getWind(gameId, turn + 1));
@@ -222,12 +284,11 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
       // Terrain collision
       const ti = Math.round(px);
       if (ti >= 0 && ti < W && py >= terrain[ti]) {
-        // Explode!
         setProjectile(null);
         setTrail([]);
         setExplosion({ x: px, y: py, r: EXPLOSION_R });
-        setShake(true);
-        setTimeout(() => setShake(false), 400);
+        if (!isOp) setShake(true);
+        setTimeout(() => { if (!isOp) setShake(false); }, 400);
 
         // Damage terrain
         setTerrain(prev => {
@@ -240,27 +301,9 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
           return t;
         });
 
-        // Check tank hits
-        const distMe = Math.sqrt((px - myPos.x) ** 2 + (py - myPos.y) ** 2);
-        const distOp = Math.sqrt((px - opPos.x) ** 2 + (py - opPos.y) ** 2);
-
-        if (isOp) {
-          // Opponent shot hits me?
-          if (distMe < EXPLOSION_R) {
-            const dmg = Math.round((1 - distMe / EXPLOSION_R) * 40 + 10);
-            setMyHP(prev => {
-              const n = Math.max(0, prev - dmg);
-              if (n <= 0) { setOver(true); setWin(opponentId); }
-              return n;
-            });
-            setFlash(true);
-            setTimeout(() => setFlash(false), 300);
-            setLastMsg(`💥 -${dmg} HP !`);
-          } else {
-            setLastMsg('🎸 Raté !');
-          }
-        } else {
-          // My shot hits opponent?
+        if (!isOp) {
+          // My shot — check if it hits opponent
+          const distOp = Math.sqrt((px - opPos.x) ** 2 + (py - opPos.y) ** 2);
           const hit = distOp < EXPLOSION_R;
           const dmg = hit ? Math.round((1 - distOp / EXPLOSION_R) * 40 + 10) : 0;
           if (hit) {
@@ -269,15 +312,17 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
               if (n <= 0) { setOver(true); setWin(playerId); onGameOver({ winner_id: playerId }); }
               return n;
             });
-            setLastMsg(`�� -${dmg} HP !`);
+            setLastMsg(`🎯 -${dmg} HP !`);
           } else {
             setLastMsg('💨 Raté...');
           }
-          onMove({ type: 'fire', angle: ang, power: pow, _keepTurn: false });
-        }
+          // Include damage in the move so opponent can sync
+          onMove({ type: 'fire', angle: ang, power: pow, dmg, _keepTurn: false });
 
-        if (msgT.current) clearTimeout(msgT.current);
-        msgT.current = setTimeout(() => setLastMsg(null), 1800);
+          if (msgT.current) clearTimeout(msgT.current);
+          msgT.current = setTimeout(() => setLastMsg(null), 1800);
+        }
+        // For opponent shots, damage is already applied in the sync effect above
 
         setTimeout(() => {
           setExplosion(null);
@@ -335,22 +380,33 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
       {/* HP bars */}
       <div style={{ display: 'flex', gap: 16, padding: '2px 12px 4px', width: '100%', maxWidth: 520 }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 9, color: P.neonGreen, letterSpacing: 2 }}>TOI</div>
-          <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(57,255,20,0.2)' }}>
-            <motion.div animate={{ width: `${myHP}%` }}
-              style={{ height: '100%', borderRadius: 3,
-                background: myHP > 60 ? P.neonGreen : myHP > 30 ? P.neonYellow : '#ff0044',
-                boxShadow: `0 0 6px ${myHP > 60 ? P.neonGreen : myHP > 30 ? P.neonYellow : '#ff0044'}` }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 9, color: P.neonGreen, letterSpacing: 2, fontWeight: 900 }}>TOI</span>
+            <span style={{ fontSize: 11, color: myHP > 60 ? P.neonGreen : myHP > 30 ? P.neonYellow : '#ff0044',
+              fontWeight: 900, textShadow: `0 0 4px currentColor` }}>{myHP} HP</span>
+          </div>
+          <div style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(57,255,20,0.15)', overflow: 'hidden' }}>
+            <motion.div animate={{ width: `${myHP}%` }} transition={{ type: 'spring', stiffness: 120 }}
+              style={{ height: '100%', borderRadius: 4,
+                background: myHP > 60
+                  ? `linear-gradient(90deg, ${P.neonGreen}, #50ff50)`
+                  : myHP > 30 ? `linear-gradient(90deg, ${P.neonYellow}, #ffcc00)` : 'linear-gradient(90deg, #ff0044, #ff4466)',
+                boxShadow: `0 0 8px ${myHP > 60 ? P.neonGreen : myHP > 30 ? P.neonYellow : '#ff0044'}` }} />
           </div>
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 9, color: P.neonOrange, letterSpacing: 2, textAlign: 'right' }}>ENNEMI</div>
-          <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,102,0,0.2)' }}>
-            <motion.div animate={{ width: `${opHP}%` }}
-              style={{ height: '100%', borderRadius: 3, background: P.neonOrange,
-                boxShadow: `0 0 6px ${P.neonOrange}` }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: P.neonOrange,
+              fontWeight: 900, textShadow: `0 0 4px ${P.neonOrange}` }}>{opHP} HP</span>
+            <span style={{ fontSize: 9, color: P.neonOrange, letterSpacing: 2, fontWeight: 900 }}>ENNEMI</span>
+          </div>
+          <div style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,102,0,0.15)', overflow: 'hidden' }}>
+            <motion.div animate={{ width: `${opHP}%` }} transition={{ type: 'spring', stiffness: 120 }}
+              style={{ height: '100%', borderRadius: 4,
+                background: `linear-gradient(90deg, ${P.neonOrange}, #ff8833)`,
+                boxShadow: `0 0 8px ${P.neonOrange}` }} />
           </div>
         </div>
       </div>
@@ -364,19 +420,20 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
             color: over ? (win === playerId ? P.neonGreen : '#ff0044') : isPlayerTurn ? P.neon : '#555',
             textShadow: over || isPlayerTurn ? `0 0 8px currentColor` : 'none', marginBottom: 2,
           }}>
-          {over ? (win === playerId ? '🏆 VICTOIRE !!' : '💀 DÉFAITE...') : isPlayerTurn ? '🎯 À TOI DE TIRER !' : '⏳ TOUR ADVERSE...'}
+          {over ? (win === playerId ? '🏆 VICTOIRE !!' : '💀 DÉFAITE...') : isPlayerTurn ? '🎯 À TOI !' : '⏳ TOUR ADVERSE...'}
         </motion.div>
       </AnimatePresence>
 
       {/* Message popup */}
       <AnimatePresence>
         {lastMsg && (
-          <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}
+          <motion.div initial={{ scale: 0, opacity: 0, y: 10 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.5, opacity: 0, y: -10 }}
             style={{ position: 'absolute', top: '30%', left: '50%', transform: 'translateX(-50%)',
-              padding: '6px 18px', borderRadius: 8, fontSize: 16, fontWeight: 900, zIndex: 20,
-              background: 'rgba(0,0,0,0.8)', border: `2px solid ${P.neon}`,
-              color: lastMsg.includes('HP') ? P.neonOrange : P.dim,
+              padding: '8px 22px', borderRadius: 12, fontSize: 18, fontWeight: 900, zIndex: 20,
+              background: 'rgba(0,0,0,0.85)', border: `2px solid ${lastMsg.includes('HP') ? P.neonOrange : P.dim}`,
+              color: lastMsg.includes('HP') ? P.neonOrange : lastMsg.includes('Raté') ? '#888' : P.neonCyan,
               textShadow: `0 0 10px currentColor`,
+              backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
             }}>
             {lastMsg}
           </motion.div>
@@ -393,26 +450,52 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
           {/* Sky gradient */}
           <defs>
             <linearGradient id="skyGrad" x1="50%" y1="0%" x2="50%" y2="100%">
-              <stop offset="0%" stopColor="#0a0008" />
-              <stop offset="40%" stopColor="#1a0020" />
-              <stop offset="70%" stopColor="#2d0030" />
-              <stop offset="100%" stopColor="#0a0a0a" />
+              <stop offset="0%" stopColor="#05001a" />
+              <stop offset="25%" stopColor="#0a0030" />
+              <stop offset="50%" stopColor="#180040" />
+              <stop offset="75%" stopColor="#2a0040" />
+              <stop offset="100%" stopColor="#0a0a1a" />
+            </linearGradient>
+            <linearGradient id="terrainGrad" x1="50%" y1="0%" x2="50%" y2="100%">
+              <stop offset="0%" stopColor="#2a1a2a" />
+              <stop offset="30%" stopColor="#1a1020" />
+              <stop offset="100%" stopColor="#0a0510" />
             </linearGradient>
           </defs>
           <rect width={W} height={H} fill="url(#skyGrad)" />
 
+          {/* Moon glow */}
+          <circle cx={W * 0.75} cy={30} r={15} fill="rgba(200,150,255,0.03)" />
+          <circle cx={W * 0.75} cy={30} r={6} fill="rgba(200,180,255,0.06)" />
+          <circle cx={W * 0.75} cy={30} r={2.5} fill="rgba(220,200,255,0.12)" />
+
           {/* Stars */}
-          {Array.from({ length: 30 }, (_, i) => (
+          {Array.from({ length: 40 }, (_, i) => (
             <circle key={i} cx={(i * 37 + 11) % W} cy={(i * 13 + 7) % (H * 0.4)}
-              r={0.5 + (i % 3) * 0.3} fill="white" opacity={0.3 + (i % 5) * 0.1}>
-              <animate attributeName="opacity" values={`${0.2 + (i % 3) * 0.1};${0.6 + (i % 3) * 0.1};${0.2 + (i % 3) * 0.1}`}
+              r={0.4 + (i % 3) * 0.25} fill="white" opacity={0.2 + (i % 5) * 0.08}>
+              <animate attributeName="opacity" values={`${0.15 + (i % 3) * 0.1};${0.5 + (i % 3) * 0.1};${0.15 + (i % 3) * 0.1}`}
                 dur={`${2 + i % 3}s`} repeatCount="indefinite" />
             </circle>
           ))}
 
           {/* Terrain */}
           {terrainPath && (
-            <path d={terrainPath} fill="#1a1a1a" stroke={P.neon} strokeWidth={0.5} opacity={0.7} />
+            <g>
+              <path d={terrainPath} fill="url(#terrainGrad)" />
+              {/* Surface glow line */}
+              {terrain.length > 0 && (
+                <polyline
+                  points={terrain.map((y, x) => `${x},${y}`).join(' ')}
+                  fill="none" stroke={P.neon} strokeWidth={0.8} opacity={0.35}
+                  filter="url(#none)" />
+              )}
+              {/* Surface neon glow */}
+              {terrain.length > 0 && (
+                <polyline
+                  points={terrain.map((y, x) => `${x},${y}`).join(' ')}
+                  fill="none" stroke={P.neon} strokeWidth={2} opacity={0.08} />
+              )}
+            </g>
           )}
 
           {/* Tanks */}
@@ -448,38 +531,44 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
       {!over && (
         <div style={{ padding: '6px 12px 14px', width: '100%', maxWidth: 520 }}>
           {/* Angle */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <span style={{ fontSize: 10, color: P.dim, width: 50 }}>ANGLE</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <span style={{ fontSize: 10, color: P.neonCyan, width: 55, fontWeight: 900, letterSpacing: 1 }}>ANGLE</span>
             <input type="range" min={5} max={85} value={angle}
               onChange={e => setAngle(Number(e.target.value))}
               disabled={!isPlayerTurn || firing}
-              style={{ flex: 1, accentColor: P.neon }} />
-            <span style={{ fontSize: 12, color: P.neon, width: 30, textAlign: 'right',
-              textShadow: `0 0 6px ${P.neon}` }}>{angle}°</span>
+              style={{ flex: 1, accentColor: P.neonCyan, height: 6 }} />
+            <span style={{ fontSize: 14, color: P.neonCyan, width: 36, textAlign: 'right',
+              fontWeight: 900, textShadow: `0 0 8px ${P.neonCyan}` }}>{angle}°</span>
           </div>
           {/* Power */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <span style={{ fontSize: 10, color: P.dim, width: 50 }}>POWER</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: 10, color: P.neonYellow, width: 55, fontWeight: 900, letterSpacing: 1 }}>POWER</span>
             <input type="range" min={10} max={100} value={power}
               onChange={e => setPower(Number(e.target.value))}
               disabled={!isPlayerTurn || firing}
-              style={{ flex: 1, accentColor: P.neonYellow }} />
-            <span style={{ fontSize: 12, color: P.neonYellow, width: 30, textAlign: 'right',
-              textShadow: `0 0 6px ${P.neonYellow}` }}>{power}%</span>
+              style={{ flex: 1, accentColor: P.neonYellow, height: 6 }} />
+            <span style={{ fontSize: 14, color: P.neonYellow, width: 36, textAlign: 'right',
+              fontWeight: 900, textShadow: `0 0 8px ${P.neonYellow}` }}>{power}%</span>
           </div>
           {/* Fire button */}
           <motion.button
             whileTap={{ scale: 0.95 }}
+            whileHover={isPlayerTurn && !firing ? { scale: 1.02 } : {}}
             onClick={doFire}
             disabled={!isPlayerTurn || firing}
-            style={{ width: '100%', padding: '10px 0', borderRadius: 8, fontSize: 16, fontWeight: 900,
+            style={{ width: '100%', padding: '12px 0', borderRadius: 10, fontSize: 18, fontWeight: 900,
               fontFamily: font, letterSpacing: 4,
-              background: isPlayerTurn && !firing ? P.neon : '#333',
-              color: isPlayerTurn && !firing ? '#000' : '#666',
+              background: isPlayerTurn && !firing
+                ? `linear-gradient(135deg, ${P.neon}, #cc00cc)`
+                : '#222',
+              color: isPlayerTurn && !firing ? '#fff' : '#555',
               border: `2px solid ${isPlayerTurn && !firing ? P.neon : '#333'}`,
               cursor: isPlayerTurn && !firing ? 'pointer' : 'not-allowed',
-              boxShadow: isPlayerTurn && !firing ? `0 0 20px ${P.neon}, 0 0 40px rgba(255,0,255,0.3)` : 'none',
-              textShadow: isPlayerTurn && !firing ? 'none' : 'none',
+              boxShadow: isPlayerTurn && !firing
+                ? `0 0 20px ${P.neon}, 0 0 40px rgba(255,0,255,0.2), inset 0 1px 0 rgba(255,255,255,0.1)`
+                : 'none',
+              textShadow: isPlayerTurn && !firing ? `0 0 10px ${P.neonYellow}` : 'none',
+              transition: 'all 0.3s',
             }}>
             ⚡ FIRE ⚡
           </motion.button>

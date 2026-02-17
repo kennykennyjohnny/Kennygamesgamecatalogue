@@ -158,6 +158,72 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
       color: ['rgba(139,32,56,0.06)', 'rgba(212,160,83,0.05)', 'rgba(160,48,72,0.04)', 'rgba(155,120,32,0.05)'][i % 4],
     })), []);
 
+  // ── Reconstruct state from move history on mount ──────────────────────────
+  const reconstructed = useRef(false);
+
+  useEffect(() => {
+    if (reconstructed.current || !gameState?.moves) return;
+    const moves = gameState.moves as any[];
+    if (moves.length === 0) return;
+
+    // Check if I already sent 'ready' — recover my ships from _playerState
+    const myReady = moves.find((m: any) => m.playerId === playerId && m.type === 'ready');
+    const opReady = moves.find((m: any) => m.playerId === opponentId && m.type === 'ready');
+
+    // Recover ships from player state stored in gameState
+    const myShipData = gameState[`player_${playerId}`]?.ships;
+    if (myReady && myShipData) {
+      const recovered: Ship[] = myShipData.map((s: any) => {
+        const def = SHIPS.find(d => d.id === s.id)!;
+        return { ...def, cells: s.cells, dir: s.dir, sunk: false };
+      });
+      setShips(recovered);
+      setShipIdx(SHIPS.length);
+
+      if (opReady) {
+        // Both ready → reconstruct battle state from fire/result history
+        const mg = grid0();
+        const og = grid0();
+        const mySunkNames: string[] = [];
+        const opSunkNames: string[] = [];
+
+        for (const m of moves) {
+          if (m.type === 'fire' && m.playerId === opponentId) {
+            // Opponent fired at me — check result in subsequent result move
+            const resultMove = moves.find((rm: any) => rm.playerId === playerId && rm.type === 'result' && rm.r === m.r && rm.c === m.c);
+            if (resultMove) {
+              mg[m.r][m.c] = resultMove.hit ? 'hit' : 'miss';
+              if (resultMove.sunk && resultMove.name) mySunkNames.push(resultMove.name);
+            }
+          }
+          if (m.type === 'fire' && m.playerId === playerId) {
+            const resultMove = moves.find((rm: any) => rm.playerId === opponentId && rm.type === 'result' && rm.r === m.r && rm.c === m.c);
+            if (resultMove) {
+              og[m.r][m.c] = resultMove.hit ? 'hit' : 'miss';
+              if (resultMove.sunk && resultMove.name && !opSunkNames.includes(resultMove.name)) opSunkNames.push(resultMove.name);
+            }
+          }
+        }
+
+        setMyGrid(mg);
+        setOpGrid(og);
+        setMySunk([...new Set(mySunkNames)]);
+        setOpSunk([...new Set(opSunkNames)]);
+        setPhase('BATTLE');
+
+        // Check if game was already won
+        if ([...new Set(mySunkNames)].length >= SHIPS.length) { setOver(true); setWin(opponentId); }
+        if ([...new Set(opSunkNames)].length >= SHIPS.length) { setOver(true); setWin(playerId); }
+      } else {
+        setPhase('WAITING');
+      }
+      reconstructed.current = true;
+    } else if (opReady && !myReady) {
+      // Opponent ready but I haven't placed ships yet — stay in placement
+      reconstructed.current = true;
+    }
+  }, [gameState, playerId, opponentId]);
+
   // ── Sync ───────────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -167,7 +233,7 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
 
     if (m.type === 'ready' && phase === 'WAITING') setPhase('BATTLE');
 
-    if (m.type === 'fire') {
+    if (m.type === 'fire' && phase === 'BATTLE') {
       const { r, c } = m;
       const hit = ships.find(s => s.cells.some(([sr, sc]) => sr === r && sc === c));
       const g = myGrid.map(row => [...row]);
@@ -206,6 +272,7 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
     }
   }, [gameState?.lastMove]);
 
+  // Also check for opponent ready when in WAITING phase (polling fallback)
   useEffect(() => {
     if (!gameState?.moves || phase !== 'WAITING') return;
     if (gameState.moves.some((m: any) => m.playerId === opponentId && m.type === 'ready')) setPhase('BATTLE');
@@ -586,21 +653,22 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
 
   return (
     <Bg>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-        <h1 style={{ fontSize: 18, fontWeight: 900, fontStyle: 'italic', margin: 0,
-          color: '#c9a050', textShadow: '0 0 15px rgba(201,160,80,0.1)' }}>🍷 Léa Naval</h1>
-        <div style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 5,
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+        <h1 style={{ fontSize: 20, fontWeight: 900, fontStyle: 'italic', margin: 0,
+          color: '#c9a050', textShadow: '0 0 15px rgba(201,160,80,0.1)', letterSpacing: 0.5 }}>🍷 Léa Naval</h1>
+        <div style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 8,
           background: 'rgba(123,16,36,0.1)', border: '1px solid rgba(123,16,36,0.15)',
-          color: 'rgba(201,160,80,0.4)', fontStyle: 'italic' }}>
-          💀 {opSunk.length}/{SHIPS.length}
+          color: 'rgba(201,160,80,0.5)', fontStyle: 'italic' }}>
+          💀 {opSunk.length}/{SHIPS.length} coulés
         </div>
       </div>
 
       <motion.div key={isPlayerTurn ? 'y' : 'n'} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-        style={{ padding: '3px 14px', borderRadius: 12, fontSize: 12, fontWeight: 700, fontStyle: 'italic', marginBottom: 6,
-          background: over ? 'rgba(52,199,89,0.06)' : isPlayerTurn ? 'rgba(123,16,36,0.06)' : 'rgba(80,80,80,0.04)',
-          color: over ? '#4ade80' : isPlayerTurn ? '#c9a050' : '#555',
-          border: `1px solid ${over ? 'rgba(52,199,89,0.12)' : isPlayerTurn ? 'rgba(201,160,80,0.12)' : 'rgba(80,80,80,0.06)'}`,
+        style={{ padding: '4px 18px', borderRadius: 12, fontSize: 13, fontWeight: 700, fontStyle: 'italic', marginBottom: 8,
+          background: over ? 'rgba(52,199,89,0.08)' : isPlayerTurn ? 'rgba(123,16,36,0.08)' : 'rgba(80,80,80,0.04)',
+          color: over ? (win === playerId ? '#4ade80' : '#e85050') : isPlayerTurn ? '#c9a050' : '#555',
+          border: `1px solid ${over ? 'rgba(52,199,89,0.15)' : isPlayerTurn ? 'rgba(201,160,80,0.15)' : 'rgba(80,80,80,0.06)'}`,
+          backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
         }}>
         {over ? (win === playerId ? '🏆 Victoire !' : '💔 Défaite…') : isPlayerTurn ? '🎯 À toi de tirer !' : '⏳ Tour adverse…'}
       </motion.div>
@@ -609,31 +677,36 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
         {sunkMsg && (
           <motion.div initial={{ scale: 0.5, opacity: 0, y: -8 }} animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.5, opacity: 0, y: -8 }}
-            style={{ padding: '5px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, fontStyle: 'italic', marginBottom: 4,
-              background: 'rgba(123,16,36,0.12)', border: '1px solid rgba(123,16,36,0.2)',
-              color: '#d4506a', textShadow: '0 0 8px rgba(180,20,50,0.2)' }}>
+            style={{ padding: '6px 20px', borderRadius: 10, fontSize: 15, fontWeight: 700, fontStyle: 'italic', marginBottom: 6,
+              background: 'rgba(123,16,36,0.15)', border: '1px solid rgba(123,16,36,0.25)',
+              color: '#d4506a', textShadow: '0 0 8px rgba(180,20,50,0.2)',
+              boxShadow: '0 4px 16px rgba(123,16,36,0.1)',
+            }}>
             {sunkMsg}
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* Enemy grid */}
-      <div style={{ marginBottom: 4 }}>
-        <div style={{ textAlign: 'center', fontSize: 9, fontWeight: 700, letterSpacing: 2, fontStyle: 'italic',
-          color: 'rgba(180,60,80,0.3)', marginBottom: 2, textTransform: 'uppercase' }}>Cave Ennemie</div>
+      <div style={{ marginBottom: 6 }}>
+        <div style={{ textAlign: 'center', fontSize: 10, fontWeight: 700, letterSpacing: 2, fontStyle: 'italic',
+          color: 'rgba(180,60,80,0.35)', marginBottom: 3, textTransform: 'uppercase' }}>🎯 Cave Ennemie</div>
         <BattleGrid grid={opGrid} click={over ? null : isPlayerTurn ? onFire : null} hov={null} showShips={false} small={false} />
       </div>
 
       {/* Fleet status */}
-      <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 6, maxWidth: 380 }}>
+      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 8, maxWidth: 400 }}>
         {SHIPS.map(def => {
           const sunk = opSunk.includes(def.name);
           return (
-            <span key={def.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 4,
-              fontSize: 9, fontWeight: 600, fontStyle: 'italic',
-              background: sunk ? 'rgba(20,10,8,0.2)' : 'rgba(123,16,36,0.06)',
-              color: sunk ? 'rgba(60,30,20,0.4)' : 'rgba(201,160,80,0.4)',
-              textDecoration: sunk ? 'line-through' : 'none' }}>
+            <span key={def.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 8px', borderRadius: 6,
+              fontSize: 10, fontWeight: 600, fontStyle: 'italic',
+              background: sunk ? 'rgba(20,10,8,0.25)' : 'rgba(123,16,36,0.06)',
+              color: sunk ? 'rgba(60,30,20,0.3)' : 'rgba(201,160,80,0.45)',
+              textDecoration: sunk ? 'line-through' : 'none',
+              border: `1px solid ${sunk ? 'rgba(60,30,20,0.1)' : 'rgba(123,16,36,0.06)'}`,
+              transition: 'all 0.3s',
+            }}>
               {def.label} {def.name}
             </span>
           );
@@ -641,11 +714,18 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
       </div>
 
       {/* My grid */}
-      <div>
-        <div style={{ textAlign: 'center', fontSize: 9, fontWeight: 700, letterSpacing: 2, fontStyle: 'italic',
-          color: 'rgba(201,160,80,0.2)', marginBottom: 2, textTransform: 'uppercase' }}>Ma Cave</div>
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ textAlign: 'center', fontSize: 10, fontWeight: 700, letterSpacing: 2, fontStyle: 'italic',
+          color: 'rgba(201,160,80,0.25)', marginBottom: 3, textTransform: 'uppercase' }}>🛡️ Ma Cave</div>
         <BattleGrid grid={myGrid} click={null} hov={null} showShips={true} small={true} />
       </div>
+
+      {/* My sunk info */}
+      {mySunk.length > 0 && (
+        <div style={{ textAlign: 'center', fontSize: 10, fontStyle: 'italic', color: 'rgba(200,60,80,0.4)', marginBottom: 6 }}>
+          Perdus : {mySunk.join(', ')}
+        </div>
+      )}
     </Bg>
   );
 }
