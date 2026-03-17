@@ -655,9 +655,26 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
               alive={cup.alive} hit={!cup.alive} glow={isPlayerTurn} />
           ))}
 
-          {/* Splash when hit — more dramatic rosé explosion */}
+          {/* Splash when hit — dramatic rosé fountain */}
           {splash && (
             <g>
+              {/* Upward splash droplets */}
+              {[...Array(8)].map((_, i) => {
+                const a = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.8;
+                const d = 4 + Math.random() * 6;
+                return (
+                  <motion.circle key={`up${i}`}
+                    initial={{ cx: splash.x, cy: splash.y, r: 0.3 + Math.random() * 0.4, opacity: 0.9 }}
+                    animate={{
+                      cx: splash.x + Math.cos(a) * d,
+                      cy: splash.y + Math.sin(a) * d + 3,
+                      r: 0, opacity: 0
+                    }}
+                    transition={{ duration: 0.6 + Math.random() * 0.3, ease: 'easeOut' }}
+                    fill={i % 2 === 0 ? 'rgba(244,176,195,0.8)' : 'rgba(232,100,140,0.7)'} />
+                );
+              })}
+              {/* Radial splash */}
               {[...Array(14)].map((_, i) => {
                 const a = (i / 14) * Math.PI * 2;
                 const r = 2 + Math.random() * 6;
@@ -673,35 +690,49 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
               <motion.circle initial={{ r: 0, opacity: 0.6 }} animate={{ r: 4, opacity: 0.2 }}
                 transition={{ duration: 1.2 }}
                 cx={splash.x} cy={splash.y} fill="rgba(232,100,140,0.4)" />
-              {/* Ripple ring */}
+              {/* Wine puddle spreading */}
+              <motion.ellipse initial={{ rx: 0, ry: 0, opacity: 0.5 }}
+                animate={{ rx: 6, ry: 2, opacity: 0.1 }}
+                transition={{ duration: 1.5, delay: 0.2 }}
+                cx={splash.x} cy={splash.y + 3} fill="rgba(200,60,100,0.3)" />
+              {/* Ripple rings */}
               <motion.circle initial={{ r: 0.5, opacity: 0.6 }} animate={{ r: 8, opacity: 0 }}
                 transition={{ duration: 1 }}
                 cx={splash.x} cy={splash.y} fill="none" stroke="rgba(255,180,200,0.4)" strokeWidth={0.3} />
               <motion.circle initial={{ r: 1, opacity: 0.4 }} animate={{ r: 10, opacity: 0 }}
                 transition={{ duration: 1.2, delay: 0.1 }}
                 cx={splash.x} cy={splash.y} fill="none" stroke="rgba(244,176,195,0.2)" strokeWidth={0.2} />
+              <motion.circle initial={{ r: 2, opacity: 0.3 }} animate={{ r: 12, opacity: 0 }}
+                transition={{ duration: 1.4, delay: 0.2 }}
+                cx={splash.x} cy={splash.y} fill="none" stroke="rgba(244,176,195,0.15)" strokeWidth={0.15} />
             </g>
           )}
 
-          {/* Ball in flight — more visible */}
+          {/* Ball in flight — with spin */}
           {ballPos && (
             <g>
-              {/* Ball trail — gradient fade */}
-              {ballTrail.length > 1 && (
-                <polyline
-                  points={ballTrail.map(p => `${p.x},${p.y}`).join(' ')}
-                  fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth={1.5 * ballPos.s}
-                  strokeLinecap="round" />
-              )}
+              {/* Ball trail — gradient dots */}
+              {ballTrail.length > 1 && ballTrail.map((p, i) => {
+                const alpha = (i / ballTrail.length) * 0.3;
+                const sz = (i / ballTrail.length) * 1.5 * ballPos.s;
+                return i % 2 === 0 ? (
+                  <circle key={`trail${i}`} cx={p.x} cy={p.y} r={sz}
+                    fill={`rgba(255,255,255,${alpha})`} />
+                ) : null;
+              })}
               {/* Ball glow */}
               <circle cx={ballPos.x} cy={ballPos.y} r={3.5 * ballPos.s}
                 fill="rgba(255,255,255,0.08)" />
               {/* Ball shadow on table */}
               <ellipse cx={ballPos.x} cy={Math.max(ballPos.y + 3, 58)} rx={2 * ballPos.s} ry={0.6 * ballPos.s}
                 fill="rgba(0,0,0,0.15)" />
-              {/* Ball */}
+              {/* Ball body */}
               <circle cx={ballPos.x} cy={ballPos.y} r={2 * ballPos.s}
                 fill="white" stroke="rgba(200,200,200,0.5)" strokeWidth={0.25} />
+              {/* Spin seam line */}
+              <ellipse cx={ballPos.x} cy={ballPos.y} rx={1.8 * ballPos.s} ry={0.4 * ballPos.s}
+                fill="none" stroke="rgba(180,180,180,0.3)" strokeWidth={0.15}
+                transform={`rotate(${Date.now() % 360}, ${ballPos.x}, ${ballPos.y})`} />
               {/* Ball highlight */}
               <circle cx={ballPos.x - 0.5 * ballPos.s} cy={ballPos.y - 0.5 * ballPos.s}
                 r={0.6 * ballPos.s} fill="rgba(255,255,255,0.8)" />

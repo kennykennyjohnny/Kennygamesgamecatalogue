@@ -153,7 +153,7 @@ function AppPartyContent() {
     { 
       id: 'sandy' as GameType, 
       name: 'SANDYGAMES', 
-      emoji: '🍷',
+      emoji: '🍹',
       desc: 'Beer Pong Rosé', 
       color: '#ffc0cb', 
       gradient: 'linear-gradient(135deg, #ffc0cb 0%, #ff1493 100%)' 
@@ -161,26 +161,26 @@ function AppPartyContent() {
     { 
       id: 'liliano' as GameType, 
       name: 'LILIANOGAMES', 
-      emoji: '⚡',
-      desc: 'Tank Guitares', 
+      emoji: '💥',
+      desc: 'Artillerie Punk', 
       color: '#ff00ff', 
-      gradient: 'linear-gradient(135deg, #ff00ff 0%, #00ffff 100%)' 
+      gradient: 'linear-gradient(135deg, #a21caf 0%, #d946ef 50%, #00ffff 100%)' 
     },
     { 
       id: 'lea' as GameType, 
       name: 'LÉAGAMES', 
-      emoji: '🚢',
+      emoji: '⚓',
       desc: 'Bataille Navale', 
-      color: '#1e90ff', 
-      gradient: 'linear-gradient(135deg, #1e90ff 0%, #00bfff 100%)' 
+      color: '#9b1b48', 
+      gradient: 'linear-gradient(135deg, #5a0a20 0%, #9b1b48 50%, #c9a050 100%)' 
     },
     { 
       id: 'nour' as GameType, 
       name: 'NOURGAMES', 
-      emoji: '🏹',
-      desc: 'Archery', 
-      color: '#d4a574', 
-      gradient: 'linear-gradient(135deg, #d4a574 0%, #8b4513 100%)' 
+      emoji: '🎯',
+      desc: 'Tir aux Pigeons', 
+      color: '#e8762a', 
+      gradient: 'linear-gradient(135deg, #c45a20 0%, #e8762a 50%, #4a90d9 100%)' 
     },
     { 
       id: 'emma' as GameType, 
@@ -267,11 +267,11 @@ function AppPartyContent() {
 
               {/* Games Grid */}
               <div className="grid grid-cols-2 gap-3 md:gap-4">
-                {games.map((game) => (
+                {games.map((game, idx) => (
                   <button
                     key={game.id}
                     onClick={() => setScreen('game-selection')}
-                    className="relative group"
+                    className={`relative group ${idx === games.length - 1 && games.length % 2 === 1 ? 'col-span-2' : ''}`}
                   >
                     <Card 
                       className="p-6 md:p-8 transition-all duration-300 transform hover:scale-105 hover:shadow-2xl active:scale-95"

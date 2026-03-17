@@ -71,6 +71,14 @@ function WineBottle({ ship, cs }: { ship: Ship; cs: number }) {
   const bodyH = bh - m * 2;
   const neckRatio = 0.2;
 
+  // Sinking effect wrapper
+  const sunkProps = ship.sunk ? {
+    initial: { opacity: 1, y: 0, rotate: 0 } as any,
+    animate: { opacity: 0.25, y: 6, rotate: isH ? 8 : -5 } as any,
+    transition: { duration: 1.2, ease: 'easeIn' },
+  } : {};
+  const Wrapper = ship.sunk ? motion.g : 'g' as any;
+
   if (isH) {
     const neckW = bodyW * neckRatio;
     const bodyMainW = bodyW - neckW;

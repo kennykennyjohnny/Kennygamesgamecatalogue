@@ -783,6 +783,34 @@ export default function EmmaGame({ gameId, playerId, opponentId, isPlayerTurn, g
         {/* Hoop ring */}
         <HoopRing />
 
+        {/* Streak fire effect on hoop */}
+        {streak >= 3 && (
+          <g>
+            {Array.from({ length: streak >= 5 ? 12 : 8 }, (_, i) => {
+              const angle = (i / (streak >= 5 ? 12 : 8)) * Math.PI * 2;
+              const fx = HOOP_CX + Math.cos(angle) * HOOP_R;
+              const fy = HOOP_CY + Math.sin(angle) * 1.8;
+              const flameH = 2 + Math.random() * 3;
+              return (
+                <g key={`fire${i}`}>
+                  <ellipse cx={fx} cy={fy - flameH / 2} rx={0.8} ry={flameH / 2}
+                    fill={streak >= 5 ? '#ff2200' : '#ff6600'} opacity={0.6}>
+                    <animate attributeName="ry" values={`${flameH / 2};${flameH / 2 + 1};${flameH / 2}`}
+                      dur={`${0.2 + Math.random() * 0.3}s`} repeatCount="indefinite" />
+                    <animate attributeName="opacity" values="0.6;0.3;0.6"
+                      dur={`${0.3 + Math.random() * 0.2}s`} repeatCount="indefinite" />
+                  </ellipse>
+                  <ellipse cx={fx} cy={fy - flameH / 2 - 0.5} rx={0.4} ry={flameH / 3}
+                    fill="#ffcc00" opacity={0.5}>
+                    <animate attributeName="ry" values={`${flameH / 3};${flameH / 3 + 0.5};${flameH / 3}`}
+                      dur={`${0.15 + Math.random() * 0.2}s`} repeatCount="indefinite" />
+                  </ellipse>
+                </g>
+              );
+            })}
+          </g>
+        )}
+
         {/* Drag indicator with trajectory preview */}
         {dragActive && canPlay && (
           <g>
