@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 // LÉA NAVAL — Bataille Navale  ×  Vin Rouge  ×  Peinture
 //
 // Ambiance : toile de peintre illuminée, cadre doré, fond atelier chaud
-// Pièces  : bouteilles de vin couchées (Grand Cru 5, Bordeaux 4 …)
+// Pièces  : bouteilles de vin couchées (Grand Cru 4, Bordeaux 3 …)
 // Hits    : taches de vin / éclaboussures rouges
 // Misses  : coups de pinceau dorés
 // ═══════════════════════════════════════════════════════════════════════════
@@ -17,14 +17,14 @@ type CellState = 'empty' | 'miss' | 'hit';
 interface ShipDef { id: string; name: string; size: number; color: string; label: string }
 interface Ship extends ShipDef { cells: [number, number][]; dir: Dir; sunk: boolean }
 
-const GRID = 10;
-const CELL = 34;
+const GRID = 8;
+const CELL = 38;
 
 const SHIPS: ShipDef[] = [
-  { id: 'grand_cru',  name: 'Grand Cru',   size: 5, color: '#7b1024', label: '🍷' },
-  { id: 'bordeaux',   name: 'Bordeaux',     size: 4, color: '#8b2040', label: '🍾' },
+  { id: 'grand_cru',  name: 'Grand Cru',   size: 4, color: '#7b1024', label: '🍷' },
+  { id: 'bordeaux',   name: 'Bordeaux',     size: 3, color: '#8b2040', label: '🍾' },
   { id: 'bourgogne',  name: 'Bourgogne',    size: 3, color: '#601848', label: '🍇' },
-  { id: 'champagne',  name: 'Champagne',    size: 3, color: '#9b7820', label: '🥂' },
+  { id: 'champagne',  name: 'Champagne',    size: 2, color: '#9b7820', label: '🥂' },
   { id: 'beaujolais', name: 'Beaujolais',   size: 2, color: '#a03048', label: '🫗' },
 ];
 
@@ -325,7 +325,7 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
     grid: CellState[][] | null; click: ((r: number, c: number) => void) | null;
     hov: ((r: number, c: number) => void) | null; showShips: boolean; small: boolean;
   }) => {
-    const cs = small ? 24 : CELL;
+    const cs = small ? 28 : CELL;
     const gp = GRID * cs;
     const pad = 20;
 
@@ -390,13 +390,13 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
                 <circle key={i} cx={s.x} cy={s.y} r={s.r} fill={s.color} />
               ))}
 
-              {/* Row labels A-J */}
-              {'ABCDEFGHIJ'.split('').map((l, i) => (
+              {/* Row labels A-H */}
+              {'ABCDEFGH'.split('').map((l, i) => (
                 <text key={l} x={-11} y={i * cs + cs / 2 + 3} textAnchor="middle"
                   fill="rgba(201,160,80,0.35)" fontSize={small ? 6 : 8} fontWeight={700}
                   fontFamily="Georgia, serif" fontStyle="italic">{l}</text>
               ))}
-              {Array.from({ length: 10 }, (_, i) => (
+              {Array.from({ length: GRID }, (_, i) => (
                 <text key={i} x={i * cs + cs / 2} y={-6} textAnchor="middle"
                   fill="rgba(201,160,80,0.35)" fontSize={small ? 6 : 8} fontWeight={700}
                   fontFamily="Georgia, serif" fontStyle="italic">{i + 1}</text>
