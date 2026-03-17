@@ -171,24 +171,67 @@ function TankSVG({ x, y, color, angle, hp, isMe, flash }: {
 function Explosion({ x, y, r }: { x: number; y: number; r: number }) {
   return (
     <g>
+      {/* Ground flash */}
+      <motion.ellipse initial={{ rx: r * 0.5, ry: r * 0.2, opacity: 0.8 }}
+        animate={{ rx: r * 1.2, ry: r * 0.3, opacity: 0 }}
+        transition={{ duration: 0.4 }}
+        cx={x} cy={y + 2} fill="rgba(255,200,50,0.3)" />
       {/* Fire core */}
       <motion.circle initial={{ r: 2, opacity: 1 }} animate={{ r: r, opacity: 0 }}
         transition={{ duration: 0.6 }}
         cx={x} cy={y} fill={P.neonOrange} />
+      {/* Inner hot core */}
+      <motion.circle initial={{ r: 1, opacity: 0.9 }} animate={{ r: r * 0.6, opacity: 0 }}
+        transition={{ duration: 0.3 }}
+        cx={x} cy={y} fill="#fff" />
       {/* Shock ring */}
       <motion.circle initial={{ r: r * 0.5, opacity: 0.8 }} animate={{ r: r * 1.5, opacity: 0 }}
         transition={{ duration: 0.8 }}
         cx={x} cy={y} fill="none" stroke={P.neonYellow} strokeWidth={2} />
+      {/* Second shock ring (delayed) */}
+      <motion.circle initial={{ r: r * 0.3, opacity: 0.5 }} animate={{ r: r * 2, opacity: 0 }}
+        transition={{ duration: 1, delay: 0.15 }}
+        cx={x} cy={y} fill="none" stroke={P.neonOrange} strokeWidth={1} />
+      {/* Smoke puffs */}
+      {Array.from({ length: 5 }, (_, i) => {
+        const a = (i / 5) * Math.PI * 2 + Math.random();
+        const d = r * 0.3 + Math.random() * r * 0.4;
+        return (
+          <motion.circle key={`sm${i}`}
+            initial={{ cx: x, cy: y, r: 2 + Math.random() * 3, opacity: 0.4 }}
+            animate={{ cx: x + Math.cos(a) * d, cy: y - 5 - Math.random() * r, r: 5 + Math.random() * 4, opacity: 0 }}
+            transition={{ duration: 1 + Math.random() * 0.5, delay: 0.1 + i * 0.05 }}
+            fill="rgba(80,60,40,0.3)" />
+        );
+      })}
       {/* Sparks */}
-      {Array.from({ length: 12 }, (_, i) => {
-        const a = (i / 12) * Math.PI * 2;
-        const d = r * 0.8 + Math.random() * r * 0.5;
+      {Array.from({ length: 16 }, (_, i) => {
+        const a = (i / 16) * Math.PI * 2;
+        const d = r * 0.8 + Math.random() * r * 0.8;
         return (
           <motion.circle key={i}
-            initial={{ cx: x, cy: y, r: 1.5, opacity: 1 }}
-            animate={{ cx: x + Math.cos(a) * d, cy: y + Math.sin(a) * d, r: 0, opacity: 0 }}
-            transition={{ duration: 0.4 + Math.random() * 0.3 }}
-            fill={[P.neonYellow, P.neonOrange, P.neon, P.neonCyan][i % 4]} />
+            initial={{ cx: x, cy: y, r: 1.2 + Math.random(), opacity: 1 }}
+            animate={{ cx: x + Math.cos(a) * d, cy: y + Math.sin(a) * d - Math.random() * r * 0.5, r: 0, opacity: 0 }}
+            transition={{ duration: 0.3 + Math.random() * 0.4 }}
+            fill={[P.neonYellow, P.neonOrange, P.neon, P.neonCyan, '#fff'][i % 5]} />
+        );
+      })}
+      {/* Debris chunks */}
+      {Array.from({ length: 6 }, (_, i) => {
+        const a = (i / 6) * Math.PI * 2 + Math.random() * 0.5;
+        const d = r * 0.5 + Math.random() * r;
+        return (
+          <motion.rect key={`deb${i}`}
+            initial={{ x: x - 1, y: y - 1, opacity: 0.8, rotate: 0 }}
+            animate={{
+              x: x + Math.cos(a) * d,
+              y: y + Math.sin(a) * d + r * 0.5,
+              opacity: 0,
+              rotate: 360 * (Math.random() > 0.5 ? 1 : -1),
+            }}
+            transition={{ duration: 0.5 + Math.random() * 0.3 }}
+            width={2} height={1.5} rx={0.3}
+            fill={['#5a3a20', '#4a2a10', '#6a4a30', '#3a2010'][i % 4]} />
         );
       })}
     </g>

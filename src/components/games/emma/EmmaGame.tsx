@@ -464,10 +464,12 @@ export default function EmmaGame({ gameId, playerId, opponentId, isPlayerTurn, g
         // Check if basket
         const dist = Math.sqrt((finalX - HOOP_CX) ** 2 + (finalY - HOOP_CY) ** 2);
         const isBasket = dist < SWEET_SPOT;
+        const isSwish = dist < SWEET_SPOT * 0.35; // perfect center = swish
 
         if (isBasket) {
           const currentStreak = streakRef.current;
-          const pts = Math.min(currentStreak, 5);
+          const basePts = Math.min(currentStreak, 5);
+          const pts = isSwish ? basePts + 1 : basePts; // bonus for swish
           const newScore = scoreRef.current + pts;
           const newStreak = Math.min(currentStreak + 1, 6);
 
@@ -485,9 +487,9 @@ export default function EmmaGame({ gameId, playerId, opponentId, isPlayerTurn, g
             ),
           ]);
 
-          // Show result
+          // Show result with swish distinction
           const msgIdx = Math.min(currentStreak, STREAK_MESSAGES.length - 1);
-          setLastResult(`+${pts}`);
+          setLastResult(isSwish ? `SWISH +${pts}` : `+${pts}`);
           if (currentStreak >= 2) {
             setStreakMsg(STREAK_MESSAGES[msgIdx]);
             setTimeout(() => setStreakMsg(null), 1200);
@@ -496,13 +498,16 @@ export default function EmmaGame({ gameId, playerId, opponentId, isPlayerTurn, g
           onMove({ type: 'throw', score: pts, total: newScore, _keepTurn: true });
 
           // Swoosh animation — ball drops through
+          const swishAnim = isSwish;
           setTimeout(() => {
             setBall(prev => prev ? { ...prev, y: prev.y + 8, s: prev.s * 0.5 } : null);
-          }, 100);
+          }, swishAnim ? 50 : 100);
         } else {
           setStreak(1);
           streakRef.current = 1;
-          setLastResult('MISS');
+          // Rim bounce for near-misses
+          const isRim = dist < SWEET_SPOT * 1.5;
+          setLastResult(isRim ? 'RIM OUT!' : 'MISS');
           setStreakMsg(null);
 
           // Bounce off animation
@@ -510,10 +515,10 @@ export default function EmmaGame({ gameId, playerId, opponentId, isPlayerTurn, g
           setTimeout(() => {
             setBall(prev => prev ? {
               ...prev,
-              x: prev.x + bounceDir * 6,
-              y: prev.y + 5,
+              x: prev.x + bounceDir * (isRim ? 3 : 6),
+              y: prev.y + (isRim ? 8 : 5),
               s: prev.s * 0.7,
-              rotation: prev.rotation + bounceDir * 90,
+              rotation: prev.rotation + bounceDir * (isRim ? 180 : 90),
             } : null);
           }, 50);
         }
@@ -778,22 +783,54 @@ export default function EmmaGame({ gameId, playerId, opponentId, isPlayerTurn, g
         {/* Hoop ring */}
         <HoopRing />
 
-        {/* Drag indicator */}
+        {/* Drag indicator with trajectory preview */}
         {dragActive && canPlay && (
           <g>
+            {/* Trajectory preview arc */}
+            {(() => {
+              const ddx = (dragCur!.x - dragStart!.x) / 100;
+              const ddy = (dragStart!.y - dragCur!.y) / 100;
+              const pwr = Math.min(1.2, Math.sqrt(ddx * ddx + ddy * ddy) * 2.5);
+              const aimX = HOOP_CX + ddx * 60 * 1.5;
+              const pErr = Math.abs(pwr - 0.6) * 12;
+              const tgtX = Math.max(15, Math.min(85, aimX));
+              const tgtY = HOOP_CY + (pwr < 0.3 ? 15 : pwr > 1.0 ? -8 : 0);
+              const pts: string[] = [];
+              for (let t = 0; t <= 1; t += 0.04) {
+                const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+                const px = 50 + (tgtX - 50) * ease;
+                const py = 85 + (tgtY - 85) * ease - Math.sin(t * Math.PI) * 30;
+                pts.push(`${px},${py}`);
+              }
+              const inZone = pErr < 4 && Math.abs(tgtX - HOOP_CX) < SWEET_SPOT;
+              return (
+                <g>
+                  <polyline points={pts.join(' ')}
+                    fill="none" stroke={inZone ? 'rgba(0,245,212,0.3)' : 'rgba(255,107,53,0.2)'}
+                    strokeWidth={0.4} strokeDasharray="1.2,0.8" />
+                  <circle cx={tgtX} cy={tgtY} r={SWEET_SPOT}
+                    fill="none" stroke={inZone ? 'rgba(0,245,212,0.25)' : 'rgba(255,107,53,0.12)'}
+                    strokeWidth={0.3} strokeDasharray="1,1" />
+                </g>
+              );
+            })()}
             {/* Power bar */}
             <rect x={5} y={70} width={3} height={-20 * dragPower}
               fill={dragPower > 0.8 ? '#ff2222' : dragPower > 0.5 ? '#fee440' : '#00f5d4'}
-              rx={1}
-              opacity={0.7}
+              rx={1} opacity={0.7}
             />
             <rect x={5} y={50} width={3} height={20}
               fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth={0.3} rx={1}
             />
+            <text x={6.5} y={48} textAnchor="middle" fontSize={2.5}
+              fontFamily="Impact, 'Arial Black', sans-serif"
+              fill="rgba(255,255,255,0.4)">
+              {Math.round(dragPower * 100)}%
+            </text>
             {/* Aim arrow */}
             <line
-              x1={dragStart.x} y1={dragStart.y}
-              x2={dragCur.x} y2={dragCur.y}
+              x1={dragStart!.x} y1={dragStart!.y}
+              x2={dragCur!.x} y2={dragCur!.y}
               stroke="rgba(255,255,255,0.3)" strokeWidth={0.5}
               strokeDasharray="1.5 1"
             />

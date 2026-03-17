@@ -217,9 +217,11 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
   const [roundScores, setRoundScores] = useState<number[]>([]);
   const [launching, setLaunching] = useState(false);
   const [streak, setStreak] = useState(0);
+  const [aimSway, setAimSway] = useState({ x: 0, y: 0 });
 
   const svgRef = useRef<SVGSVGElement>(null);
   const raf = useRef<number>(0);
+  const swayRaf = useRef<number>(0);
   const infoT = useRef<ReturnType<typeof setTimeout>>();
   const launchT = useRef<ReturnType<typeof setTimeout>>();
   const reconstructed = useRef(false);
@@ -382,6 +384,23 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
     if (launchT.current) clearTimeout(launchT.current);
   }, []);
 
+  // ── Aim sway (makes aiming harder in later rounds) ───────────────────────
+  useEffect(() => {
+    if (!isPlayerTurn || over || !pigeon?.launched || pigeon.hit || pigeon.missed) return;
+    const intensity = 0.3 + round * 0.15; // increases with round
+    let t = 0;
+    const swayLoop = () => {
+      t += 0.05;
+      setAimSway({
+        x: Math.sin(t * 2.3) * intensity + Math.sin(t * 5.1) * intensity * 0.3,
+        y: Math.cos(t * 1.7) * intensity * 0.6 + Math.sin(t * 3.9) * intensity * 0.2,
+      });
+      swayRaf.current = requestAnimationFrame(swayLoop);
+    };
+    swayRaf.current = requestAnimationFrame(swayLoop);
+    return () => cancelAnimationFrame(swayRaf.current);
+  }, [isPlayerTurn, over, pigeon?.launched, pigeon?.hit, pigeon?.missed, round]);
+
   // ── Controls ──────────────────────────────────────────────────────────────
 
   const getPos = (e: React.MouseEvent | React.TouchEvent) => {
@@ -408,7 +427,10 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
     setTimeout(() => setRecoil(false), 150);
 
     const pos = pigeonPos(pigeon, wind);
-    const dist = Math.sqrt((crosshair.x - pos.x) ** 2 + (crosshair.y - pos.y) ** 2);
+    // Apply aim sway to actual shot position
+    const actualX = crosshair.x + aimSway.x;
+    const actualY = crosshair.y + aimSway.y;
+    const dist = Math.sqrt((actualX - pos.x) ** 2 + (actualY - pos.y) ** 2);
 
     const spreadR = 8 * pigeon.size;
     const typedef = PIGEON_TYPES[pigeon.kind];
@@ -613,6 +635,20 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
           {/* Sky */}
           <rect width="100" height="100" fill="url(#pigeonSky)" />
 
+          {/* Sun */}
+          <circle cx={80} cy={12} r={6} fill="rgba(255,240,180,0.3)" />
+          <circle cx={80} cy={12} r={3} fill="rgba(255,245,200,0.5)" />
+
+          {/* Distant birds (V-shapes) */}
+          {[
+            { x: 20, y: 8 }, { x: 22, y: 9 }, { x: 60, y: 6 },
+            { x: 62, y: 7.5 }, { x: 63, y: 5.5 }, { x: 35, y: 11 },
+          ].map((b, i) => (
+            <path key={`bird${i}`}
+              d={`M ${b.x - 1.5} ${b.y + 0.5} Q ${b.x - 0.5} ${b.y - 0.5}, ${b.x} ${b.y} Q ${b.x + 0.5} ${b.y - 0.5}, ${b.x + 1.5} ${b.y + 0.5}`}
+              fill="none" stroke="rgba(30,30,30,0.15)" strokeWidth={0.3} />
+          ))}
+
           {/* Clouds */}
           {[
             { cx: 15, cy: 12, rx: 12, ry: 4 },
@@ -702,22 +738,22 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
           {/* Shotgun */}
           <Shotgun recoil={recoil} />
 
-          {/* Crosshair */}
+          {/* Crosshair with sway */}
           {showCrosshair && isPlayerTurn && pigeon?.launched && (
             <g>
-              <circle cx={crosshair.x} cy={crosshair.y} r={4} fill="none"
+              <circle cx={crosshair.x + aimSway.x} cy={crosshair.y + aimSway.y} r={4} fill="none"
                 stroke="rgba(255,255,255,0.5)" strokeWidth={0.3} />
-              <circle cx={crosshair.x} cy={crosshair.y} r={1.5} fill="none"
+              <circle cx={crosshair.x + aimSway.x} cy={crosshair.y + aimSway.y} r={1.5} fill="none"
                 stroke="rgba(255,255,255,0.6)" strokeWidth={0.2} />
-              <line x1={crosshair.x - 6} y1={crosshair.y} x2={crosshair.x - 2} y2={crosshair.y}
+              <line x1={crosshair.x + aimSway.x - 6} y1={crosshair.y + aimSway.y} x2={crosshair.x + aimSway.x - 2} y2={crosshair.y + aimSway.y}
                 stroke="rgba(255,255,255,0.5)" strokeWidth={0.3} />
-              <line x1={crosshair.x + 2} y1={crosshair.y} x2={crosshair.x + 6} y2={crosshair.y}
+              <line x1={crosshair.x + aimSway.x + 2} y1={crosshair.y + aimSway.y} x2={crosshair.x + aimSway.x + 6} y2={crosshair.y + aimSway.y}
                 stroke="rgba(255,255,255,0.5)" strokeWidth={0.3} />
-              <line x1={crosshair.x} y1={crosshair.y - 6} x2={crosshair.x} y2={crosshair.y - 2}
+              <line x1={crosshair.x + aimSway.x} y1={crosshair.y + aimSway.y - 6} x2={crosshair.x + aimSway.x} y2={crosshair.y + aimSway.y - 2}
                 stroke="rgba(255,255,255,0.5)" strokeWidth={0.3} />
-              <line x1={crosshair.x} y1={crosshair.y + 2} x2={crosshair.x} y2={crosshair.y + 6}
+              <line x1={crosshair.x + aimSway.x} y1={crosshair.y + aimSway.y + 2} x2={crosshair.x + aimSway.x} y2={crosshair.y + aimSway.y + 6}
                 stroke="rgba(255,255,255,0.5)" strokeWidth={0.3} />
-              <circle cx={crosshair.x} cy={crosshair.y} r={0.5} fill="rgba(255,50,50,0.7)" />
+              <circle cx={crosshair.x + aimSway.x} cy={crosshair.y + aimSway.y} r={0.5} fill="rgba(255,50,50,0.7)" />
             </g>
           )}
 

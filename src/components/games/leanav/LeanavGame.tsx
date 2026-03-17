@@ -458,25 +458,42 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
                         </g>
                       )}
 
-                      {/* Hit — wine spill stain */}
+                      {/* Hit — wine spill stain with drips */}
                       {st === 'hit' && !showShips && (
                         <g>
                           <circle cx={c * cs + cs / 2} cy={r * cs + cs / 2}
-                            r={cs * 0.35} fill="rgba(123,16,36,0.5)" />
+                            r={cs * 0.38} fill="rgba(123,16,36,0.55)" />
                           <circle cx={c * cs + cs / 2} cy={r * cs + cs / 2}
-                            r={cs * 0.2} fill="rgba(180,20,50,0.6)" />
+                            r={cs * 0.22} fill="rgba(180,20,50,0.65)" />
+                          {/* Wine drip streaks */}
+                          {[0, 1, 2].map(i => {
+                            const angle = ((r * 7 + c * 11 + i * 47) % 360) * Math.PI / 180;
+                            const len = cs * (0.15 + (i * 0.08));
+                            const ox = Math.cos(angle) * cs * 0.25;
+                            const oy = Math.sin(angle) * cs * 0.25;
+                            return (
+                              <line key={i}
+                                x1={c * cs + cs / 2 + ox} y1={r * cs + cs / 2 + oy}
+                                x2={c * cs + cs / 2 + ox + Math.cos(angle) * len}
+                                y2={r * cs + cs / 2 + oy + Math.sin(angle) * len}
+                                stroke="rgba(140,16,35,0.35)" strokeWidth={1.5 - i * 0.3}
+                                strokeLinecap="round" />
+                            );
+                          })}
                           {/* Splash drops */}
-                          <circle cx={c * cs + cs * 0.25} cy={r * cs + cs * 0.3}
+                          <circle cx={c * cs + cs * 0.22} cy={r * cs + cs * 0.28}
                             r={cs * 0.06} fill="rgba(160,20,40,0.4)" />
-                          <circle cx={c * cs + cs * 0.72} cy={r * cs + cs * 0.65}
+                          <circle cx={c * cs + cs * 0.75} cy={r * cs + cs * 0.68}
                             r={cs * 0.05} fill="rgba(140,16,35,0.35)" />
+                          <circle cx={c * cs + cs * 0.78} cy={r * cs + cs * 0.25}
+                            r={cs * 0.04} fill="rgba(150,18,38,0.3)" />
                           {/* X mark */}
                           <line x1={c * cs + cs * 0.3} y1={r * cs + cs * 0.3}
                             x2={c * cs + cs * 0.7} y2={r * cs + cs * 0.7}
-                            stroke="rgba(255,200,210,0.5)" strokeWidth={1.5} strokeLinecap="round" />
+                            stroke="rgba(255,200,210,0.55)" strokeWidth={1.8} strokeLinecap="round" />
                           <line x1={c * cs + cs * 0.7} y1={r * cs + cs * 0.3}
                             x2={c * cs + cs * 0.3} y2={r * cs + cs * 0.7}
-                            stroke="rgba(255,200,210,0.5)" strokeWidth={1.5} strokeLinecap="round" />
+                            stroke="rgba(255,200,210,0.55)" strokeWidth={1.8} strokeLinecap="round" />
                         </g>
                       )}
                     </g>
@@ -516,13 +533,27 @@ export default function LeanavGame({ gameId, playerId, opponentId, isPlayerTurn,
                 return <g opacity={0.4}><WineBottle ship={previewShip} cs={cs} /></g>;
               })()}
 
-              {/* Hit/miss ripple */}
+              {/* Hit/miss ripple — double ring */}
               {lastHit && (
-                <circle cx={lastHit.c * cs + cs / 2} cy={lastHit.r * cs + cs / 2} r={2}
-                  fill="none" stroke={lastHit.hit ? '#c0183a' : '#c9a050'} strokeWidth={1.5} opacity={0.8}>
-                  <animate attributeName="r" from="2" to={`${cs * 0.8}`} dur="0.7s" fill="freeze" />
-                  <animate attributeName="opacity" from="0.8" to="0" dur="0.7s" fill="freeze" />
-                </circle>
+                <g>
+                  <circle cx={lastHit.c * cs + cs / 2} cy={lastHit.r * cs + cs / 2} r={2}
+                    fill="none" stroke={lastHit.hit ? '#c0183a' : '#c9a050'} strokeWidth={1.5} opacity={0.8}>
+                    <animate attributeName="r" from="2" to={`${cs * 0.8}`} dur="0.7s" fill="freeze" />
+                    <animate attributeName="opacity" from="0.8" to="0" dur="0.7s" fill="freeze" />
+                  </circle>
+                  <circle cx={lastHit.c * cs + cs / 2} cy={lastHit.r * cs + cs / 2} r={1}
+                    fill="none" stroke={lastHit.hit ? '#e8203a' : '#d4b060'} strokeWidth={1} opacity={0.6}>
+                    <animate attributeName="r" from="1" to={`${cs * 0.6}`} dur="0.5s" begin="0.1s" fill="freeze" />
+                    <animate attributeName="opacity" from="0.6" to="0" dur="0.5s" begin="0.1s" fill="freeze" />
+                  </circle>
+                  {lastHit.hit && (
+                    <circle cx={lastHit.c * cs + cs / 2} cy={lastHit.r * cs + cs / 2} r={cs * 0.15}
+                      fill="rgba(200,20,50,0.6)">
+                      <animate attributeName="r" from={`${cs * 0.05}`} to={`${cs * 0.3}`} dur="0.3s" fill="freeze" />
+                      <animate attributeName="opacity" from="0.6" to="0" dur="0.6s" fill="freeze" />
+                    </circle>
+                  )}
+                </g>
               )}
             </svg>
           </div>
