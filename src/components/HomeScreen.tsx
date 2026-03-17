@@ -42,13 +42,32 @@ export function HomeScreen({ onPlayMatch }: HomeScreenProps) {
     loadData();
   }, []);
 
+  // Realtime: auto-refresh active matches when challenges change
+  useEffect(() => {
+    if (!userId) return;
+
+    const channel = supabase
+      .channel('home-challenges')
+      .on('postgres_changes' as any, {
+        event: '*',
+        schema: 'public',
+        table: 'challenges',
+      }, () => {
+        loadActiveMatches(userId);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId]);
+
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     
     setUserId(user.id);
-    await loadActiveMatches(user.id);
-    await loadStats(user.id);
+    await Promise.all([loadActiveMatches(user.id), loadStats(user.id)]);
   }
 
   async function loadActiveMatches(currentUserId: string) {
@@ -221,6 +240,17 @@ export function HomeScreen({ onPlayMatch }: HomeScreenProps) {
             Parties en cours
           </h2>
           <div className="space-y-2">
+            {activeMatches.length === 0 && (
+              <div
+                className="rounded-xl p-6 text-center border border-white/10"
+                style={{ background: 'rgba(255, 255, 255, 0.03)', backdropFilter: 'blur(10px)' }}
+              >
+                <p className="text-3xl mb-2">🎮</p>
+                <p className="text-sm text-white/50" style={{ fontFamily: 'Inter, sans-serif' }}>
+                  Aucune partie en cours — lance un défi !
+                </p>
+              </div>
+            )}
             {activeMatches.map((match, index) => (
               <motion.div
                 key={match.id}
@@ -468,7 +498,7 @@ export function HomeScreen({ onPlayMatch }: HomeScreenProps) {
                       </span>
                       <span className="text-white/30">•</span>
                       <span className="text-white/50 font-semibold" style={{ fontFamily: 'Inter, sans-serif' }}>
-                        {Math.round((stat.wins / (stat.wins + stat.losses)) * 100)}%
+                        {stat.wins + stat.losses > 0 ? Math.round((stat.wins / (stat.wins + stat.losses)) * 100) : 0}%
                       </span>
                     </div>
                   </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Users, Home, User as UserIcon } from 'lucide-react';
 import { HomeScreen } from './HomeScreen';
@@ -6,6 +6,7 @@ import { FriendsPanel } from './FriendsPanel';
 import { ProfilePanel } from './ProfilePanel';
 import { GameRoomWrapper } from './GameRoomWrapper';
 import { useTheme } from '../contexts/ThemeContext';
+import { supabase } from '../utils/client';
 
 interface MainAppProps {
   user: { id: string; name: string; email: string };
@@ -24,7 +25,35 @@ interface ActiveGame {
 export function MainApp({ user, onLogout }: MainAppProps) {
   const [activeTab, setActiveTab] = useState<Tab>('play');
   const [activeGame, setActiveGame] = useState<ActiveGame | null>(null);
+  const [pendingFriendCount, setPendingFriendCount] = useState(0);
   const { colors } = useTheme();
+
+  // Load & subscribe to pending friend request count
+  useEffect(() => {
+    loadPendingCount();
+
+    const channel = supabase
+      .channel('nav-friendships')
+      .on('postgres_changes' as any, {
+        event: '*',
+        schema: 'public',
+        table: 'friendships',
+      }, () => {
+        loadPendingCount();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user.id]);
+
+  async function loadPendingCount() {
+    const { count } = await supabase
+      .from('friendships')
+      .select('id', { count: 'exact', head: true })
+      .eq('friend_id', user.id)
+      .eq('status', 'pending');
+    setPendingFriendCount(count || 0);
+  }
 
   function handlePlayMatch(match: any) {
     setActiveGame({
@@ -163,7 +192,7 @@ export function MainApp({ user, onLogout }: MainAppProps) {
                 animate={{
                   scale: activeTab === 'friends' ? 1.1 : 1,
                 }}
-                className="p-3 rounded-2xl"
+                className="p-3 rounded-2xl relative"
                 style={{
                   background: activeTab === 'friends' ? `${colors.primary}30` : 'rgba(255, 255, 255, 0.05)',
                 }}
@@ -172,6 +201,16 @@ export function MainApp({ user, onLogout }: MainAppProps) {
                   size={24}
                   style={{ color: activeTab === 'friends' ? colors.primary : 'rgba(255, 255, 255, 0.5)' }}
                 />
+                {pendingFriendCount > 0 && (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1"
+                    style={{ background: '#ef4444', fontSize: '10px', fontWeight: 700, color: 'white', fontFamily: 'Inter, sans-serif' }}
+                  >
+                    {pendingFriendCount}
+                  </motion.div>
+                )}
               </motion.div>
               <span
                 className="text-xs font-semibold"

@@ -108,8 +108,11 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex flex-col items-center justify-center gap-4">
+        <div className="text-3xl font-black" style={{ fontFamily: 'Outfit, sans-serif', color: '#10b981', textShadow: '0 0 20px rgba(16,185,129,0.4)' }}>
+          KENNYGAMES
+        </div>
+        <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }

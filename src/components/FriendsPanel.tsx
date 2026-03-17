@@ -520,6 +520,14 @@ export function FriendsPanel() {
               <p className="text-xs text-white/40 uppercase font-bold mb-3 px-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
                 En ligne — {onlineFriends.length}
               </p>
+              {onlineFriends.length === 0 && (
+                <div className="text-center py-8">
+                  <p className="text-3xl mb-2">😴</p>
+                  <p className="text-sm text-white/40" style={{ fontFamily: 'Inter, sans-serif' }}>
+                    Aucun ami en ligne pour le moment
+                  </p>
+                </div>
+              )}
               {onlineFriends.map((friend) => (
                 <motion.div
                   key={friend.id}
@@ -672,6 +680,11 @@ export function FriendsPanel() {
               <p className="text-xs text-white/40 uppercase font-bold mb-3 px-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
                 Demandes en attente — {pendingRequests.length}
               </p>
+              {pendingRequests.length === 0 && (
+                <p className="text-sm text-white/40 text-center py-8" style={{ fontFamily: 'Inter, sans-serif' }}>
+                  Aucune demande en attente
+                </p>
+              )}
               {pendingRequests.map((request) => (
                 <motion.div
                   key={request.id}
