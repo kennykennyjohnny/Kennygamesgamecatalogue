@@ -12,6 +12,22 @@ import { motion, AnimatePresence } from 'motion/react';
 const ROUNDS = 5;
 const SHOTS_PER_ROUND = 3;
 
+// ── Pigeon types for variety ────────────────────────────────────────────────
+type PigeonKind = 'standard' | 'fast' | 'tiny' | 'double';
+interface PigeonTypeDef {
+  label: string;
+  speed: [number, number]; // min, max
+  size: number;            // r multiplier
+  basePoints: number;
+  color: string;
+}
+const PIGEON_TYPES: Record<PigeonKind, PigeonTypeDef> = {
+  standard: { label: 'Classique', speed: [0.006, 0.010], size: 1.0, basePoints: 10, color: '#c45a20' },
+  fast:     { label: 'Rapide',    speed: [0.010, 0.016], size: 1.0, basePoints: 15, color: '#e84040' },
+  tiny:     { label: 'Mini',      speed: [0.006, 0.012], size: 0.65, basePoints: 20, color: '#e8a020' },
+  double:   { label: 'Double',    speed: [0.007, 0.011], size: 0.85, basePoints: 12, color: '#7a40e8' },
+};
+
 const P = {
   sky1: '#4a90d9',
   sky2: '#87ceeb',
@@ -135,23 +151,43 @@ interface Pigeon {
   hit: boolean;
   missed: boolean;
   t: number;
+  kind: PigeonKind;
+  size: number;
 }
 
-function makePigeon(id: number, wind: number): Pigeon {
+function pickPigeonKind(round: number, seed: string): PigeonKind {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = ((h << 5) - h + seed.charCodeAt(i)) | 0;
+  const r = Math.abs(h % 100);
+  if (round <= 2) return 'standard';
+  if (round === 3) return r < 60 ? 'standard' : r < 85 ? 'fast' : 'tiny';
+  // rounds 4-5: harder pigeons
+  if (r < 30) return 'standard';
+  if (r < 55) return 'fast';
+  if (r < 80) return 'tiny';
+  return 'double';
+}
+
+function makePigeon(id: number, wind: number, round: number, gameId: string): Pigeon {
+  const kind = pickPigeonKind(round, `${gameId}-${id}`);
+  const typedef = PIGEON_TYPES[kind];
   const fromLeft = Math.random() > 0.5;
   const startX = fromLeft ? -5 : 105;
   const targetX = fromLeft ? 80 + Math.random() * 25 : -5 - Math.random() * 25;
+  const [sMin, sMax] = typedef.speed;
   return {
     id,
     startX,
     startY: 70 + Math.random() * 10,
     targetX,
     peakY: 15 + Math.random() * 25,
-    speed: 0.006 + Math.random() * 0.004,
+    speed: sMin + Math.random() * (sMax - sMin),
     launched: false,
     hit: false,
     missed: false,
     t: 0,
+    kind,
+    size: typedef.size,
   };
 }
 
@@ -180,6 +216,7 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
   const [showCrosshair, setShowCrosshair] = useState(false);
   const [roundScores, setRoundScores] = useState<number[]>([]);
   const [launching, setLaunching] = useState(false);
+  const [streak, setStreak] = useState(0);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const raf = useRef<number>(0);
@@ -251,7 +288,7 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
     const delay = 500 + Math.random() * 1000;
     setLaunching(true);
     launchT.current = setTimeout(() => {
-      const p = makePigeon(round * 10 + shot, wind);
+      const p = makePigeon(round * 10 + shot, wind, round, gameId);
       p.launched = true;
       setPigeon(p);
       setLaunching(false);
@@ -284,6 +321,7 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
     if (!pigeon?.missed) return;
     setMissEffect(true);
     setRoundScores(prev => [...prev, 0]);
+    setStreak(0);
 
     onMove({
       type: 'shoot', round, arrow: shot, score: 0,
@@ -372,12 +410,22 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
     const pos = pigeonPos(pigeon, wind);
     const dist = Math.sqrt((crosshair.x - pos.x) ** 2 + (crosshair.y - pos.y) ** 2);
 
-    const spreadR = 8;
+    const spreadR = 8 * pigeon.size;
+    const typedef = PIGEON_TYPES[pigeon.kind];
     let score = 0;
-    if (dist < spreadR * 0.3) score = 10;
-    else if (dist < spreadR * 0.5) score = 7;
-    else if (dist < spreadR * 0.75) score = 5;
-    else if (dist < spreadR) score = 3;
+    if (dist < spreadR * 0.3) score = typedef.basePoints;
+    else if (dist < spreadR * 0.5) score = Math.round(typedef.basePoints * 0.7);
+    else if (dist < spreadR * 0.75) score = Math.round(typedef.basePoints * 0.5);
+    else if (dist < spreadR) score = Math.round(typedef.basePoints * 0.3);
+
+    // Streak bonus: +2 per consecutive hit
+    if (score > 0) {
+      const bonus = streak * 2;
+      score += bonus;
+      setStreak(s => s + 1);
+    } else {
+      setStreak(0);
+    }
 
     if (score > 0) {
       setPigeon(prev => prev ? { ...prev, hit: true } : null);
@@ -454,6 +502,19 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
           <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', fontStyle: 'italic', marginTop: 2 }}>
             💨 {wind > 0 ? '→' : wind < 0 ? '←' : '○'} {Math.abs(wind).toFixed(1)} km/h
           </div>
+          {streak >= 2 && (
+            <div style={{ fontSize: 10, color: '#ff4444', fontWeight: 900, marginTop: 2,
+              textShadow: '0 0 6px rgba(255,68,68,0.5)' }}>
+              🔥 Streak ×{streak}
+            </div>
+          )}
+          {pigeon?.launched && !pigeon.hit && !pigeon.missed && (
+            <div style={{ fontSize: 9, marginTop: 2, fontWeight: 700,
+              color: PIGEON_TYPES[pigeon.kind].color,
+              textShadow: `0 0 4px ${PIGEON_TYPES[pigeon.kind].color}44` }}>
+              {PIGEON_TYPES[pigeon.kind].label}
+            </div>
+          )}
         </div>
       </div>
 
@@ -603,15 +664,15 @@ export default function NourarcheryGame({ gameId, playerId, opponentId, isPlayer
           </g>
 
           {/* ── Flying pigeon ── */}
-          {pigeonVisible && pPos && (
-            <ClayPigeon cx={pPos.x} cy={pPos.y} r={3.5} breaking={false} />
+          {pigeonVisible && pPos && pigeon && (
+            <ClayPigeon cx={pPos.x} cy={pPos.y} r={3.5 * pigeon.size} breaking={false} />
           )}
 
           {/* ── Hit effect ── */}
           <AnimatePresence>
             {hitEffect && (
               <g>
-                <ClayPigeon cx={hitEffect.x} cy={hitEffect.y} r={3.5} breaking={true} />
+                <ClayPigeon cx={hitEffect.x} cy={hitEffect.y} r={3.5 * (pigeon?.size ?? 1)} breaking={true} />
                 <motion.text initial={{ opacity: 0, y: hitEffect.y }} animate={{ opacity: 1, y: hitEffect.y - 8 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.5 }}

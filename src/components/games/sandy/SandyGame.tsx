@@ -176,6 +176,7 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
   const [shotsLeft, setShotsLeft] = useState(2);
   const [turnHits, setTurnHits] = useState(0);
   const [rerackMsg, setRerackMsg] = useState<string | null>(null);
+  const [hotHand, setHotHand] = useState(0);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const raf = useRef<number>(0);
@@ -312,7 +313,9 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
           setOpCups(prev => prev.map(c => c.id === hitCup!.id ? { ...c, alive: false } : c));
           setSplash({ x: hitCup.x, y: hitCup.y });
           setTimeout(() => setSplash(null), 900);
-          setLastResult('🥂 Touché !');
+          setHotHand(h => h + 1);
+          const streak = hotHand + 1;
+          setLastResult(streak >= 3 ? `🔥🔥🔥 EN FEU ! (${streak})` : streak >= 2 ? `🔥 Hot hand ! (${streak})` : '🥂 Touché !');
           const remaining = opCups.filter(c => c.alive && c.id !== hitCup!.id);
           if (remaining.length === 0) {
             setOver(true); setWin(playerId);
@@ -336,6 +339,7 @@ export default function SandyGame({ gameId, playerId, opponentId, isPlayerTurn, 
           }
         } else {
           setLastResult('💨 Raté…');
+          setHotHand(0);
         }
 
         // Send the throw move — keep turn as long as we have shots or balls back triggers
