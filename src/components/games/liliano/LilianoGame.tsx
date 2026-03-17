@@ -10,11 +10,26 @@ import { motion, AnimatePresence } from 'motion/react';
 const W = 480;
 const H = 300;
 const GRAVITY = 0.12;
-const EXPLOSION_R = 18;
 const TANK_W = 20;
 const TANK_H = 10;
 const MAX_HP = 100;
 const PROJECTILE_STEP = 3;
+
+// ── Weapons ────────────────────────────────────────────────────────────────
+type WeaponType = 'standard' | 'bigbertha' | 'sniper';
+interface WeaponDef {
+  label: string;
+  radius: number;
+  maxDmg: number;
+  speedMul: number;      // multiplier on projectile speed
+  terrainMul: number;    // multiplier on terrain crater depth
+  color: string;
+}
+const WEAPONS: Record<WeaponType, WeaponDef> = {
+  standard:  { label: 'Standard',    radius: 18, maxDmg: 40, speedMul: 1.0,  terrainMul: 1.0, color: '#ffff00' },
+  bigbertha: { label: 'Big Bertha',  radius: 30, maxDmg: 50, speedMul: 0.7,  terrainMul: 1.5, color: '#ff6600' },
+  sniper:    { label: 'Sniper',      radius: 10, maxDmg: 60, speedMul: 1.5,  terrainMul: 0.5, color: '#00ffff' },
+};
 
 const P = {
   bg: '#0a0a0a',
@@ -28,15 +43,68 @@ const P = {
   sky: 'linear-gradient(180deg, #0a0008 0%, #1a0020 40%, #2d0030 60%, #0a0a0a 100%)',
 };
 
-function genTerrain(seed: string): number[] {
+// ── Seeded PRNG (Mulberry32) ──────────────────────────────────────────────
+function mulberry32(seed: number): () => number {
+  return () => {
+    let t = seed += 0x6D2B79F5;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function hashStr(s: string): number {
   let h = 0;
-  for (let i = 0; i < seed.length; i++) h = ((h << 5) - h + seed.charCodeAt(i)) | 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return h;
+}
+
+// ── Midpoint displacement terrain ─────────────────────────────────────────
+function genTerrain(seed: string): number[] {
+  const numSeed = hashStr(seed);
+  const rng = mulberry32(numSeed);
+
+  const minH = H * 0.3;
+  const maxH = H * 0.8;
+  const range = maxH - minH;
+  const roughness = 0.5;
+
+  // Need power-of-2 + 1 points for clean subdivision
+  const pow2 = Math.pow(2, Math.ceil(Math.log2(W)));
+  const numPoints = pow2 + 1;
+  const points = new Float32Array(numPoints);
+
+  // Initialize endpoints
+  points[0] = minH + rng() * range;
+  points[numPoints - 1] = minH + rng() * range;
+
+  // Midpoint displacement algorithm
+  let segLen = pow2;
+  let disp = range;
+
+  while (segLen > 1) {
+    const half = segLen / 2;
+    for (let i = 0; i < numPoints - 1; i += segLen) {
+      const mid = i + half;
+      points[mid] = (points[i] + points[i + segLen]) / 2 + (rng() - 0.5) * disp;
+    }
+    disp *= roughness;
+    segLen = half;
+  }
+
+  // Clamp to valid range
+  for (let i = 0; i < numPoints; i++) {
+    points[i] = Math.max(minH, Math.min(maxH, points[i]));
+  }
+
+  // Interpolate to exact width
   const terrain: number[] = [];
-  let y = H * 0.55;
   for (let x = 0; x < W; x++) {
-    const s = Math.sin(x * 0.015 + h) * 25 + Math.sin(x * 0.04 + h * 2) * 12 + Math.sin(x * 0.08 + h * 3) * 6;
-    y = H * 0.55 + s;
-    terrain.push(Math.max(H * 0.3, Math.min(H * 0.8, y)));
+    const pIdx = (x / (W - 1)) * (numPoints - 1);
+    const li = Math.floor(pIdx);
+    const ri = Math.min(li + 1, numPoints - 1);
+    const t = pIdx - li;
+    terrain.push(points[li] * (1 - t) + points[ri] * t);
   }
   return terrain;
 }
@@ -150,6 +218,7 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
   const [over, setOver] = useState(false);
   const [win, setWin] = useState<string | null>(null);
   const [trail, setTrail] = useState<{ x: number; y: number }[]>([]);
+  const [selectedWeapon, setSelectedWeapon] = useState<WeaponType>('standard');
 
   const raf = useRef<number>(0);
   const msgT = useRef<ReturnType<typeof setTimeout>>();
@@ -243,17 +312,48 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
       if (msgT.current) clearTimeout(msgT.current);
       msgT.current = setTimeout(() => setLastMsg(null), 1800);
 
-      // Animate opponent's shot visually
-      animateShot(opPos.x, opPos.y, m.angle, m.power, wind, true);
+      // Animate opponent's shot visually (use their weapon if sent, else standard)
+      const opWeapon: WeaponType = m.weapon && WEAPONS[m.weapon as WeaponType] ? m.weapon : 'standard';
+      animateShot(opPos.x, opPos.y, m.angle, m.power, wind, true, opWeapon);
     }
   }, [gameState?.lastMove]);
 
+  // ── Trajectory preview (computed each render when controls change) ──────
+
+  const trajectoryPreview = (() => {
+    if (firing || !isPlayerTurn || over || terrain.length === 0) return [];
+    const wpn = WEAPONS[selectedWeapon];
+    const rad = (angle * Math.PI) / 180;
+    const speed = power * 0.06 * wpn.speedMul;
+    const dirX = isHost ? 1 : -1;
+    let vx = Math.cos(rad) * speed * dirX;
+    let vy = -Math.sin(rad) * speed;
+    let px = myPos.x;
+    let py = myPos.y - TANK_H;
+    const pts: { x: number; y: number }[] = [];
+    const maxSteps = 200;
+    for (let s = 0; s < maxSteps; s++) {
+      vx += wind * 0.003;
+      vy += GRAVITY;
+      px += vx * PROJECTILE_STEP;
+      py += vy * PROJECTILE_STEP;
+      if (px < -10 || px > W + 10 || py > H + 10) break;
+      const ti = Math.round(px);
+      if (ti >= 0 && ti < W && py >= terrain[ti]) break;
+      pts.push({ x: px, y: py });
+    }
+    // Return first 30% of the path
+    const count = Math.max(1, Math.round(pts.length * 0.3));
+    return pts.slice(0, count);
+  })();
+
   // ── Fire logic ─────────────────────────────────────────────────────────────
 
-  const animateShot = useCallback((sx: number, sy: number, ang: number, pow: number, w: number, isOp: boolean) => {
+  const animateShot = useCallback((sx: number, sy: number, ang: number, pow: number, w: number, isOp: boolean, wpnType: WeaponType = 'standard') => {
     setFiring(true);
+    const wpn = WEAPONS[wpnType];
     const rad = (ang * Math.PI) / 180;
-    const speed = pow * 0.06;
+    const speed = pow * 0.06 * wpn.speedMul;
     let vx = Math.cos(rad) * speed * (isOp && isHost ? -1 : !isOp && !isHost ? -1 : 1);
     let vy = -Math.sin(rad) * speed;
     let px = sx;
@@ -278,8 +378,7 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
           setLastMsg('💨 Perdu dans le vide !');
           if (msgT.current) clearTimeout(msgT.current);
           msgT.current = setTimeout(() => setLastMsg(null), 1500);
-          // Send miss move
-          onMove({ type: 'fire', angle: ang, power: pow, dmg: 0, _keepTurn: false });
+          onMove({ type: 'fire', angle: ang, power: pow, dmg: 0, weapon: wpnType, _keepTurn: false });
         }
         setTurn(t => {
           const next = t + 1;
@@ -294,17 +393,19 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
       if (ti >= 0 && ti < W && py >= terrain[ti]) {
         setProjectile(null);
         setTrail([]);
-        setExplosion({ x: px, y: py, r: EXPLOSION_R });
+        setExplosion({ x: px, y: py, r: wpn.radius });
         if (!isOp) setShake(true);
         setTimeout(() => { if (!isOp) setShake(false); }, 400);
 
         // Damage terrain
+        const explosionR = wpn.radius;
+        const tMul = wpn.terrainMul;
         setTerrain(prev => {
           const t = [...prev];
-          for (let i = Math.max(0, ti - EXPLOSION_R); i < Math.min(W, ti + EXPLOSION_R); i++) {
+          for (let i = Math.max(0, ti - explosionR); i < Math.min(W, ti + explosionR); i++) {
             const dx = i - ti;
-            const depth = Math.sqrt(EXPLOSION_R * EXPLOSION_R - dx * dx);
-            t[i] = Math.max(t[i], py + depth * 0.3);
+            const depth = Math.sqrt(explosionR * explosionR - dx * dx);
+            t[i] = Math.max(t[i], py + depth * 0.3 * tMul);
           }
           return t;
         });
@@ -312,8 +413,8 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
         if (!isOp) {
           // My shot — check if it hits opponent
           const distOp = Math.sqrt((px - opPos.x) ** 2 + (py - opPos.y) ** 2);
-          const hit = distOp < EXPLOSION_R;
-          const dmg = hit ? Math.round((1 - distOp / EXPLOSION_R) * 40 + 10) : 0;
+          const hit = distOp < explosionR;
+          const dmg = hit ? Math.round((1 - distOp / explosionR) * wpn.maxDmg + 10) : 0;
           if (hit) {
             setOpHP(prev => {
               const n = Math.max(0, prev - dmg);
@@ -324,8 +425,8 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
           } else {
             setLastMsg('💨 Raté...');
           }
-          // Include damage in the move so opponent can sync
-          onMove({ type: 'fire', angle: ang, power: pow, dmg, _keepTurn: false });
+          // Include damage and weapon in the move so opponent can sync
+          onMove({ type: 'fire', angle: ang, power: pow, dmg, weapon: wpnType, _keepTurn: false });
 
           if (msgT.current) clearTimeout(msgT.current);
           msgT.current = setTimeout(() => setLastMsg(null), 1800);
@@ -352,7 +453,7 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
 
   const doFire = () => {
     if (firing || !isPlayerTurn || over) return;
-    animateShot(myPos.x, myPos.y, angle, power, wind, false);
+    animateShot(myPos.x, myPos.y, angle, power, wind, false, selectedWeapon);
   };
 
   useEffect(() => () => {
@@ -535,9 +636,19 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
           <TankSVG x={opPos.x} y={opPos.y} color={P.neonOrange} angle={isHost ? 180 - opAngle : opAngle}
             hp={opHP} isMe={false} flash={false} />
 
+          {/* Trajectory preview (dotted) */}
+          {trajectoryPreview.length > 0 && !firing && trajectoryPreview.map((p, i) => {
+            if (i % 3 !== 0) return null; // dotted: every 3rd point
+            const fade = 1 - (i / trajectoryPreview.length);
+            return (
+              <circle key={`tp${i}`} cx={p.x} cy={p.y} r={1}
+                fill={WEAPONS[selectedWeapon].color} opacity={fade * 0.4} />
+            );
+          })}
+
           {/* Projectile trail */}
           {trail.map((p, i) => (
-            <circle key={i} cx={p.x} cy={p.y} r={0.8} fill={P.neonYellow}
+            <circle key={i} cx={p.x} cy={p.y} r={0.8} fill={WEAPONS[selectedWeapon].color}
               opacity={(i / trail.length) * 0.5} />
           ))}
 
@@ -580,6 +691,35 @@ export default function LilianoGame({ gameId, playerId, opponentId, isPlayerTurn
               style={{ flex: 1, accentColor: P.neonYellow, height: 6 }} />
             <span style={{ fontSize: 14, color: P.neonYellow, width: 36, textAlign: 'right',
               fontWeight: 900, textShadow: `0 0 8px ${P.neonYellow}` }}>{power}%</span>
+          </div>
+          {/* Weapon selector */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+            {(Object.entries(WEAPONS) as [WeaponType, WeaponDef][]).map(([key, wpn]) => {
+              const active = selectedWeapon === key;
+              const canSelect = isPlayerTurn && !firing;
+              return (
+                <button key={key} onClick={() => canSelect && setSelectedWeapon(key)}
+                  disabled={!canSelect}
+                  style={{
+                    flex: 1, padding: '7px 4px', borderRadius: 8, fontSize: 10, fontWeight: 900,
+                    fontFamily: font, letterSpacing: 1, textTransform: 'uppercase',
+                    background: active
+                      ? `linear-gradient(135deg, ${wpn.color}22, ${wpn.color}11)`
+                      : 'rgba(20,20,20,0.6)',
+                    color: active ? wpn.color : '#555',
+                    border: `1.5px solid ${active ? wpn.color : '#2a2a2a'}`,
+                    cursor: canSelect ? 'pointer' : 'not-allowed',
+                    boxShadow: active ? `0 0 12px ${wpn.color}33, inset 0 1px 0 rgba(255,255,255,0.05)` : 'none',
+                    textShadow: active ? `0 0 8px ${wpn.color}` : 'none',
+                    transition: 'all 0.2s',
+                  }}>
+                  {wpn.label}
+                  <div style={{ fontSize: 7, opacity: 0.7, marginTop: 2 }}>
+                    R{wpn.radius} / D{wpn.maxDmg}
+                  </div>
+                </button>
+              );
+            })}
           </div>
           {/* Fire button */}
           <motion.button

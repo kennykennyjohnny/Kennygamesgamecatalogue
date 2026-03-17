@@ -182,6 +182,14 @@ function AppPartyContent() {
       color: '#d4a574', 
       gradient: 'linear-gradient(135deg, #d4a574 0%, #8b4513 100%)' 
     },
+    { 
+      id: 'emma' as GameType, 
+      name: 'EMMAGAMES', 
+      emoji: '🏀',
+      desc: 'Basket Street Art', 
+      color: '#ff6b35', 
+      gradient: 'linear-gradient(135deg, #ff6b35 0%, #f7931e 50%, #ffcc02 100%)' 
+    },
   ]
 
   return (

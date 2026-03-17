@@ -1,6 +1,6 @@
 // Game type definitions for KennyGames Party
 
-export type GameType = 'sandy' | 'liliano' | 'lea' | 'nour';
+export type GameType = 'sandy' | 'liliano' | 'lea' | 'nour' | 'emma';
 
 export type GameStatus = 'waiting' | 'active' | 'finished';
 export type PlayerStatus = 'waiting' | 'ready' | 'playing' | 'finished';
@@ -87,5 +87,16 @@ export const GAMES_META = {
     minPlayers: 2,
     maxPlayers: 2,
     description: 'Vise et tire sur les pigeons d\'argile !',
+  },
+  emma: {
+    id: 'emma' as GameType,
+    name: 'EMMAGAMES',
+    subtitle: 'Basket Street Art',
+    emoji: '🏀',
+    color: '#ff6b35',
+    gradient: 'linear-gradient(135deg, #ff6b35 0%, #f7931e 50%, #ffcc02 100%)',
+    minPlayers: 2,
+    maxPlayers: 2,
+    description: 'Marque un max de paniers en 30 secondes !',
   },
 } as const;

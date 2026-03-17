@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../utils/client';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 
-// Import all 4 games
+// Import all 5 games
 import LeanavGame from './games/leanav/LeanavGame';
 import NourarcheryGame from './games/nourarchery/NourarcheryGame';
 import SandyGame from './games/sandy/SandyGame';
 import LilianoGame from './games/liliano/LilianoGame';
+import EmmaGame from './games/emma/EmmaGame';
 
 interface GameRoomProps {
   game: {
@@ -180,6 +181,8 @@ export function GameRoom({ game, currentUserId, currentUserName, onBack }: GameR
         return <SandyGame {...commonProps} />;
       case 'liliano':
         return <LilianoGame {...commonProps} />;
+      case 'emma':
+        return <EmmaGame {...commonProps} />;
       default:
         return (
           <div className="text-center p-8">
